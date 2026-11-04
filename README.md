@@ -34,6 +34,7 @@ brand.svg                   الهوية البصرية
 manifest.webmanifest        إضافة إلى الشاشة الرئيسية (PWA-lite)
 Code.gs                     خادم Google Apps Script
 appsscript.json             صلاحيات ونطاق زمني Africa/Cairo
+scripts/preview.py             خادم معاينة محلي بلا ملفات مولّدة أو مخفية
 scripts/build-gas-package.py   بناء gas/Index.html + gas/Fonts.html
 scripts/test-gas-simulated.js  محاكاة Sheets/Calendar/Lock دون شبكة
 scripts/test-ui-smoke.js       فحص DOM لمسار الحجز ولوحة العيادة
@@ -47,10 +48,12 @@ scripts/test-ui-smoke.js       فحص DOM لمسار الحجز ولوحة ال�
 ## تشغيل محلي
 
 ```bash
-python3 -m http.server 3000 --bind 0.0.0.0
+python3 scripts/preview.py           # http://0.0.0.0:8080
+PORT=3000 python3 scripts/preview.py # منفذ آخر عند الحاجة
 ```
 
-ثم افتح `http://localhost:3000`. الواجهة تعمل في **وضع العرض التجريبي**: البيانات تُحفظ في
+الخادم يخدم جذر المستودع لكنه **لا يعرض** `gas/` أو `scripts/` أو أي ملف مخفي؛ استخدمه بدل
+`python3 -m http.server` حتى لا تظهر الحزمة المولّدة للعامة. ثم افتح `http://localhost:8080`. الواجهة تعمل في **وضع العرض التجريبي**: البيانات تُحفظ في
 `localStorage` لهذا المتصفح فقط، ورمز الموظف التجريبي `2468` (غير صالح لأي تشغيل حقيقي).
 وضع العرض يتيح تجربة المسار كاملًا: طلب موعد → تتبع الرقم المرجعي → قبول/رفض/اقتراح وقت بديل
 → إغلاق يوم.
