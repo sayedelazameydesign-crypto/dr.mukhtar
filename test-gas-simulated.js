@@ -1,0 +1,238 @@
+#!/usr/bin/env node
+'use strict';
+
+// Offline simulation only. This does not replace testing in a real Google account.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+
+process.env.TZ = 'Africa/Cairo';
+
+class FakeRange {
+  constructor(sheet, row, column, rowCount = 1, columnCount = 1) {
+    Object.assign(this, { sheet, row, column, rowCount, columnCount });
+  }
+  getValues() {
+    return Array.from({ length: this.rowCount }, (_, rowOffset) =>
+      Array.from({ length: this.columnCount }, (_, columnOffset) =>
+        this.sheet.rows[this.row - 1 + rowOffset]?.[this.column - 1 + columnOffset] ?? ''
+      )
+    );
+  }
+  setValues(values) {
+    if (this.sheet.failNextSet) {
+      this.sheet.failNextSet = false;
+      throw new Error('simulated Sheets write failure');
+    }
+    values.forEach((row, rowOffset) => {
+      const target = this.row - 1 + rowOffset;
+      while (this.sheet.rows.length <= target) this.sheet.rows.push([]);
+      this.sheet.rows[target] = [...row];
+    });
+    return this;
+  }
+  setFontWeight() { return this; }
+  setBackground() { return this; }
+  createTextFinder(value) {
+    const range = this;
+    return {
+      matchEntireCell() { return this; },
+      findNext() {
+        for (let r = range.row - 1; r < range.row - 1 + range.rowCount; r += 1) {
+          if (String(range.sheet.rows[r]?.[range.column - 1] ?? '') === String(value)) {
+            return { getRow: () => r + 1 };
+          }
+        }
+        return null;
+      }
+    };
+  }
+}
+
+class FakeSheet {
+  constructor(name) { this.name = name; this.rows = []; this.failNextSet = false; }
+  getLastRow() { return this.rows.length; }
+  appendRow(row) { this.rows.push([...row]); return this; }
+  getRange(row, column, rowCount = 1, columnCount = 1) {
+    return new FakeRange(this, row, column, rowCount, columnCount);
+  }
+  setFrozenRows() { return this; }
+}
+
+class FakeEvent {
+  constructor(id, title, start, end, options) {
+    Object.assign(this, { id, title, start, end, description: options?.description || '', deleted: false });
+  }
+  getId() { return this.id; }
+  getStartTime() { return this.start; }
+  getEndTime() { return this.end; }
+  getDescription() { return this.description; }
+  setTime(start, end) { this.start = start; this.end = end; }
+  deleteEvent() { this.deleted = true; }
+}
+
+class FakeCalendar {
+  constructor() { this.events = []; this.sequence = 1; }
+  getEvents(start, end) {
+    return this.events.filter((event) => !event.deleted && event.start < end && event.end > start);
+  }
+  createEvent(title, start, end, options) {
+    const event = new FakeEvent(`fake-event-${this.sequence++}`, title, start, end, options);
+    this.events.push(event);
+    if (this.onCreate) { const callback = this.onCreate; this.onCreate = null; callback(event); }
+    return event;
+  }
+  getEventById(id) { return this.events.find((event) => event.id === id && !event.deleted) || null; }
+}
+
+const propertyValues = new Map([
+  ['CELIA_SHEET_ID', 'fake-sheet'], ['CALENDAR_ID', 'primary'],
+  ['ADMIN_PIN', 'fake-admin-secret-32-characters-long'], ['TIMEZONE', 'Africa/Cairo'],
+  ['WORK_START', '09:00'], ['WORK_END', '14:00'], ['SLOT_MINUTES', '30'],
+  ['NEW_VISIT_MINUTES', '60'], ['FOLLOWUP_MINUTES', '30'], ['WORK_DAYS', '0,1,2,3,4']
+]);
+let googleUp = true;
+let calendarUp = true;
+let auditUp = true;
+let scriptLockHeld = false;
+let uuidSequence = 1;
+const sheets = new Map();
+const calendar = new FakeCalendar();
+const spreadsheet = {
+  getSheetByName(name) { if (!googleUp) throw new Error('simulated Sheets outage'); if (name === 'Audit' && !auditUp) throw new Error('simulated Audit outage'); return sheets.get(name) || null; },
+  insertSheet(name) {
+    if (!googleUp) throw new Error('simulated Sheets outage');
+    const sheet = new FakeSheet(name); sheets.set(name, sheet); return sheet;
+  }
+};
+const properties = {
+  getProperty(key) { return propertyValues.has(key) ? propertyValues.get(key) : null; },
+  setProperty(key, value) { propertyValues.set(key, String(value)); return this; },
+  deleteProperty(key) { propertyValues.delete(key); return this; },
+  getProperties() { return Object.fromEntries(propertyValues); },
+  setProperties(values) { Object.entries(values).forEach(([key, value]) => propertyValues.set(key, String(value))); }
+};
+const dateParts = (date, timezone) => Object.fromEntries(
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value])
+);
+const context = {
+  console,
+  PropertiesService: { getScriptProperties: () => properties },
+  LockService: { getScriptLock: () => ({ tryLock: () => { if (scriptLockHeld) return false; scriptLockHeld = true; return true; }, releaseLock: () => { scriptLockHeld = false; } }) },
+  SpreadsheetApp: {
+    openById() { if (!googleUp) throw new Error('simulated Sheets outage'); return spreadsheet; },
+    getActiveSpreadsheet() { if (!googleUp) throw new Error('simulated Sheets outage'); return spreadsheet; }
+  },
+  CalendarApp: {
+    getDefaultCalendar() { return calendarUp ? calendar : null; },
+    getCalendarById() { return calendarUp ? calendar : null; }
+  },
+  Session: { getScriptTimeZone: () => 'Africa/Cairo' },
+  Utilities: {
+    getUuid() { return `00000000-0000-4000-8000-${String(uuidSequence++).padStart(12, '0')}`; },
+    formatDate(date, timezone, pattern) {
+      const p = dateParts(date, timezone);
+      if (pattern === 'yyyy-MM-dd') return `${p.year}-${p.month}-${p.day}`;
+      if (pattern === 'yyyy-MM-dd HH:mm') return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+      throw new Error(`Unsupported simulated date format: ${pattern}`);
+    }
+  },
+  UrlFetchApp: { fetch() { throw new Error('Unexpected network call in offline test'); } }
+};
+
+vm.createContext(context);
+vm.runInContext(fs.readFileSync('gas/Code.gs', 'utf8'), context, { filename: 'gas/Code.gs' });
+
+function nextWorkday() {
+  const date = new Date(); date.setHours(12, 0, 0, 0);
+  for (let i = 1; i <= 14; i += 1) {
+    const candidate = new Date(date); candidate.setDate(date.getDate() + i);
+    if ([0, 1, 2, 3, 4].includes(candidate.getDay())) return candidate.toISOString().slice(0, 10);
+  }
+  throw new Error('Could not find a future workday');
+}
+const day = nextWorkday();
+const pin = propertyValues.get('ADMIN_PIN');
+function request(time, visitType = 'كشف جديد') {
+  return context.createRequest({ visitType, guardianName: 'ولي أمر تجريبي', phone: '0000000000', day, time, consent: true });
+}
+function assertSaved(result, label) {
+  assert.equal(result.ok, true, `${label}: ${result.message || 'request failed'}`);
+  return result.booking;
+}
+
+// Two requests may ask for the same time, but only one may be approved into Calendar.
+const first = assertSaved(request('10:00'), 'first request');
+const second = assertSaved(request('10:00'), 'competing request');
+assert.equal(first.status, 'PENDING_APPROVAL');
+let simultaneousAttempt = null;
+calendar.onCreate = () => { simultaneousAttempt = context.approveRequest(second.reference, pin); };
+assert.equal(context.approveRequest(first.reference, pin).ok, true);
+assert.equal(simultaneousAttempt.ok, false, 'overlapping approval is rejected while the script lock is held');
+assert.equal(context.approveRequest(second.reference, pin).ok, false, 'the subsequent availability recheck also blocks the conflict');
+assert.equal(calendar.events.filter((event) => !event.deleted).length, 1, 'only one confirmed event for overlapping requests');
+const firstEvent = calendar.events.find((event) => !event.deleted);
+assert.equal((firstEvent.end - firstEvent.start) / 60000, 60, 'new visit duration is respected');
+
+// A failed Sheet status write after Calendar creation must be recoverable without a duplicate event.
+const recoverable = assertSaved(request('11:00'), 'recovery request');
+sheets.get('Requests').failNextSet = true;
+assert.equal(context.approveRequest(recoverable.reference, pin).ok, false, 'first attempt reports incomplete persistence');
+const countAfterPartialFailure = calendar.events.filter((event) => !event.deleted).length;
+assert.equal(context.approveRequest(recoverable.reference, pin).ok, true, 'retry completes the confirmation');
+assert.equal(calendar.events.filter((event) => !event.deleted).length, countAfterPartialFailure, 'retry reuses the prior event');
+
+// Editing and cancellation must keep Calendar and the sheet in step.
+assert.equal(context.moveConfirmedAppointment(recoverable.reference, day, '12:00', 'اختبار', pin).ok, true);
+assert.equal(context.cancelRequest(recoverable.reference, 'اختبار', pin).ok, true);
+assert.equal(calendar.events.filter((event) => !event.deleted).length, 1, 'cancellation removes the event');
+
+// Calendar outage leaves a REQUESTED record, not a false confirmation.
+calendarUp = false;
+const withoutCalendar = assertSaved(request('13:00', 'متابعة'), 'calendar outage request');
+assert.equal(withoutCalendar.status, 'REQUESTED');
+assert.equal(withoutCalendar.slotVerified, false);
+calendarUp = true;
+
+// Sheets outage uses the bounded property queue; queued requests cannot be confirmed until synced.
+googleUp = false;
+const queued = assertSaved(request('13:30', 'متابعة'), 'Sheets outage request');
+assert.equal(queued.status, 'REQUESTED');
+assert.equal(context.approveRequest(queued.reference, pin).ok, false, 'queued request cannot be confirmed');
+googleUp = true;
+context.syncOutageQueue_();
+assert.equal(context.lookupBooking(queued.reference).ok, true, 'queued request is synchronized when Sheets returns');
+
+// Audit writes are queued and later synchronized if the request itself has already been saved.
+const auditRecovery = assertSaved(request('13:00', 'متابعة'), 'audit recovery request');
+assert.equal(context.approveRequest(auditRecovery.reference, pin).ok, true);
+auditUp = false;
+const completedDuringAuditOutage = context.completeRequest(auditRecovery.reference, pin);
+assert.equal(completedDuringAuditOutage.ok, true, 'saved status remains successful while audit is queued');
+assert.equal([...propertyValues.keys()].some((key) => key.startsWith('CKA_')), true, 'audit failure creates an offline audit record');
+auditUp = true;
+context.syncAuditQueue_();
+assert.ok(sheets.get('Audit').rows.some((row) => row[3] === 'VISIT_COMPLETED'), 'queued audit is written when Sheets returns');
+
+// If both the Audit sheet and the bounded audit queue are unavailable, report that exception.
+for (let i = 0; i < 100; i += 1) properties.setProperty(`CKA_TEST_${i}`, JSON.stringify(['test']));
+const noAuditCapacity = assertSaved(request('13:30', 'متابعة'), 'full audit queue request');
+assert.equal(context.approveRequest(noAuditCapacity.reference, pin).ok, true);
+auditUp = false;
+const auditCapacityWarning = context.completeRequest(noAuditCapacity.reference, pin);
+assert.equal(auditCapacityWarning.ok, true, 'appointment state write is not misreported as failed');
+assert.match(auditCapacityWarning.warning, /تعذر حفظ سجل التدقيق/, 'unrecorded audit is explicitly reported');
+auditUp = true;
+
+// The queue limit fails closed: never claim a request was stored after capacity is exhausted.
+for (let i = 0; i < 25; i += 1) properties.setProperty(`CKQ_TEST_${i}`, JSON.stringify({ reference: `TEST-${i}` }));
+googleUp = false;
+const fullQueue = request('09:30', 'متابعة');
+assert.equal(fullQueue.ok, false, 'full queue rejects rather than falsely accepting');
+googleUp = true;
+
+console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, and request-queue-full rejection.');
+console.log('Reminder: these mocked-service tests do not establish Google quotas, permissions, live deployment behavior, or legal readiness.');
