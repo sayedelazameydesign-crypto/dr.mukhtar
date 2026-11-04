@@ -1,0 +1,8 @@
+# generated Apps Script bundle (recreate with: python3 scripts/build-gas-package.py)
+gas/
+
+# local preview / tooling
+_site/
+node_modules/
+.DS_Store
+*.log

@@ -1,5 +1,5 @@
 /**
- * Celia Kids MVP — Google Apps Script backend.
+ * Celia Kids — Google Apps Script backend (2026 edition).
  * Data handled here is administrative contact data only. Never add medical notes.
  */
 const CK = {
@@ -23,6 +23,27 @@ function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('Celia Kids | حجز مواعيد الأطفال')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/** Public read-only availability, cached briefly to protect Calendar read quota. */
+function getAvailableSlotsCached_(day, visitType) {
+  if (typeof CacheService === 'undefined') return null;
+  try {
+    const key = 'CK_SLOTS_' + String(day) + '_' + String(visitType || '');
+    const hit = CacheService.getScriptCache().get(key);
+    return hit ? JSON.parse(hit) : null;
+  } catch (error) { return null; }
+}
+
+function putAvailableSlotsCached_(day, visitType, slots) {
+  if (typeof CacheService === 'undefined') return;
+  try {
+    CacheService.getScriptCache().put(
+      'CK_SLOTS_' + String(day) + '_' + String(visitType || ''),
+      JSON.stringify(slots),
+      30 // seconds: short enough that approvals always re-check the calendar
+    );
+  } catch (error) { /* cache is best-effort; availability is re-verified on write */ }
 }
 
 /** Run once from the bound spreadsheet's Apps Script editor and approve Google permissions. */
@@ -79,6 +100,8 @@ function include(filename) {
 function getAvailableSlots(day, visitType) {
   try {
     if (!isValidDay_(day)) return { ok: false, message: 'التاريخ غير صحيح.' };
+    const cached = getAvailableSlotsCached_(day, visitType || 'كشف جديد');
+    if (cached) return { ok: true, slots: cached, cached: true };
     const config = getConfig_();
     const date = makeDate_(day, config.start);
     if (!config.workDays.includes(date.getDay())) return { ok: true, slots: [] };
@@ -91,6 +114,7 @@ function getAvailableSlots(day, visitType) {
       const time = minutesToTime_(minute);
       if (isSlotAvailable_(day, time, visitMinutes, '')) slots.push(time);
     }
+    putAvailableSlotsCached_(day, visitType || 'كشف جديد', slots);
     return { ok: true, slots: slots };
   } catch (error) {
     return { ok: false, message: 'تعذر التحقق من تقويم العيادة الآن. يمكن إرسال وقت مفضل للمراجعة دون تأكيد.' };

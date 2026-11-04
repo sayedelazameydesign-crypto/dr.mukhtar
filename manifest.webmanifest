@@ -1,0 +1,16 @@
+{
+  "name": "Celia Kids — حجز مواعيد الأطفال",
+  "short_name": "Celia Kids",
+  "description": "طلب مواعيد عيادة الأطفال مع تأكيد بشري من العيادة.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7f2",
+  "theme_color": "#0f7a6c",
+  "icons": [
+    { "src": "./brand.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "./brand.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
