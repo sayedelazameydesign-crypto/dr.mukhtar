@@ -17,9 +17,10 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  # configure-pages needs administration:write to CREATE the Pages site on the
-  # first run; pages:write alone cannot enable it (it fails with "Not Found").
-  administration: write
+  # NOTE: "administration" is NOT a valid permissions key (GitHub rejects the
+  # whole workflow with "Unexpected value 'administration'"). Creating the Pages
+  # site needs an OWNER PAT with Administration+Pages write, passed to the
+  # enablement step below — GITHUB_TOKEN can never do it.
 
 concurrency:
   group: pages
