@@ -1,0 +1,132 @@
+{
+  "$comment": "Phase-1 audit output. Read-only findings: nothing in the repository was changed to produce this file's evidence. Baseline measured 2026-11-05 on 1a1ab54 with jsdom@25 present (NODE_PATH=/tmp/jsd/node_modules).",
+  "measured_at": "2026-11-05",
+  "base_commit": "1a1ab54",
+
+  "open_gaps": [
+    {
+      "id": "G1",
+      "title": "لم يُشغّل المسار الحقيقي في حساب Google",
+      "reason": "Approval, locking, Sheets schema, Calendar conflict handling and audit queue are proven only against a scripted fake (test-gas-simulated.js stubs UrlFetchApp). No live run has ever been recorded.",
+      "status_in_report": "غير مُتحقَّق",
+      "closable_by_code": false,
+      "needs_user_data": false,
+      "needs_google_account": true,
+      "owner": "user",
+      "closure": "Run the seven rehearsal steps in docs/go-live.md §3 (B-1…B-5) on a real account and fill scripts/rehearsal-checklist.json evidence fields."
+    },
+    {
+      "id": "G2",
+      "title": "إعدادات GitHub غير مفعّلة: 0 أسرار · 0 متغيّرات · main غير محمية",
+      "reason": "gh api reports variables 0, secrets 0, branches/main.protected=false. The secrets manifest is declared policy, not enforced state. The agent session cannot read or create repository settings.",
+      "status_in_report": "غير مُتحقَّق",
+      "closable_by_code": false,
+      "needs_user_data": false,
+      "needs_google_account": false,
+      "owner": "user",
+      "closure": "Run sh scripts/bootstrap-github.sh on the owner's gh session (docs/secrets.md §7a-2). Note: zero secrets is the correct state for CI; what is missing is branch protection."
+    },
+    {
+      "id": "G5",
+      "title": "قاعدة المدد والساعات مكرّرة بين الواجهة والخادم",
+      "reason": "app.js recomputes visit duration and busy spans; Code.gs does the same against Calendar. Today both agree (check-settings-parity proves 15 fields match), but the duplication is the defect: a future edit to one side diverges silently.",
+      "status_in_report": null,
+      "closable_by_code": true,
+      "needs_user_data": false,
+      "needs_google_account": false,
+      "owner": "cc",
+      "closure": "Generate both sides from one shared fixture, or extend check-settings-parity to compare durations/busy spans across the two implementations."
+    },
+    {
+      "id": "G14",
+      "title": "جسر Google مُتحقَّق فقط ضد بديل مكتوب",
+      "reason": "config/google.profile.json absent; the example profile has every layout id null. Drive/Sheets/Calendar paths are proven only against a fake, so scope and folder-visibility issues cannot surface here.",
+      "status_in_report": "غير مُتحقَّق",
+      "closable_by_code": false,
+      "needs_user_data": false,
+      "needs_google_account": true,
+      "owner": "user",
+      "closure": "Run docs/google-setup.md §2 steps 7–10 on the dev account, record the selftest output in scripts/rehearsal-checklist.json."
+    }
+  ],
+
+  "readiness_report_items": [
+    { "id": "A1", "label": "الموقع المنشور", "reason": "The sandbox network cannot reach the public site (fetch failed); live checks are «غير مُتحقَّق», not failures. Verified separately through fetch_page, which is not the gate's own path.", "closable_by_code": false, "needs_user_data": false, "needs_google_account": false, "owner": "user" },
+    { "id": "A2", "label": "اسم العيادة الحقيقي", "reason": "Empty in clinic.json. The name may not be invented.", "closable_by_code": false, "needs_user_data": true, "needs_google_account": false, "owner": "user" },
+    { "id": "A3", "label": "هاتف العيادة", "reason": "Empty in clinic.json. Without it the call and WhatsApp buttons have no target.", "closable_by_code": false, "needs_user_data": true, "needs_google_account": false, "owner": "user" },
+    { "id": "A4", "label": "اسم الطبيب", "reason": "Empty in clinic.json. May not be inferred from the clinic name.", "closable_by_code": false, "needs_user_data": true, "needs_google_account": false, "owner": "user" },
+    { "id": "A5", "label": "رقم الترخيص", "reason": "Empty in clinic.json. Must be the real licence number; an unverified one is worse than none.", "closable_by_code": false, "needs_user_data": true, "needs_google_account": false, "owner": "user" },
+    { "id": "U1", "label": "الخادم يعمل في حساب Google", "reason": "Same root cause as G1: no live Apps Script deployment exists.", "closable_by_code": false, "needs_user_data": false, "needs_google_account": true, "owner": "user" },
+    { "id": "U2", "label": "حماية main (مطلوب PR + CI)", "reason": "Branch protection cannot be read without repository admin; gh api says protected=false.", "closable_by_code": false, "needs_user_data": false, "needs_google_account": false, "owner": "user" },
+    { "id": "U3", "label": "أسرار/متغيّرات GitHub", "reason": "Values are never readable by design; only names are in the manifest. Status can only be confirmed by running the Setup status workflow or setup-github.js locally.", "closable_by_code": false, "needs_user_data": false, "needs_google_account": false, "owner": "user" }
+  ],
+
+  "silent_gates": [
+    {
+      "id": "S1",
+      "severity": "high",
+      "location": ".github/workflows/setup-status.yml:36",
+      "pattern": "node scripts/setup-github.js || true",
+      "why": "The only place that compares declared secrets/variables against real repository settings. It is the reporter for U3 and G2, and it cannot fail: a run that detects an empty, drifted or missing configuration still reports success. It has been green by construction.",
+      "kind": "gate_that_cannot_fail",
+      "fixable_by_code": true,
+      "fix": "Run it twice: the report step with output captured, then a verdict step that fails with an annotation naming what is missing. Keep the schedule non-blocking only for names that are correctly absent (zero secrets is valid); fail on drift from the manifest."
+    },
+    {
+      "id": "S2",
+      "severity": "medium",
+      "location": ".github/workflows/pages.yml:56",
+      "pattern": "cp -r assets/. _site/assets/ 2>/dev/null || true",
+      "why": "If assets/ is ever renamed or empty, the deploy publishes a site with no fonts and no error. The self-containment guard greps for external CDNs but does not require local font files to exist.",
+      "kind": "masked_deploy_failure",
+      "fixable_by_code": true,
+      "fix": "Copy without masking, and assert the expected font count in test-publish-contract.js."
+    },
+    {
+      "id": "S3",
+      "severity": "medium",
+      "location": ".github/workflows/ci.yml:171",
+      "pattern": "/tmp/gitleaks dir . --exit-code 0 || true  (report parsed afterwards)",
+      "why": "Deliberate: the decision is taken from the JSON report, so a finding becomes an annotation instead of a bare exit code. It is only safe while the reporter itself runs — if the JSON parse throws, the node reporter does exit 1, but the || true would also swallow a crash in gitleaks that still left a stale /tmp/leaks.json from a previous step.",
+      "kind": "acceptable_but_untested",
+      "fixable_by_code": true,
+      "fix": "Remove the stale-report risk by deleting /tmp/leaks.json before the scan, and add a negative test that feeds the reporter a non-empty report."
+    },
+    {
+      "id": "S4",
+      "severity": "low",
+      "location": ".github/workflows/ci.yml:39",
+      "pattern": "node scripts/check-workflows.js (no --strict)",
+      "why": "Seven live warnings are printed and exit 0: four declared-only secrets, two unreferenced variables, and a stale map commit. Declared-only is policy, but the map-staleness warning has been true for several commits and nothing acts on it.",
+      "kind": "warning_never_actioned",
+      "fixable_by_code": true,
+      "fix": "Promote the map-staleness warning to an error (the map must be refreshed on the commit that changes behaviour); keep declared-only warnings as warnings."
+    },
+    {
+      "id": "S5",
+      "severity": "low",
+      "location": "scripts/live-llm-smoke.js:30-32",
+      "pattern": "skip() → process.exit(0) when GEMINI_API_KEY is absent",
+      "why": "The live provider probe reports success when it never ran, and CI shows a green check named «live LLM smoke (optional)». Acceptable only because the name says optional and the flag LLM_SMOKE_ENABLED turns a missing key into a failure.",
+      "kind": "skip_reported_as_success",
+      "fixable_by_code": true,
+      "fix": "Print SKIPPED (explicit) and keep exit 0 (a fork PR cannot have the key), but make the job name derive from the outcome so a skip is never rendered as a pass."
+    },
+    {
+      "id": "S6",
+      "severity": "info",
+      "location": ".github/workflows/pages.yml:100",
+      "pattern": "continue-on-error: true on configure-pages enablement",
+      "why": "Justified: a PR build must stay meaningful before a Pages site exists, and the next step turns a missing site into an explicit error.",
+      "kind": "reviewed_acceptable",
+      "fixable_by_code": false,
+      "fix": "none — documented decision"
+    }
+  ],
+
+  "not_a_gate": [
+    "scripts/scan-secrets.js — its exit 0 paths are a clean scan and a --list mode; verified by reading both.",
+    "scripts/check-config.js, scripts/check-settings-parity.js — exit 0 only on a clean pass (0 warnings printed).",
+    "actionlint, gitleaks, jsdom suites, test-publish-contract.js — already fail loudly since PR #32; re-confirmed by injection in this round."
+  ]
+}
