@@ -21,7 +21,14 @@ const SCRIPT = path.join(ROOT, 'scripts', 'go-live-check.js');
 const template = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'clinic.example.json'), 'utf8')).properties;
 const defaults = Object.fromEntries(Object.entries(template).map(([key, spec]) => [key, spec.value]));
 
-const run = (args) => spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8' });
+// The report runs the repository's gates, so its verdict depends on this machine. Pin the
+// browser gate to an explicit skip so the suite tests the report's logic, not whether the
+// sandbox happens to have jsdom installed.
+const run = (args) => spawnSync(process.execPath, [SCRIPT, ...args], {
+  cwd: ROOT,
+  encoding: 'utf8',
+  env: { ...process.env, CELIA_ALLOW_SKIP_UI: '1', NODE_PATH: '' }
+});
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'go-live-'));
 const writeProps = (name, overrides) => {
   const file = path.join(tmp, name);
@@ -75,6 +82,25 @@ const check = (label, condition, detail = '') => {
   check('the shipped placeholder name is not treated as the clinic name',
     /يحتاج إجراء\s+اسم العيادة/.test(result.stdout), 'placeholder accepted');
   check('a missing phone blocks readiness', result.status === 1);
+}
+
+// 3b — a skipped browser gate must not be reported as ready.
+{
+  const file = writeProps('skip.json', {
+    CLINIC_NAME: 'عيادة النور للأطفال', CLINIC_PHONE: '01001234567',
+    DOCTOR_NAME: 'د. سارة', DOCTOR_LICENSE: 'EG-1',
+    VISIT_SERVICES: 'كشف جديد = 60 = 250'
+  });
+  const strict = spawnSync(process.execPath, [SCRIPT, '--offline', '--profile', file], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    env: { ...process.env, CELIA_ALLOW_SKIP_UI: '', NODE_PATH: '' }
+  });
+  const saysSkipIsAnAction = /يحتاج إجراء\s+الواجهة في متصفح/.test(strict.stdout);
+  const noJsdomHere = /SKIPPED-WITH-FAILURE/.test(strict.stdout);
+  check('a skipped browser gate is an action, never a pass',
+    !noJsdomHere || (saysSkipIsAnAction && strict.status === 1),
+    'the report called a skipped gate ready');
 }
 
 // 4 — a broken gate must surface as an action, not as a pass.

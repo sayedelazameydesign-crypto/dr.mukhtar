@@ -67,8 +67,17 @@ curl -sI https://sayedelazameydesign-crypto.github.io/dr.mukhtar/ | head -1   # 
 
 ## 5 | ما لا يُنشر أبدًا
 
-`.gitignore` + خطوة `Assemble static site` تنشر **ستة عناصر فقط**: `index.html`، `app.css`، `app.js`،
-`brand.svg`، `manifest.webmanifest`، `assets/`. أي شيء آخر (باكند، سكربتات، بروفايلات، خرائط، أسرار) يبقى خارج النشر.
+خطوة `Assemble static site` تعمل بـ**قائمة سماح صريحة** (allow-list): ما يُنشر هو
+`index.html` · `app.css` · `app.js` · `brand.svg` · `manifest.webmanifest` · `robots.txt` ·
+`sitemap.xml` · `404.html` · `clinic.json` · `assets/` — **١٠ عناصر، ٢٢ ملفًا، ٦٠٤ كيلوبايت**.
+
+كل ما عدا ذلك داخليٌّ بحكم الأصل: الباكند (`Code.gs`, `Llm.gs`, `Settings.gs`, `appsscript.json`)،
+السكربتات، الإعدادات، البروفايلات، الخرائط، وسجلات الطرفية.
+
+> **لماذا تغيّر هذا:** كانت الخطوة تنسخ المستودع كله ثم تستثني قائمة (deny-list)، فنُشرت فعليًا
+> ملفات داخلية وسجلّان طرفيان بحجم ٨٦ كيلوبايت. القائمة السوداء تُفشل بصمت عند إضافة ملف جديد؛
+> القائمة البيضاء تفشل بصوت عالٍ (`scripts/check-workflows.js` يرفض أي ملف داخلي في قائمة النشر).
+> الدليل: `docs/production-readiness.md` — البند P0-1.
 
 ## 6 | بديل بصفر إعدادات
 

@@ -14,7 +14,14 @@ let JSDOM;
 try {
   ({ JSDOM } = require('jsdom'));
 } catch (error) {
-  console.log('SKIPPED: jsdom is not installed. Run `npm i --no-save jsdom` to enable the UI smoke test.');
+  // A skipped browser test used to exit 0, so CI looked green while the UI was not
+  // exercised at all. Fail by default; a deliberate skip must be asked for explicitly.
+  if (!process.env.CELIA_ALLOW_SKIP_UI) {
+    console.error('SKIPPED-WITH-FAILURE: jsdom is not installed, so this test did not run.');
+    console.error('Install it (npm i --no-save --prefix /tmp jsdom) or set CELIA_ALLOW_SKIP_UI=1 to accept the gap explicitly.');
+    process.exit(1);
+  }
+  console.log('SKIPPED (explicit): jsdom is not installed and CELIA_ALLOW_SKIP_UI=1 was set.');
   process.exit(0);
 }
 

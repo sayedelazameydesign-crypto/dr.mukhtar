@@ -44,13 +44,18 @@ jobs:
       - name: Setup checker tests
         run: node scripts/test-setup-github.js
 
+      - name: Publish contract (what reaches the public site)
+        run: node scripts/test-publish-contract.js
+
       - name: actionlint (preinstalled on the runner images)
         run: |
-          if command -v actionlint >/dev/null 2>&1; then
-            actionlint -color
-          else
-            echo "::warning::actionlint is not preinstalled on this runner image; scripts/check-workflows.js already covered the local rules."
+          # A missing linter used to be a warning, i.e. a gate that silently disappears
+          # (gap G13). Fetch it when the image does not carry it, and fail if both fail.
+          if ! command -v actionlint >/dev/null 2>&1; then
+            echo "actionlint not preinstalled — fetching the pinned release"
+            bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.7
           fi
+          ./actionlint -color || actionlint -color
 
       - name: Syntax gate (JS)
         run: |
@@ -79,8 +84,12 @@ jobs:
 
       - name: UI smoke test (jsdom)
         timeout-minutes: 10
+        # The browser tests now fail (not skip) when jsdom is missing; this step makes the
+        # install itself a hard prerequisite so coverage cannot vanish silently.
         run: |
+          set -euo pipefail
           npm i --no-save --no-audit --no-fund jsdom@25
+          node -e "require.resolve('jsdom'); console.log('jsdom present')"
           node scripts/test-ui-smoke.js
           node scripts/test-published-clinic.js
           node scripts/test-demo-availability.js
