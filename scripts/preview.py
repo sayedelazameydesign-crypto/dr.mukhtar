@@ -22,7 +22,7 @@ PORT = int(os.environ.get("PORT", "8080"))
 HOST = os.environ.get("HOST", "0.0.0.0")
 
 # Never served: generated Apps Script bundle, git data, tests and tooling.
-BLOCKED_PREFIXES = ("gas/", "scripts/", ".git/", ".github/", "_site/", "node_modules/")
+BLOCKED_PREFIXES = ("gas/", "scripts/", "config/", "docs/", ".git/", ".github/", "_site/", "node_modules/")
 BLOCKED_FILES = {"app.config.ts", "manus-routes.json", "SKILL.md"}
 BLOCKED_SUFFIXES = (".py", ".gs", ".ts")
 

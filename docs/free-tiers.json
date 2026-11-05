@@ -1,0 +1,117 @@
+{
+  "$schema_note": "Zero-Card ledger. One entry per external service. Re-verify every 30 days against the official pricing page before adopting. Limits are snapshots, not guarantees.",
+  "policy": {
+    "checked": "2026-11-04",
+    "reverify_by": "2026-12-04",
+    "allowed_signup": ["email", "GitHub", "Google"],
+    "forbidden": ["card at sign-up", "card-required trial", "pre-auth hold", "verification charge"],
+    "rule_if_card_requested": "stop, do not enter card, pick fallback, log the incident here"
+  },
+  "services": [
+    {
+      "service": "github-pages",
+      "role": "static hosting of the booking site",
+      "checked": "2026-11-04",
+      "card_required": false,
+      "signup": "GitHub account",
+      "limits": "public repos: 1 GB site, 100 GB/month soft bandwidth, 10 builds/hour",
+      "terms_note": "static sites only, no server-side code; commercial use allowed",
+      "quota_config": "n/a (platform limits)",
+      "fallback": "cloudflare-pages",
+      "adapter": "static files at repo root; no provider-specific code"
+    },
+    {
+      "service": "cloudflare-pages",
+      "role": "fallback static host / preview builds",
+      "checked": "2026-11-04",
+      "card_required": false,
+      "signup": "email",
+      "limits": "Workers free: 100k requests/day, 500 builds/month",
+      "terms_note": "verify current free plan wording before adopting",
+      "quota_config": "n/a",
+      "fallback": "netlify-static",
+      "adapter": "same static bundle, no code change"
+    },
+    {
+      "service": "netlify-static",
+      "role": "second fallback static host",
+      "checked": "2026-11-04",
+      "card_required": false,
+      "signup": "GitHub or email",
+      "limits": "free credit-based plan; verify credit allotment",
+      "terms_note": "credit model changes often — read the pricing page before adopting",
+      "quota_config": "n/a",
+      "fallback": "github-pages",
+      "adapter": "same static bundle"
+    },
+    {
+      "service": "google-apps-script",
+      "role": "clinic backend: booking rules, Sheets persistence, Calendar events",
+      "checked": "2026-11-04",
+      "card_required": false,
+      "signup": "Google account",
+      "limits": "consumer account quotas: 20k UrlFetch calls/day, 90 min/day trigger runtime, Sheets 10M cells, Calendar read/write subject to Google quota changes",
+      "terms_note": "consumer quotas are not an SLA; clinic must accept documented limits before go-live",
+      "quota_config": "SLOT_MINUTES, WORK_DAYS, WORK_START/END, LLM_DAILY_LIMIT, LLM_HOURLY_LIMIT (Script Properties)",
+      "fallback": "self-hosted Node backend behind the same google.script.run-shaped API",
+      "adapter": "app.js talks only to api()/callServer(); Code.gs is the single provider file"
+    },
+    {
+      "service": "google-sheets",
+      "role": "system of record for requests, audit trail, closures",
+      "checked": "2026-11-04",
+      "card_required": false,
+      "signup": "Google account",
+      "limits": "no automatic backups on free tier; 10M cells per file",
+      "terms_note": "no PII beyond contact fields; no medical data ever",
+      "quota_config": "MAX_OUTAGE_REQUESTS=25, MAX_OUTAGE_AUDITS=100 (bounded outage queues)",
+      "fallback": "turso",
+      "adapter": "requestsSheet_/auditSheet_/closuresSheet_ are the only Sheet touch points"
+    },
+    {
+      "service": "google-calendar",
+      "role": "source of truth for doctor availability",
+      "checked": "2026-11-04",
+      "card_required": false,
+      "signup": "Google account",
+      "limits": "read/write quotas change without notice; availability reads cached 30s",
+      "terms_note": "clinic-owned calendar; never share credentials",
+      "quota_config": "availability cache 30s (CK getAvailableSlotsCached_)",
+      "fallback": "caldav-provider",
+      "adapter": "getCalendar_() + findCalendarEvent_() only"
+    },
+    {
+      "service": "gemini-api",
+      "role": "optional administrative assistant (never in booking decisions)",
+      "checked": "2026-11-04",
+      "card_required": false,
+      "signup": "email / Google",
+      "limits": "free tier limits were reduced in Dec 2025 — read live limits in AI Studio; this app caps itself at LLM_DAILY_LIMIT (25) and LLM_HOURLY_LIMIT (20)",
+      "terms_note": "free-tier inputs may be used to improve models → no PII/medical text is forwarded (screened in Code.gs before the adapter)",
+      "quota_config": "LLM_DAILY_LIMIT, LLM_HOURLY_LIMIT, LLM_CACHE_TTL_SEC, LLM_CIRCUIT_FAILS, LLM_COOLDOWN_S",
+      "fallback": "groq",
+      "adapter": "Llm.gs only — swapping provider = editing LLM.PROVIDERS"
+    },
+    {
+      "service": "groq",
+      "role": "fallback LLM provider for the administrative assistant",
+      "checked": "2026-11-04",
+      "card_required": false,
+      "signup": "email / GitHub / Google",
+      "limits": "free tier with per-minute and per-day token limits — verify live in console",
+      "terms_note": "add a PROVIDERS entry before relying on it; do not send PII",
+      "quota_config": "reuses LLM_* settings; provider model name stays in Script Properties",
+      "fallback": "local-ollama",
+      "adapter": "Llm.gs PROVIDERS.groq (not implemented yet — secondary chain slot in LLM_CHAIN is ignored until defined)"
+    }
+  ],
+  "known_card_required_avoided": [
+    { "service": "fly.io", "reason": "card required at sign-up" },
+    { "service": "koyeb", "reason": "card required" },
+    { "service": "aws", "reason": "card required" },
+    { "service": "gcp-cloud-run", "reason": "billing account + card" },
+    { "service": "azure", "reason": "card required" },
+    { "service": "oracle-cloud", "reason": "card verification" },
+    { "service": "anthropic-api", "reason": "direct API requires paid account" }
+  ]
+}

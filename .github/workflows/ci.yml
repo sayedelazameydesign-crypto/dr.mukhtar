@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: lint · typecheck · test · build · audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax gate (JS)
+        run: |
+          node --check app.js
+          node -e "new Function(require('fs').readFileSync('Code.gs','utf8')); new Function(require('fs').readFileSync('Llm.gs','utf8')); console.log('Apps Script sources parse');"
+
+      - name: Python syntax gate
+        run: python3 -m py_compile scripts/build-gas-package.py scripts/preview.py
+
+      - name: Backend simulation tests
+        run: node scripts/test-gas-simulated.js
+
+      - name: LLM adapter + config tests
+        run: node scripts/test-llm-adapter.js
+
+      - name: UI smoke test (jsdom)
+        run: |
+          npm i --no-save --no-audit --no-fund jsdom@25
+          node scripts/test-ui-smoke.js
+
+      - name: Build Apps Script bundle
+        run: python3 scripts/build-gas-package.py
+
+      - name: Bundle self-containment guard
+        run: |
+          test -f gas/Index.html && test -f gas/Fonts.html && test -f gas/Llm.gs
+          if grep -rn "http://localhost\|127.0.0.1\|fonts.googleapis\|fonts.gstatic\|<script src=\"\./app\.js\"" gas/Index.html; then
+            echo "::error::GAS bundle must not reference local preview assets or external font CDNs."
+            exit 1
+          fi
+
+      - name: Config contract
+        run: node scripts/check-config.js
+
+      - name: Zero-Card ledger is valid JSON
+        run: node -e "const d=require('./docs/free-tiers.json'); if(!Array.isArray(d.services)||!d.services.length) throw new Error('services missing'); d.services.forEach(s=>{if(!('card_required' in s)) throw new Error('card_required missing for '+s.service)}); console.log('free-tiers.json OK:', d.services.length, 'services');"
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dependency audit
+        run: |
+          if [ -f package-lock.json ]; then npm audit --audit-level=high; else echo "No npm manifest: zero runtime dependencies by design — skipping audit."; fi

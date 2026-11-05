@@ -62,8 +62,10 @@ PORT=3000 python3 scripts/preview.py # منفذ آخر عند الحاجة
 
 ```bash
 node scripts/test-gas-simulated.js   # منافسة المواعيد، فشل Sheets/Calendar/Audit، طوابير الانقطاع
+node scripts/test-llm-adapter.js     # إعادة المحاولة، القاطع، الحصة، الكاش، حجب PII، تنقية المخرجات
 node scripts/test-ui-smoke.js        # بناء DOM كامل: حجز، تتبع، دخول اللوحة، سؤال إداري
-python3 scripts/build-gas-package.py # بناء حزمة Apps Script
+node scripts/check-config.js         # عقد الإعداد (24 مفتاحًا) ضد قالب clinic.example.json
+python3 scripts/build-gas-package.py # بناء حزمة Apps Script (Index + Fonts + Code + Llm)
 ```
 
 `test-ui-smoke.js` يعمل عبر `jsdom`، وإن لم يكن مثبتًا يطبع تعليمات التثبيت ويتوقف بلطف.
@@ -119,6 +121,26 @@ gh api -X POST repos/sayedelazameydesign-crypto/dr.mukhtar/pages -f source.branc
 - حالات مدعومة: `REQUESTED` · `PENDING_APPROVAL` · `CONFIRMED` · `RESCHEDULED` · `CANCELLED` · `COMPLETED`.
 
 ---
+
+## الامتثال لسياسة Zero-Card
+
+- كل خدمة خارجية بدون بطاقة: GitHub Pages للنشر، Google Apps Script + Sheets + Calendar للخادم،
+  Gemini اختياري للمساعد. البطاقات غير مطلوبة في أي خطوة، ولم تُستخدم أي نسخة تجريبية ببطاقة.
+- السجل الكامل في `docs/free-tiers.json` (تاريخ الفحص، الحدود، البديل، ملاحظة الشروط) وخطة الخروج
+  في `docs/exit-plan.md` (كل مزوّد يُستبدل في أقل من يوم).
+- المفاتيح والحدود كلها في Script Properties لا في الكود؛ `config/clinic.example.json` يوثّق كل مفتاح
+  ويُفحص بـ `node scripts/check-config.js`.
+- المساعد الاختياري خلف محوّل واحد `Llm.gs`: تبديل Gemini إلى Groq يعني تعديل `LLM.PROVIDERS` فقط،
+  مع احتياطي متسلسل، إعادة محاولة بأُسّية، قاطع دائرة، حد يومي/ساعي، وكاش بالهاش — ولا تُرسل أي بيانات
+  شخصية لأن الفحص يحدث قبل المزوّد.
+
+## الأمان والتشغيل
+
+- `SECURITY.md` يوضّح ما يُخزَّن، الضوابط الحالية، القيود المقبولة، وإجراء تدوير المفاتيح.
+- `AGENTS.md` هو المرجع الوحيد لقواعد العمل في هذا المستودع (بما فيها منع التأكيد التلقائي
+  ومنع البيانات الطبية).
+- فحوص الجودة في `.github/workflows/ci.yml`: صياغة → اختبارات الخادم → اختبارات المحوّل → فحص
+  الواجهة → بناء الحزمة → بوّابة العزل → عقد الإعداد → سجل المزوّدين → gitleaks.
 
 ## الخصوصية والحدود
 

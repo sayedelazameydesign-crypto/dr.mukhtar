@@ -17,6 +17,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -32,6 +33,9 @@ jobs:
 
       - name: Verify backend simulation
         run: node scripts/test-gas-simulated.js
+
+      - name: Verify LLM adapter + config
+        run: node scripts/test-llm-adapter.js
 
       - name: Guard against localhost and external font CDNs
         run: |
@@ -51,6 +55,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

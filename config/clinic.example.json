@@ -1,0 +1,29 @@
+{
+  "$comment": "Runtime config contract. Source of truth at runtime = Google Apps Script → Project Settings → Script Properties (key below = property name). The env_var field documents the 12-factor name for a future non-GAS backend. Never commit real secrets. Validated at startup by validateConfig() (Code.gs) and by scripts/check-config.js.",
+  "properties": {
+    "ADMIN_PIN": { "value": "", "required": true, "secret": true, "rule": "length >= 16, must not equal the demo pin 2468, must not be a single repeated character" },
+    "TIMEZONE": { "value": "Africa/Cairo", "required": true, "secret": false, "rule": "IANA timezone name" },
+    "WORK_START": { "value": "09:00", "required": true, "secret": false, "rule": "HH:MM, must be before WORK_END" },
+    "WORK_END": { "value": "14:00", "required": true, "secret": false, "rule": "HH:MM, must be after WORK_START" },
+    "SLOT_MINUTES": { "value": "30", "required": false, "secret": false, "rule": "positive integer minutes" },
+    "NEW_VISIT_MINUTES": { "value": "60", "required": false, "secret": false, "rule": "positive integer minutes" },
+    "FOLLOWUP_MINUTES": { "value": "30", "required": false, "secret": false, "rule": "positive integer minutes" },
+    "WORK_DAYS": { "value": "0,1,2,3,4", "required": false, "secret": false, "rule": "comma separated 0..6 where 0 = Sunday" },
+    "CALENDAR_ID": { "value": "", "required": false, "secret": false, "rule": "existing calendar id; created automatically when empty" },
+    "CELIA_SHEET_ID": { "value": "", "required": false, "secret": false, "rule": "only for standalone scripts; bound scripts detect the sheet" },
+    "GEMINI_API_KEY": { "value": "", "required": false, "secret": true, "rule": "optional; enables the administrative assistant only" },
+    "GEMINI_MODEL": { "value": "gemini-2.5-flash", "required": false, "secret": false, "rule": "model name lives in config, never in code" },
+    "LLM_CHAIN": { "value": "gemini", "required": false, "secret": false, "rule": "ordered provider ids defined in Llm.gs PROVIDERS" },
+    "LLM_TIMEOUT_MS": { "value": "20000", "required": false, "secret": false, "rule": "2000..60000" },
+    "LLM_RETRIES": { "value": "2", "required": false, "secret": false, "rule": "0..4" },
+    "LLM_BACKOFF_BASE_MS": { "value": "700", "required": false, "secret": false, "rule": "100..5000" },
+    "LLM_BACKOFF_MAX_MS": { "value": "6000", "required": false, "secret": false, "rule": "500..30000" },
+    "LLM_CIRCUIT_FAILS": { "value": "5", "required": false, "secret": false, "rule": "1..50 consecutive failures before cooling down" },
+    "LLM_COOLDOWN_S": { "value": "60", "required": false, "secret": false, "rule": "10..3600" },
+    "LLM_DAILY_LIMIT": { "value": "25", "required": false, "secret": false, "rule": "1..500 per provider per day (GEMINI_DAILY_LIMIT still honoured)" },
+    "LLM_HOURLY_LIMIT": { "value": "20", "required": false, "secret": false, "rule": "1..500 requests per hour" },
+    "LLM_MAX_OUTPUT_TOKENS": { "value": "220", "required": false, "secret": false, "rule": "64..1024" },
+    "LLM_MAX_INPUT_CHARS": { "value": "500", "required": false, "secret": false, "rule": "50..2000" },
+    "LLM_CACHE_TTL_SEC": { "value": "21600", "required": false, "secret": false, "rule": "0 disables cache; max 21600" }
+  }
+}

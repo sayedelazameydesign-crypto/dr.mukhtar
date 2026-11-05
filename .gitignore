@@ -6,3 +6,13 @@ _site/
 node_modules/
 .DS_Store
 *.log
+__pycache__/
+*.pyc
+
+# secrets and property exports — never commit
+.env
+.env.*
+!.env.example
+*properties*.json
+!config/clinic.example.json
+service-account*.json

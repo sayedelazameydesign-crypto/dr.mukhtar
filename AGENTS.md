@@ -1,0 +1,85 @@
+# AGENTS.md — Celia Kids
+
+Single source of truth for any AI agent (or human) working in this repository.
+Compatible client rule files (`CLAUDE.md`, etc.) should stay thin and point here.
+
+## 1. What this is
+
+Arabic (RTL) booking-intake site for a single paediatric clinic. A guardian files a
+request; **staff approval is the only path to a confirmed appointment**. Guardian
+contact data only — **no medical data, ever**.
+
+Three runtimes, one source of truth:
+
+| Layer | Files | Runtime |
+| --- | --- | --- |
+| Static site | `index.html`, `app.css`, `app.js`, `assets/` | any static host (GitHub Pages) |
+| Backend | `Code.gs` (domain), `Llm.gs` (LLM adapter) | Google Apps Script |
+| Tooling | `scripts/*.py`, `scripts/*.js` | Node 20 / Python 3.11 |
+
+`gas/` is **generated** (git-ignored). Never edit it; rebuild instead.
+
+## 2. Non-negotiable rules
+
+1. **No auto-confirmation.** A guardian request is never `CONFIRMED` without a staff
+   action *and* a successfully saved Calendar event. Never render a success claim
+   before the backend confirms it.
+2. **No medical data.** No symptom/diagnosis/medication fields, prompts, logs or URLs.
+   The assistant refuses medical questions and is optional; booking must work with it off.
+3. **No secrets in the repo.** Keys live in Script Properties or GitHub Secrets.
+   If a secret leaks: rotate first, then clean history.
+4. **Provider boundaries.** `Code.gs` must never build provider URLs or name models.
+   All LLM work goes through `llmAnswer_()` in `Llm.gs`. Calendar/Sheets access stays
+   inside `getCalendar_*`, `*Sheet_*` helpers so a provider swap is one file.
+5. **Config, not code.** Limits, models, work hours and chain order come from Script
+   Properties, validated by `validateConfig()` / `scripts/check-config.js`. Invalid
+   config fails loudly — never silently substitute a "sensible" default.
+6. **Zero-Card.** Any new external service: email/GitHub/Google sign-up only, no card,
+   no card-trial. Record it in `docs/free-tiers.json` with `card_required` and fallback,
+   and add a line to `docs/exit-plan.md`. If a card field appears: stop and report.
+7. **No silent failure.** Errors are typed, logged as structured JSON (no PII), and
+   surfaced to staff. `catch (_) {}` is only acceptable for cosmetic UI storage.
+8. **Evidence over claims.** "Done" requires a command + output (tests, build, `curl`).
+
+## 3. Commands
+
+```bash
+python3 scripts/preview.py                  # local preview on 0.0.0.0:8080 (hides gas/, scripts/, dotfiles)
+node scripts/test-gas-simulated.js          # backend: locking, conflicts, outages, queues
+node scripts/test-llm-adapter.js            # adapter: retry/backoff, circuit, budget, cache, PII, sanitising
+node scripts/test-ui-smoke.js               # DOM journey (needs: npm i --no-save jsdom@25)
+node scripts/check-config.js [props.json]   # config contract
+python3 scripts/build-gas-package.py        # build gas/ bundle (Index.html, Fonts.html, Code.gs, Llm.gs)
+```
+
+CI (`.github/workflows/ci.yml`) runs: JS/Python syntax → backend tests → adapter tests →
+UI smoke → bundle build → self-containment guard → config contract → free-tier ledger →
+gitleaks → audit. **Merge only on green.**
+
+## 4. Architecture map
+
+- `app.js`: `api()` is the only backend bridge (demo `localStorage` vs `google.script.run`).
+  `callServer()` is the single place where the GAS transport lives.
+- `Code.gs`: `doGet`, `getAvailableSlots`, `createRequest`, `lookupBooking`, `getDashboard`,
+  `approveRequest`, `proposeAlternative`, `moveConfirmedAppointment`, `cancelRequest`,
+  `completeRequest`, `closeDay`, `askGeneralQuestion`, `validateConfig`, `llmStatus`.
+  All writes take `LockService`; availability is re-checked at approval.
+- `Llm.gs`: `llmAnswer_` (entry), `LLM.PROVIDERS` (adapters), budget/circuit/cache helpers.
+- Availability cache: 30 s read cache only — never used for approval decisions.
+
+## 5. Style
+
+- `'use strict'`, ES2017-safe JS (Apps Script V8), no new dependencies for the site.
+- Python: stdlib only, `pathlib`, type hints, cross-platform paths.
+- Arabic UI copy: clear, warm, non-medical. Numbers can be Arabic-Indic (`toLocaleString('ar-EG')`).
+- Names over comments; comments explain *why* (especially policy and safety choices).
+- Keep PRs ≤ ~400 changed lines, one concern. Conventional Commits (`feat:`, `fix:`, `chore:`).
+
+## 6. Change checklist
+
+- [ ] `python3 scripts/build-gas-package.py` succeeds; `gas/` not committed
+- [ ] All five scripts above exit 0
+- [ ] No new external URL, model name or limit hardcoded in `Code.gs`/`app.js`
+- [ ] `docs/free-tiers.json` + `docs/exit-plan.md` updated if a provider/limit changed
+- [ ] README/TODO reflect the change; no TODO left without an issue
+- [ ] Demo mode never claims a real confirmation

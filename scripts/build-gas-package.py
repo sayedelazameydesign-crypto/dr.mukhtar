@@ -2,7 +2,8 @@
 """Build the Google Apps Script package from the standalone site.
 
 Outputs (all generated, all disposable):
-  gas/Code.gs          copy of the backend (skipped when it already exists)
+  gas/Code.gs          copy of the backend (Code.gs)
+  gas/Llm.gs           copy of the provider adapter (Llm.gs)
   gas/Index.html       index.html with CSS + JS inlined for HtmlService
   gas/Fonts.html       @font-face rules with base64 woff2 payloads
   gas/appsscript.json  manifest with Africa/Cairo + required scopes
@@ -132,7 +133,7 @@ def main() -> None:
 
     (OUT / "Index.html").write_text(html, encoding="utf-8")
 
-    for name in ("Code.gs", "appsscript.json"):
+    for name in ("Code.gs", "Llm.gs", "appsscript.json"):
         source = ROOT / name
         if source.exists():
             (OUT / name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")

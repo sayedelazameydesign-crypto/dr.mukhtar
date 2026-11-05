@@ -50,10 +50,14 @@ node scripts/test-ui-smoke.js   # يتطلب: npm i --no-save jsdom
    - `WORK_DAYS`: أرقام أيام الأسبوع مفصولة بفواصل، حيث الأحد `0` والاثنين `1` … السبت `6`. القيمة الافتراضية `0,1,2,3,4`.
    - `CALENDAR_ID`: اختياري إن أردت تقويمًا موجودًا.
    - `GEMINI_API_KEY`: اختياري؛ أضف مفتاحك في Script Properties فقط، لا في ملفات الواجهة أو المستودع. يمكنك حذف الخاصية لتعطيل Gemini دون تعطيل الحجز.
-   - `GEMINI_MODEL`: اختياري؛ الافتراضي `gemini-2.5-flash`، و`GEMINI_DAILY_LIMIT` افتراضيًا 25 سؤالًا يوميًا على مستوى المشروع.
-5. شغّل `initializeCeliaKids()` مرة واحدة ووافق على أذونات Sheets وCalendar. تجهز الدالة أوراق `Requests` و`Audit` و`Closures`، وتنشئ تقويمًا منفصلًا باسم `Celia Kids — عيادة الأطفال` إذا لم تكن خاصية `CALENDAR_ID` محددة، ثم تحفظ معرّفه تلقائيًا.
+   - `GEMINI_MODEL`: اختياري؛ الافتراضي `gemini-2.5-flash`. الحدود والأسماء تُقرأ من الإعداد فقط.
+   - `LLM_CHAIN`, `LLM_DAILY_LIMIT`, `LLM_HOURLY_LIMIT`, `LLM_RETRIES`, `LLM_TIMEOUT_MS`,
+     `LLM_CIRCUIT_FAILS`, `LLM_COOLDOWN_S`, `LLM_CACHE_TTL_SEC`: اختيارية، والقيم الافتراضية موثقة في
+     `config/clinic.example.json`. `GEMINI_DAILY_LIMIT` يبقى مدعومًا كاسم بديل.
+   - قبل النشر شغّل `node scripts/check-config.js my-props.json` على تصدير الإعداد للتأكد من صلاحيته.
+5. شغّل `initializeCeliaKids()` مرة واحدة؛ سيرفض الإعداد الناقص أو غير الصالح برسالة صريحة (لا تصحيح صامت). ووافق على أذونات Sheets وCalendar. تجهز الدالة أوراق `Requests` و`Audit` و`Closures`، وتنشئ تقويمًا منفصلًا باسم `Celia Kids — عيادة الأطفال` إذا لم تكن خاصية `CALENDAR_ID` محددة، ثم تحفظ معرّفه تلقائيًا.
 6. اختر **Deploy → New deployment → Web app** واضبط التنفيذ والصلاحيات وفق سياسة العيادة. إذا احتاج أولياء الأمور وصولًا بلا تسجيل Google فقد يتطلب النشر رابطًا متاحًا لأي شخص؛ هذا يزيد مخاطر إساءة الاستخدام ولا يُعد نظام مصادقة مؤسسيًا. لا تنشره لبيانات حقيقية قبل مراجعة أمنية وقانونية مناسبة.
-7. قبل أي حساب Google حقيقي، شغّل `node scripts/test-gas-simulated.js` و`node scripts/test-ui-smoke.js`. المحاكاة تغطي التزامن، مدد الزيارة، فشل حفظ Sheets بعد إنشاء الحدث، تعديل/إلغاء الموعد، وانقطاع Calendar/Sheets/Audit وحد طابوري الطلبات والتدقيق، والفحص الثاني يغطي مسار الواجهة كاملًا. هذه محاكاة بخدمات وهمية وليست بديلًا عن اختبار حساب تجريبي؛ بعدها اختبر أحداث التقويم المتعارضة وفشل الخدمات بتفويض العيادة، وتأكد من عدم تأكيد موعد ما لم يُحفظ الحدث بنجاح.
+7. قبل أي حساب Google حقيقي، شغّل `node scripts/test-gas-simulated.js` و`node scripts/test-llm-adapter.js` و`node scripts/test-ui-smoke.js`. المحاكاة تغطي التزامن، مدد الزيارة، فشل حفظ Sheets بعد إنشاء الحدث، تعديل/إلغاء الموعد، وانقطاع Calendar/Sheets/Audit وحد طابوري الطلبات والتدقيق، والفحص الثاني يغطي مسار الواجهة كاملًا. هذه محاكاة بخدمات وهمية وليست بديلًا عن اختبار حساب تجريبي؛ بعدها اختبر أحداث التقويم المتعارضة وفشل الخدمات بتفويض العيادة، وتأكد من عدم تأكيد موعد ما لم يُحفظ الحدث بنجاح.
 
 ## Gemini والخصوصية
 
@@ -66,11 +70,14 @@ node scripts/test-ui-smoke.js   # يتطلب: npm i --no-save jsdom
 - `index.html`, `app.css`, `app.js`: واجهة الويب ووضع العرض المحلي (وضع 2026 الكامل).
 - `assets/fonts/`: خطوط woff2 مستضافة محليًا مع تراخيص SIL OFL.
 - `brand.svg`, `manifest.webmanifest`: الهوية وإضافة الشاشة الرئيسية.
-- `Code.gs`: وظائف Apps Script، التوفر، الحجز، المراجعة، التعديلات، سجل التدقيق وGemini الاختياري.
+- `Code.gs`: منطق العيادة (توفر، حجز، مراجعة، تعديلات، سجل تدقيق) + `validateConfig()` و`llmStatus()`.
+- `Llm.gs`: المحوّل الوحيد للمساعد الاختياري (سلسلة موفّرين، إعادة محاولة أُسّية، قاطع دائرة، حصة، كاش).
 - `appsscript.json`: أذونات Apps Script والمنطقة الزمنية.
 - `scripts/build-gas-package.py`: يبني `gas/Index.html` و`gas/Fonts.html` و`gas/Code.gs` و`gas/appsscript.json` من المصدر.
 - `scripts/test-gas-simulated.js`: محاكاة الخادم دون شبكة.
 - `scripts/test-ui-smoke.js`: فحص DOM لمسار الحجز والتتبع واللوحة.
+- `scripts/test-llm-adapter.js`: اختبارات المحوّل (15 اختبارًا) وإعدادات الخادم.
+- `scripts/check-config.js` + `config/clinic.example.json`: عقد الإعداد والتحقق منه قبل النشر.
 - `.github/workflows/pages.yml`: نشر الواجهة على GitHub Pages.
 - `gas/`: **مُولَّد وغير محفوظ في Git**؛ أعِد بناءه قبل الرفع إلى Apps Script.
 - `manus-routes.json`: بيان مسار قديم للمعاينة، محفوظ للتوافق.
