@@ -903,6 +903,14 @@
       "role": "Provider phone id, used only inside WhatsApp.gs"
     },
     {
+      "id": "env.WHATSAPP_GRAPH_VERSION",
+      "kind": "env",
+      "path": "config/.env.example:56",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Optional Graph version, validated against a pattern"
+    },
+    {
       "id": "tool.enable-pages",
       "kind": "job",
       "path": "scripts/enable-pages.sh",
