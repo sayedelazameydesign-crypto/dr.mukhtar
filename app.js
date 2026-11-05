@@ -54,11 +54,25 @@
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   };
+  // The Nth *open* day from today. It used to jump every offset to the same next
+  // open day, so the first chips all showed one date and couldn't be picked apart.
   function nextWorkday(offset = 1) {
+    let openDays = WORK_DAYS;
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      const configured = raw ? JSON.parse(raw).WORK_DAYS : '';
+      const parsed = String(configured || '').split(',').filter(Boolean).map(Number);
+      if (parsed.length) openDays = parsed;
+    } catch (_) { /* fall back to the module default */ }
     const date = new Date();
     date.setHours(12, 0, 0, 0);
-    date.setDate(date.getDate() + offset);
-    while (!WORK_DAYS.includes(date.getDay())) date.setDate(date.getDate() + 1);
+    let found = 0;
+    for (let step = 1; step <= 60; step += 1) {
+      date.setDate(date.getDate() + 1);
+      if (!openDays.includes(date.getDay())) continue;
+      found += 1;
+      if (found >= offset) break;
+    }
     return date;
   }
   function prettyDate(iso) {

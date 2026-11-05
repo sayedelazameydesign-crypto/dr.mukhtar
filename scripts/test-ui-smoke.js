@@ -61,6 +61,13 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   check('demo mode label', $('#modeLabel').textContent.includes('تجريبي'));
   check('date defaults to a workday', /^\d{4}-\d{2}-\d{2}$/.test($('#visitDate').value));
   check('quick day chips rendered', $$('#dayChips .day-chip').length === 5);
+  // Regression: every chip used to resolve to the same "next open day".
+  const chipDays = $$('#dayChips .day-chip').map((chip) => chip.dataset.day);
+  check('each quick day chip is a different day', new Set(chipDays).size === 5);
+  check('quick day chips skip closed days', chipDays.every((iso) => {
+    const weekday = new Date(`${iso}T12:00:00`).getDay();
+    return weekday >= 0 && weekday <= 4;
+  }));
   check('clinic clock filled', $('#heroClock') === null || $('#heroClock').textContent.trim() !== '—');
   check('slots offered', $$('#slotsGrid .slot-button').length > 0);
 
