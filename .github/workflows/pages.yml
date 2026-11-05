@@ -66,6 +66,26 @@ jobs:
       - name: Verify Apps Script bundle builds
         run: python3 scripts/build-gas-package.py
 
+      # A pushed branch cannot deploy before the site exists, and configure-pages
+      # only says "Not Found". Fail with the exact fix instead (docs/publish.md §2).
+      - name: Explain the fix when Pages is not enabled yet
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PAGES_AUTO_ENABLE: ${{ vars.PAGES_AUTO_ENABLE }}
+        run: |
+          if gh api "repos/$REPO/pages" >/dev/null 2>&1; then
+            echo "Pages site exists — continuing."
+            exit 0
+          fi
+          if [ "$(printf '%s' "${PAGES_AUTO_ENABLE:-}")" = 'true' ]; then
+            echo "Pages missing but PAGES_AUTO_ENABLE=true — the owner-PAT step below creates it."
+            exit 0
+          fi
+          echo "::error title=Pages is not enabled::Open $GITHUB_SERVER_URL/$REPO/settings/pages → Build and deployment → Source: GitHub Actions, then re-run this job. Or run: sh scripts/enable-pages.sh"
+          exit 1
+
       # On a pull request the Pages site may not exist yet, and a PR has no
       # business creating it: the check is the build itself (see docs/publish.md).
       - name: Create the Pages site (owner PAT, only when asked to)
@@ -77,7 +97,9 @@ jobs:
           token: ${{ secrets.PAGES_TOKEN }}
 
       # Metadata only: needs no existing site, so a PR build stays meaningful.
-      - name: Configure Pages
+      # PR-only: metadata without requiring an existing site (no pages write in a PR).
+      - name: Configure Pages (metadata)
+        if: ${{ github.event_name == 'pull_request' }}
         uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
