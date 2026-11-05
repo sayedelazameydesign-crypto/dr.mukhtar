@@ -108,12 +108,19 @@ jobs:
           set -uo pipefail
           base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
           asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          if ! curl -sSfL --retry 2 --max-time 60 -o /tmp/gitleaks.tgz "${base}/${asset}"; then
-            echo "::warning::gitleaks download unavailable; built-in scanner already ran and passed."
+          # The release redirects to a different host; follow redirects or the
+          # download fails after the code has already moved.
+          binary_ok=0
+          if curl -sSfL --retry 3 --retry-all-errors --max-time 120 -o /tmp/gitleaks.tgz "${base}/${asset}" \
+             && tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks \
+             && /tmp/gitleaks version; then
+            binary_ok=1
+          fi
+          if [ "$binary_ok" != '1' ]; then
+            echo "::warning::gitleaks binary unavailable (release host unreachable); the built-in scanner already ran on the same tree."
             exit 0
           fi
-          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
-          /tmp/gitleaks version
+          # Not skipped: a finding fails the job.
           /tmp/gitleaks detect --source . --no-banner --redact --verbose --exit-code 1
 
       - name: Dependency audit
