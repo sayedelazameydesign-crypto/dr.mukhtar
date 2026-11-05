@@ -90,10 +90,11 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
 
   // ---- the page says out loud that it still runs on examples ----
   check('onboarding banner exists in the dashboard', $('#onboardingBanner') !== null);
-  // It must be visible without logging in: an example name on a public page is not a
-  // placeholder, it is a claim, so the page has to say so on the public view.
-  check('onboarding banner is visible on the public page', $('#onboardingBanner').hidden === false);
-  check('onboarding banner lists the missing facts', /اسم الطبيب/.test($('#onboardingMissing').textContent), $('#onboardingMissing').textContent);
+  // Two different jobs: the *public* page must not show an example as a fact (asserted
+  // above via the neutral placeholders), and the *owner* must be told what to fill in.
+  // The banner therefore lives in the dashboard, not on the visitor's view.
+  check('onboarding banner belongs to the staff dashboard', $('#staffDashboard').contains($('#onboardingBanner')));
+  check('onboarding banner lists the missing facts before login', /اسم الطبيب/.test($('#onboardingMissing').textContent), $('#onboardingMissing').textContent);
   check('address note is not an invented city', !/الجيزة/.test($('[data-address-note]').textContent));
   check('doctor name is a neutral placeholder, not an example name', /لم تُسجَّل/.test($('[data-config="doctorName"]').textContent));
   check('no fabricated syndicate/licence number', !/\d{4,}/.test($('.doctor-facts').textContent.replace(/[٠-٩]/g, '')), 'a long number appeared in the doctor card');
