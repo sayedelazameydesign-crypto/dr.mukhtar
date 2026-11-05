@@ -283,6 +283,23 @@ if (!fs.existsSync(ENV_JS)) {
   if (/name:\s*'[A-Z_]+'[^}]*value:\s*'[^']+'/i.test(envSource)) fail('scripts/env.js — must not contain literal values');
 }
 
+/* ------------------------------------------------- bootstrap safety */
+const BOOTSTRAP = path.join(ROOT, 'scripts', 'bootstrap-github.sh');
+if (!fs.existsSync(BOOTSTRAP)) {
+  fail('scripts/bootstrap-github.sh is missing (owner bootstrap)');
+} else {
+  const script = fs.readFileSync(BOOTSTRAP, 'utf8');
+  // Secrets must be prompted, never passed as arguments or literals.
+  if (/gh secret set [^\n]*--body/.test(script)) fail('scripts/bootstrap-github.sh — never pass --body to gh secret set');
+  if (/^\s*\w+_KEY=|^\s*\w+_PIN=/m.test(script)) fail('scripts/bootstrap-github.sh — must not assign secret values');
+  if (!/--dry-run/.test(script)) fail('scripts/bootstrap-github.sh — must support --dry-run');
+  try {
+    require('node:child_process').execFileSync('sh', ['-n', BOOTSTRAP], { stdio: 'pipe' });
+  } catch (error) {
+    fail('scripts/bootstrap-github.sh — shell syntax error');
+  }
+}
+
 /* --------------------------------------------------------- .env.example */
 if (!fs.existsSync(ENV_EXAMPLE)) {
   fail('.env.example is missing');

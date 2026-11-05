@@ -147,8 +147,8 @@ gh api -X POST repos/sayedelazameydesign-crypto/dr.mukhtar/pages -f source.branc
   والقيم وقت التشغيل الحقيقية في Script Properties.
 - `scripts/env.js` يتحقق من الأسماء والصيغ عند البدء ويفشل بصوت عالٍ **بالأسماء فقط** دون طباعة أي قيمة.
 - غير مُطبَّق بعد (صلاحية الرمز 403): إنشاء بيئة `production` والمتغيرات والأسرار وحماية `main` —
-  الخطوات في `docs/secrets.md` §7c، وللتحقق من الحالة: `node scripts/setup-github.js` أو سير عمل
-  **Setup status** من تبويب Actions.
+  الخطوات في `docs/secrets.md` §7c، ويمكن تنفيذها كلها بأمر واحد: `sh scripts/bootstrap-github.sh`
+  (مع `--dry-run` أولًا). للتحقق من الحالة: `node scripts/setup-github.js` أو سير عمل **Setup status**.
 - القاعدة: الأسرار تُمرّر عبر `env:` فقط، وكل `secrets.NAME`/`vars.NAME` يجب أن يكون في السجل،
   وإلا يفشل `node scripts/check-workflows.js` (ومعه 9 اختبارات ذاتية للقواعد).
 - قيم التشغيل الحقيقية تبقى في Script Properties؛ نسخة GitHub من `CELIA_ADMIN_PIN` مخصّصة لقائمة
