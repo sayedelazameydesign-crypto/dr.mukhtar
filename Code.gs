@@ -563,6 +563,9 @@ function getClinicProfile() {
       doctorRole: config.doctorTitle,
       subspecialty: config.doctorSubspecialty,
       hours: formatClinicHours_(config),
+      // The visit types the clinic configured. Without this every visitor saw the two
+      // built-in defaults, so a service added in settings never reached the page.
+      services: clinicServices_(),
       workStart: config.start, workEnd: config.end,
       workDays: config.workDays, weekendDays: config.weekendDays, timezone: config.timezone
     };

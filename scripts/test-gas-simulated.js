@@ -343,6 +343,30 @@ assert.equal(savedSettings.ok, true, savedSettings.message);
 assert.equal(savedSettings.settings.values.CLINIC_PHONE, '01000000000', 'a phone number is normalised');
 assert.match(savedSettings.settings.values.VISIT_SERVICES, /كشف أول = 45/, 'services round-trip through the UI');
 assert.equal(context.visitDuration_('استشارة قصيرة'), 15, 'a new service becomes bookable without code');
+// ---- prices: shown only when the clinic set one, never invented ----
+// A price rides on the service definition, so there is no second table to drift from.
+const pricedProfile = context.getClinicProfile();
+assert.equal(pricedProfile.ok, true, 'the public profile loads');
+assert.ok(Array.isArray(pricedProfile.services) && pricedProfile.services.length === 3,
+  'the profile ships the configured services — without them the page kept showing the defaults');
+assert.equal(pricedProfile.services[0].label, 'كشف أول', 'the profile carries the real first service');
+assert.equal(pricedProfile.services[0].price, 0, 'a service saved without a price reports 0, and 0 means "not announced"');
+const pricedSave = context.saveClinicSettings({
+  reason: 'price test',
+  values: { VISIT_SERVICES: 'كشف أول = 45 = 250\nمتابعة = 20\nاستشارة قصيرة = 15 = 120' }
+}, pin);
+assert.equal(pricedSave.ok, true, pricedSave.message);
+const priced = context.getClinicProfile().services;
+assert.equal(priced[0].price, 250, 'a price typed in settings reaches the public profile');
+assert.equal(priced[1].price, 0, 'a service with no price stays unannounced');
+assert.equal(priced[0].minutes, 45, 'the duration still parses alongside the price');
+assert.match(pricedSave.settings.values.VISIT_SERVICES, /كشف أول = 45 = 250/,
+  'the settings screen echoes the price back so the doctor can edit it');
+assert.equal(context.saveClinicSettings({ values: { VISIT_SERVICES: 'كشف أول = 45 = -5' } }, pin).ok, false,
+  'a negative price is refused');
+assert.equal(context.saveClinicSettings({ values: { VISIT_SERVICES: 'كشف أول = 45 = كثير' } }, pin).ok, false,
+  'a non-numeric price is refused rather than silently dropped');
+
 // Calendar availability for the new hours is asserted on a fresh day: `day` is
 // already fully booked by the approval scenarios above.
 const settingsDay = (() => {

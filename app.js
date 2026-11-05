@@ -38,6 +38,17 @@
   // Visit durations live in SERVICES only. A second frozen table used to shadow it,
   // so changing a service's duration in settings did not change the booking maths.
   let SERVICES = [{ label: 'كشف جديد', minutes: 60 }, { label: 'متابعة', minutes: 30 }];
+  // A price is displayed only when the clinic set one. There is no "0 EGP": an unset
+  // price shows nothing, so the page never invents a fee (or a free visit).
+  const priceLabel = (price) => {
+    const value = Number(price);
+    if (!Number.isFinite(value) || value <= 0) return '';
+    return `${arabicNumber(value)} ج.م`;
+  };
+  const servicePrice = (label) => {
+    const match = SERVICES.find((service) => service.label === label);
+    return match ? Number(match.price) || 0 : 0;
+  };
   const visitMinutes = (type) => {
     const match = SERVICES.find((service) => service.label === type);
     return (match && match.minutes) || (SERVICES[0] && SERVICES[0].minutes) || 60;
@@ -288,10 +299,16 @@
   function writeSettingsStore(values) {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(values)); } catch (_) { /* private mode */ }
   }
+  // «الاسم = المدة» or «الاسم = المدة = السعر». The demo mirrors the backend's rules, or a
+  // price typed in the settings screen would vanish here. Same explicit split as
+  // Settings.gs: a negative price must not be mistaken for a separator.
   function parseServices(text) {
     return String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
-      const match = /^(.{1,40}?)\s*[=\-–—:]\s*(\d{1,3})$/.exec(line);
-      return match ? { label: match[1].trim(), minutes: Number(match[2]) } : null;
+      const parts = line.split(/\s*[=\-–—:]\s*/).map((part) => part.trim());
+      if (parts.length < 2 || parts.length > 3) return null;
+      if (!parts[0] || !/^\d{1,3}$/.test(parts[1])) return null;
+      if (parts.length === 3 && !/^\d{1,6}$/.test(parts[2])) return null;
+      return { label: parts[0], minutes: Number(parts[1]), price: parts.length === 3 ? Number(parts[2]) : 0 };
     }).filter(Boolean);
   }
   function servicesFromSettings(values) {
@@ -299,7 +316,7 @@
     return parsed.length ? parsed : parseServices(SETTINGS_DEFAULTS.VISIT_SERVICES);
   }
   function formatServicesText(services) {
-    return services.map((item) => `${item.label} = ${item.minutes}`).join('\n');
+    return services.map((item) => `${item.label} = ${item.minutes}${item.price ? ` = ${item.price}` : ''}`).join('\n');
   }
   function demoProfile() {
     const values = readSettingsStore();
@@ -822,7 +839,10 @@
       const strong = document.createElement('strong');
       strong.textContent = service.label;
       const small = document.createElement('small');
-      small.textContent = `${minutesLabel(service.minutes)} للزيارة`;
+      const price = priceLabel(service.price);
+      small.textContent = price
+        ? `${minutesLabel(service.minutes)} للزيارة · ${price}`
+        : `${minutesLabel(service.minutes)} للزيارة`;
       text.append(strong, small);
       const radio = document.createElement('span');
       radio.className = 'radio-indicator';
@@ -837,7 +857,7 @@
   function applyServices(services) {
     if (!Array.isArray(services) || !services.length) return;
     SERVICES = services
-      .map((item) => ({ label: String(item.label || '').trim(), minutes: Number(item.minutes) }))
+      .map((item) => ({ label: String(item.label || '').trim(), minutes: Number(item.minutes), price: Number(item.price) || 0 }))
       .filter((item) => item.label && Number.isFinite(item.minutes) && item.minutes > 0);
     if (!SERVICES.length) return;
     renderVisitTypes();
@@ -1112,7 +1132,8 @@
       node.classList.toggle('pending', pending);
     };
     set('visit', type);
-    set('duration', minutesLabel(visitMinutes(type)));
+    const summaryPrice = priceLabel(servicePrice(type));
+    set('duration', summaryPrice ? `${minutesLabel(visitMinutes(type))} · ${summaryPrice}` : minutesLabel(visitMinutes(type)));
     set('day', state.selectedDay ? prettyDate(state.selectedDay) : 'لم يُحدد', !state.selectedDay);
     set('time', state.selectedTime ? prettyTime(state.selectedTime) : 'لم يُحدد', !state.selectedTime);
     $$('[data-visit-duration]').forEach((node) => { node.textContent = `${type} · ${minutesLabel(visitMinutes(type))}`; });
