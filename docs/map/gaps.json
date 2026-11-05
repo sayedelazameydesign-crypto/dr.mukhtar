@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-05T13:20:00Z",
-  "commit": "1a1ab54",
+  "generated_at": "2026-11-05T14:00:00Z",
+  "commit": "9b41fa1",
   "gaps": [
     {
       "id": "G1",
@@ -200,5 +200,16 @@
     "gate_added": "scripts/test-silent-gates.js (10 checks, 5 negative probes)",
     "clinic_gate": "scripts/clinic-ready.js + scripts/clinic-schema.js (45 checks)",
     "harness_defect": "test-go-live-check.js used git checkout -- app.js, discarding uncommitted work; replaced with a byte snapshot"
+  },
+  "report_mapping": {
+    "note": "A report row is not a gap. This map is the reconciliation between the two vocabularies.",
+    "clinic.name": "needs user data (clinic.json) — not a gap in this ledger",
+    "clinic.phone": "needs user data (clinic.json) — not a gap in this ledger",
+    "clinic.doctor": "needs user data (clinic.json) — not a gap in this ledger",
+    "clinic.license": "needs user data (clinic.json) — not a gap in this ledger",
+    "live.appsScript": "closes G1 (and G14 for the gateway)",
+    "live.branchProtection": "part of G2",
+    "live.secrets": "part of G2",
+    "site.up": "reachability only — sandbox network; not a gap, closed by a human fetching the page"
   }
 }

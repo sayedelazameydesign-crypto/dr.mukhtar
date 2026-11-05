@@ -32,6 +32,9 @@ const { execFileSync } = require('node:child_process');
 const ROOT = path.resolve(__dirname, '..');
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
+// Machine-readable output: docs/production-readiness.md is generated from this, so the
+// numbers in the document cannot drift from a real run.
+const AS_JSON = flag('--json');
 const valueOf = (name, fallback = '') => {
   const index = args.indexOf(name);
   return index !== -1 && args[index + 1] ? args[index + 1] : fallback;
@@ -220,6 +223,32 @@ function checkHumanSteps() {
 
 function show() {
   const label = { ready: '✓ جاهز', action: '✗ يحتاج إجراء', unverified: '? غير مُتحقَّق', info: '· معلومة' };
+
+  const count = (status) => results.filter((row) => row.status === status).length;
+  const verdict = count('action') ? 'not-ready' : (count('unverified') ? 'gates-green-live-unproven' : 'ready');
+
+  if (AS_JSON) {
+    // `gaps` comes from the map, so one command answers "what does the report say" and
+    // "what does the ledger say" together — the reconciliation is then a diff, not an opinion.
+    let gaps = null;
+    try { gaps = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'map', 'gaps.json'), 'utf8')); } catch (_) {}
+    const tally = gaps ? {
+      total: gaps.gaps.length,
+      closed: gaps.gaps.filter((gap) => gap.status === 'resolved').length,
+      open: gaps.gaps.filter((gap) => gap.status !== 'resolved').map((gap) => gap.id)
+    } : null;
+    console.log(JSON.stringify({
+      measured_at: new Date().toISOString(),
+      base: BASE,
+      offline: flag('--offline'),
+      counts: { ready: count('ready'), action: count('action'), unverified: count('unverified'), info: count('info') },
+      verdict,
+      gaps_tally: tally,
+      results: results.map((row) => ({ id: row.id, label: row.label, status: row.status, detail: row.detail || '', fix: row.fix || '' }))
+    }, null, 2));
+    process.exitCode = verdict === 'not-ready' ? 1 : 0;
+    return;
+  }
   const groups = [
     ['الموقع المنشور', (r) => r.id.startsWith('site.')],
     ['بيانات العيادة', (r) => r.id.startsWith('clinic.')],
@@ -242,7 +271,6 @@ function show() {
     });
   });
 
-  const count = (status) => results.filter((row) => row.status === status).length;
   const ready = count('ready');
   const action = count('action');
   const unverified = count('unverified');

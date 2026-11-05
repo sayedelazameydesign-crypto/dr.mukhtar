@@ -1,152 +1,111 @@
-# Production Readiness — مصفوفة الأدلة (G1–G10)
+# Production Readiness — سجل الفجوات وتقرير التشغيل
 
-> **القياس في:** ٢٠٢٦-١١-٠٥ · الفرع `arena/8ebde25c-dr-mukhtar` · `main` = `12e4a6d`
-> **قاعدة:** كل سطر هنا ناتج أمر شُغّل فعلًا أو ملف فُحص. لا يوجد PASS بلا دليل، و**لا يوجد تحويل
-> لـBLOCKED إلى PASS** بسبب غياب أداة.
+> **مصدر الحقيقة:** [`docs/map/gaps.json`](../docs/map/gaps.json) للسجل، وتشغيل فعلي لـ
+> `scripts/go-live-check.js` للأرقام. الجداول أدناه **مُولَّدة** — `node scripts/readiness-report.js --check`
+> في CI يفشل إن تباعدت عن المصدر.
+>
+> **لا تخلط الترقيم:** السجل يستخدم `G1…G14` **للفجوات فقط**. مراحل خط الأنابيب (بناء، اختبارات،
+> فحص، أمن، بيانات، إعداد، رصد، استعادة، مسار المستخدم، نشر) تُسمّى `P-BUILD … P-DEPLOY` كي لا
+> يتكرر `G5` بمعنيين — وهو تناقض كان قائمًا في هذه الوثيقة حتى ٢٠٢٦-١١-٠٥.
 
-## الحكم الحالي: **NOT PRODUCTION READY** — ٥ جاهز · ٤ يحتاج إجراء · ٤ غير مُتحقَّق
+## خط الأنابيب (P-*) — حالة كل مرحلة
 
-> قياس هذه الجولة (٢٠٢٦-١١-٠٥، بعد إصلاحات البوابات الصامتة): **٥ جاهز · ٤ يحتاج إجراء · ٤ غير مُتحقَّق**.
-> قبلها كان القياس **٥ · ٤ · ٤** أيضًا — لكن مكوّناته كانت **مضلّلة**: بوابتا `actionlint` و`gitleaks` كانتا
-> تظهران «جاهز» بلا تشغيل، وتقرير الجهوزية كان يقرأ قالب الخادم فقط ولا يرى `clinic.json`.
-> الآن كل «جاهز» تحته بوابة تعمل فعلًا، وكل «يحتاج إجراء» هو بيانات عيادة، وكل «غير مُتحقَّق» يحتاج حسابك.
-
-السبب الرئيسي ليس عيبًا في الكود: **التشغيل الحقيقي داخل حساب Google لم يحدث** (G5, G9, G10)،
-والهوية السريرية للعيادة لم تُدخل بعد. البقية قابلة للإصلاح وقد أُصلح منها ثلاثة في هذه الجولة.
-
----
-
-## المصفوفة
-
-| البوابة | الحالة | الدليل (أمر/ملف) | ملاحظة |
-| --- | --- | --- | --- |
-| **G1 Build** | 🟡 **PARTIAL** | `python3 scripts/build-gas-package.py` → `Built gas/ (176,796 bytes)` | حزمة Apps Script تُبنى. لا يوجد «بناء» للموقع (ملفات ثابتة)، والتحقق من التجميع في `pages.yml` |
-| **G2 Tests** | 🟡 **PARTIAL** | ١٢ بوابة خضراء (أسفل) | الاختبارات كلها **محاكاة**؛ لا اختبار تكامل مع Google حقيقي |
-| **G3 Static checks** | ✅ **PASS** | `check-settings-parity`, `scan-secrets` (٧٥ ملفًا/١١ قاعدة/٠ نتيجة), `check-config` | لا TypeScript في المشروع؛ `python3 -m py_compile` في CI |
-| **G4 Security** | 🟡 **PARTIAL** | `scan-secrets` أخضر، لكن **٨ ملفات كانت تُنشر للعامة** وفُصلت الآن + اختبار يمنع الرجوع | الأسرار سليمة؛ كان الخطر في **ما يُنشر** لا في القيمة |
-| **G5 Data safety** | ❌ **BLOCKED** | لا نسخة احتياطية ولا استعادة مُختبرة لـ Sheets/Calendar | يحتاج حسابًا حقيقيًا — خارج قدرة الوكيل |
-| **G6 Configuration** | 🟡 **PARTIAL** | `check-config` (٣٦ مفتاحًا)، `check-workflows` (٧ أسرار/٨ متغيّرات) | إعداد الإنتاج موثّق؛ **قيم العيادة غير مُدخلة** |
-| **G7 Observability** | 🟡 **PARTIAL** | `Audit` sheet + `logEvent_` + تحذيرات اللوحة | لا فحص صحة (health check) ولا تنبيه عند فشل المشغّل |
-| **G8 Recovery** | 🟡 **PARTIAL** | rollback = `git revert` + إعادة نشر Pages؛ `docs/exit-plan.md` | لا خطة استعادة لبيانات Sheets بعد تلفها |
-| **G9 User flow** | ❌ **BLOCKED** | `node scripts/go-live-check.js` → «ليس جاهزًا للتشغيل» | المسار مُثبت في المتصفح (jsdom) لا في حساب حقيقي |
-| **G10 Deployment** | 🟡 **PARTIAL** | موقع GitHub Pages منشور ومُتحقَّق (`?cb=12e4a6d`) | **Apps Script لم يُنشر قط**؛ لوحة الإعدادات الحقيقية لم تُستخدم |
-
----
-
-## البوابات المحلية — نتيجة تشغيل فعلي
-
-| الأمر | النتيجة | Exit |
+| المرحلة | الحالة | الدليل |
 | --- | --- | --- |
-| `node scripts/check-workflows.js` | `Secrets contract OK — 7 secrets, 8 variables; 3 workflows` | 0 |
-| `node scripts/check-workflows.js --self-test` | `Contract self-test passed: 16 cases` | 0 |
-| `node scripts/scan-secrets.js` | `75 text files, 11 rules, 0 findings` | 0 |
-| `node scripts/check-config.js` | `Config OK — 36 keys validated` | 0 |
-| `node scripts/check-settings-parity.js` | `15 fields match, prices round-trip, profile ships services` | 0 |
-| `node scripts/test-gas-simulated.js` | `passed: …daily per-number cap` | 0 |
-| `node scripts/test-llm-adapter.js` | `15 tests` | 0 |
-| `node scripts/test-google-bridge.js` | `29 tests` | 0 |
-| `node scripts/test-setup-github.js` | `Setup checker tests passed: 4 cases` | 0 |
-| `node scripts/test-go-live-check.js` | `14 checks` | 0 |
-| `node scripts/test-ui-smoke.js` (jsdom) | `UI smoke test passed` | 0 |
-| `node scripts/test-published-clinic.js` (jsdom) | `20 checks` | 0 |
-| `node scripts/test-demo-availability.js` | `PASS` | 0 |
-| `node scripts/test-publish-contract.js` | `Publish contract passed: 49 checks` | 0 |
-| `python3 scripts/build-gas-package.py` | `Built gas/ (176,796 bytes Index.html, 475,498 bytes Fonts.html)` | 0 |
+| P-BUILD | ✅ | `python3 scripts/build-gas-package.py` → حزمة `gas/` تُبنى |
+| P-TESTS | 🟡 | ١٨ بوابة محلية، كلها محاكاة — لا تكامل مع Google حقيقي (يفتح G1/G14) |
+| P-STATIC | ✅ | `check-settings-parity` · `scan-secrets` · `check-config` · `check-workflows` |
+| P-SECURITY | 🟡 | القائمة البيضاء للنشر + `test-publish-contract.js`؛ لا مراجعة أمنية خارجية |
+| P-DATA | ❌ | لا نسخة احتياطية/استعادة مُختبرة لـ Sheets/Calendar (بند بروفة، لا فجوة سجل) |
+| P-CONFIG | 🟡 | الإعداد موثّق ومفحوص؛ **بيانات العيادة الأربعة** لم تُدخل بعد |
+| P-OBSERVABILITY | 🟡 | `Audit` + `logEvent_`؛ لا فحص صحة ولا تنبيه للمشغّل |
+| P-RECOVERY | 🟡 | `git revert` + إعادة نشر؛ لا خطة استعادة بيانات |
+| P-USERFLOW | 🟡 | مُثبت في jsdom وفي المحاكاة؛ غير مُثبت في حساب حقيقي (G1) |
+| P-DEPLOY | 🟡 | الموقع منشور ومُتحقَّق؛ Apps Script لم يُنشر قط |
 
-> ⚠️ الاختبارات الثلاثة الخاصة بالمتصفح تحتاج jsdom و`NODE_PATH=/tmp/node_modules`؛ **بدونهما
-> تفشل الآن صراحةً** ولا تُبلَّغ كنجاح. هذا تغيير مُتعمَّد هذه الجولة (كانت تخرج بـ`exit 0`
-> وتطبع SKIPPED). وقد شُغّلت الثلاثة فعليًا بـ jsdom@25: `UI smoke passed` · `20 checks` · `PASS`.
+## ما تغيّر ولماذا — سجل مختصر
 
-### حكم الجهوزية الفعلي (`go-live-check.js`)
-
-| النتيجة | العدد | البنود |
+| التاريخ | التغيير | الدليل |
 | --- | --- | --- |
-| ✓ جاهز | **5** | عقود سير العمل والأسرار · مسح الأسرار · تطابق الإعدادات · محاكاة الخادم · الواجهة في متصفح |
-| ✗ يحتاج إجراء | **4** | اسم العيادة · هاتف العيادة · اسم الطبيب · رقم الترخيص |
-| ? غير مُتحقَّق | **4** | الموقع المنشور (شبكة الرمل لا تصل إليه) · الخادم في حساب Google · حماية `main` · بروفة الموجة B |
+| ٢٠٢٦-١١-٠٥ (١) | النشر صار قائمة سماح؛ حُذفت الملفات الداخلية من المستودع | `test-publish-contract.js` ٤٩ فحصًا + إدخال خلل مرتين |
+| ٢٠٢٦-١١-٠٥ (١) | اختبارات المتصفح تفشل بدل أن تتخطى بصمت | `SKIPPED-WITH-FAILURE … exit=1` |
+| ٢٠٢٦-١١-٠٥ (٢) | ٥ بوابات صامتة صارت تفشل بصوت عالٍ + حرس دائم | `test-silent-gates.js` ١٠ فحوص |
+| ٢٠٢٦-١١-٠٥ (٢) | بوابة بيانات العيادة: schema + نشر إنتاجي صارم | `test-clinic-schema.js` ٤٥ فحصًا |
+| ٢٠٢٦-١١-٠٥ (٣) | هذه الوثيقة تُولَّد من السجل + تشغيل فعلي؛ وتناقض G5 أُزيل | `readiness-report.js` يفشل عند التباعد |
 
-**الحكم: ليس جاهزًا للتشغيل.** الأربعة «يحتاج إجراء» بيانات عيادة لا يملكها الوكيل ولا يجوز أن يخترعها.
+<!-- GENERATED:START -->
+<!-- هذا القسم مُولَّد: node scripts/readiness-report.js --write · لا تُحرّره يدويًا -->
 
----
+## الحكم (من تشغيل فعلي)
 
-## ما أُصلح في هذه الجولة
+| القياس | القيمة |
+| --- | --- |
+| تاريخ القياس | 2026-11-05 |
+| الشبكة | متخطّاة (--offline) |
+| جاهز | **5** |
+| يحتاج إجراء | **4** |
+| غير مُتحقَّق | **4** |
+| معلومات | 2 |
+| الحكم | `not-ready` |
 
-| # | العيب | الدليل قبل | الإصلاح | الدليل بعد |
+**ليس جاهزًا للتشغيل** ما دام `verdict !== "ready"`. هذا السطر يُولَّد، ولا يُكتب.
+
+## السجل (مصدر الحقيقة: `docs/map/gaps.json`)
+
+| الإجمالي | مغلق | مفتوح |
+| --- | --- | --- |
+| **14** | **11** | **3** (G1) (G2) (G14) |
+
+| Gap | Type | Severity | Status | Evidence / closure |
 | --- | --- | --- | --- | --- |
-| P0-1 | **نشر ملفات داخلية للعامة** | `pages.yml` كان ينسخ المستودع كله (deny-list) → `Code.gs`, `Llm.gs`, `Settings.gs`, `.env.example`, `build-gas-package.py`, `app.config.ts` + **سجلّان طرفيان بحجم ٨٦ كيلوبايت** + صورة ملصقة ٧٢ كيلوبايت كانت تُنشر على موقع عام | allow-list صريحة في `pages.yml`، وحذف الملفات الأجنبية من المستودع، وفحص في `check-workflows.js` يرفض أي ملف داخلي في قائمة النشر | `✗ Code.gs is internal but appears in the publish list` عند إدخال الخلل عمدًا |
-| P1-1 | **اختبار متخطّى يبدو ناجحًا** | `SKIPPED` + `exit 0` في اختبار المتصفح | `exit 1` افتراضيًا، والتخطي يحتاج `CELIA_ALLOW_SKIP_UI=1` صراحةً، و`require.resolve('jsdom')` في CI | `SKIPPED-WITH-FAILURE … exit=1` |
-| P1-2 | تقرير الجهوزية كان يعدّ الاختبار المتخطّى «جاهزًا» أو «غير متحقق» | `add(..., skipped ? 'unverified' : 'ready')` | صار **«يحتاج إجراء»**، والاستثناء الوحيد بتفويض صريح | `✗ يحتاج إجراء الواجهة في متصفح` |
-| P2-1 | **`GROQ_API_KEY` معلن بلا مستهلك** | يظهر في `.env.example` و`docs/secrets.md` كأنه مطلوب | موثّق كـ«اسم محجوز» في `docs/secrets.md §1b` مع سبب صريح | — |
-| P2-2 | **نسخة مكررة من سكربت البناء** | `build-gas-package.py` في الجذر **يختلف** عن `scripts/build-gas-package.py` ومخرجاته خاطئة (`parents[1]`) | حُذفت | `ls build-gas-package.py` → غير موجود |
-| P2-3 | `.env.example` في الجذر = ملف عام | كان يُنشر | نُقل إلى `config/.env.example`، والفحص يقبل الموضعين | `Secrets contract OK` |
-| P2-4 | `test-demo-availability.js` كان يتخطى بصمت أيضًا | `SKIPPED … exit 0` | نفس القاعدة: `exit 1` إلا بتفويض صريح | `no-jsdom exit=1` |
-| P2-5 | `actionlint` يُتخطى بتحذير إن غاب (G13) | `::warning::` | يُجلب إصدارًا مثبّتًا `1.7.7` ويفشل إن فشل | `yaml valid` |
-| P2-6 | وثيقة النشر تقول «ستة عناصر» | أقدم من القائمة الفعلية | صُحّحت إلى العناصر العشرة + سبب التحوّل | `grep "ستة عناصر"` → لا نتيجة |
-| P2-7 | لا اختبار يحمي قائمة النشر | — | `scripts/test-publish-contract.js` (٤٩ فحصًا) في CI | إدخال خلل مرّتين → `exit 1` |
+| G1 | untested_critical_path | high | **OPEN** | TODO.md:35-45 'مفتوح قبل التشغيل الحقيقي'; scripts/test-gas-simulated.js:143 stubs UrlFetchApp; no real account run recorded |
+| G2 | unconfigured_contract | high | **OPEN** | gh api: variables 0, secrets 0, branches/main.protected=false (2026-11-05) |
+| G3 | config_drift | high | **resolved** | node scripts/check-config.js /tmp/bad.json → "LLM_TIMEOUT_MS: must be a number within 2000..60000" (exit 1) |
+| G4 | defined_but_unused | med | **resolved** | config/.env.example header states the CELIA_* names are docs-only mirrors; GROQ_API_KEY annotated as reserved |
+| G5 | duplicated_rule | med | **resolved** | node scripts/check-settings-parity.js -> "15 fields match between Settings.gs and app.js, prices round-trip"; node scripts/test-published-clinic.js -> "a file cannot override the clinic hours" / "cannot add or price a visit type" (25 checks) |
+| G6 | dead_duplicate | med | **resolved** | root build-gas-package.py removed; only scripts/build-gas-package.py remains |
+| G7 | foreign_artifacts | med | **resolved** | root artifacts removed (2 terminal transcripts, 1 pasted PNG, app.config.ts, manus-routes.json); pages.yml is now an allow-list |
+| G8 | unbounded_log_artifact | med | **resolved** | transcripts deleted; CI now publishes an allow-list |
+| G9 | defined_but_unused | med | **resolved** | docs/secrets.md §1b documents GROQ_API_KEY as a reserved name with no consumer |
+| G10 | untested_critical_path | low | **resolved** | scripts/test-ui-smoke.js and test-published-clinic.js exit 1 when jsdom is missing unless CELIA_ALLOW_SKIP_UI=1; ci.yml runs require.resolve("jsdom") |
+| G11 | hardcoded_value | low | **resolved** | demo PIN stays; documented as demo-only in docs/go-live.md §6 |
+| G12 | docs_drift | low | **resolved** | AGENTS.md now points at the ci.yml step list instead of a script count; README.md file tree lists scripts/ and the readiness matrix |
+| G13 | ci_coverage | low | **resolved** | ci.yml pins actionlint 1.7.7 via download-actionlint.bash and fails if it cannot run; browser tests exit 1 when jsdom is missing unless CELIA_ALLOW_SKIP_UI=1 |
+| G14 | unverified_integration | med | **OPEN** | config/google.profile.json absent; config/google.profile.example.json layout ids all null; no live run recorded |
 
----
+## نتيجة تشغيل التقرير
 
-### البوابات الصامتة — قبل/بعد
-
-| # | البوابة | قبل | بعد | الاختبار السلبي الذي يثبتها |
-| --- | --- | --- | --- | --- |
-| S1 | `setup-status.yml` — مقارنة المانيفست بإعدادات المستودع | `\|\| true` → لا تفشل أبدًا | تفشل مع annotation يسمّي الحالة | خرج `exit 2` عند تعذّر القراءة |
-| S2 | `pages.yml` — نسخ `assets/` | `2>/dev/null \|\| true` | نسخ مباشر، والغياب يكسر النشر | إسقاط `assets/` يفشل |
-| S3 | `ci.yml` — gitleaks | `\|\| true` (مقبول: الحكم من التقرير) | يبقى، ويفشل إن تعذّر التشغيل | `check` على الخطوة |
-| S4 | `check-workflows.js` — خريطة المشروع | تحذير يتكرر ولا يُعالج | **خطأ** (مع إصلاح تركيبة اختبار كان يكتب فوق الحقن) | 16 حالة self-test |
-| S5 | `live-llm-smoke.js` | تخطٍّ يظهر «أخضر» | annotation صريحة «لم تُنفَّذ» | — |
-| S6 | `configure-pages` | `continue-on-error` | يبقى (مبرر ومُوثّق) | — |
-
-**الحصيلة:** ‏٥ بوابات صامتة حقيقية → **٠**، وواحدة مبررة تبقى موثّقة. أضيف حرس دائم
-`scripts/test-silent-gates.js` (١٠ فحوص، منها ٥ مجسات سلبية) يفشل إن عاد أي نمط إخفاء غير مبرر.
-
-### بوابة بيانات العيادة (جديدة)
-
-| الوضع | الشرط | النتيجة |
-| --- | --- | --- |
-| `demoMode: true` | شارة «نسخة عرض توضيحية» موجودة في `index.html` وعنصرها `data-demo-badge` | تمرّ، مع سرد الحقول الفارغة |
-| `demoMode` محذوف/false | الأربعة مكتملة وصالحة (اسم · هاتف مصري · طبيب · ترخيص) | تمرّ فقط عند الاكتمال |
-| أي وضع | هاتف بصيغة غير مصرية، اسم عام، ترخيص أصفار | **يفشل** ولا يُنشر |
-
-`scripts/test-clinic-schema.js` = ٤٥ فحصًا، منها ٩ أرقام صالحة و٩ غير صالحة (بما فيها رقم ناقص خانة)،
-وحالة تثبت أن الملف الفارغ لا يخترع شيئًا. أُدخل خلل مرتين (توسيع قاعدة الهاتف، حذف الترخيص من
-الإلزامي) → فشل في المرتين.
-
-## ما يبقى مفتوحًا (ولا يُغلق من هنا)
-
-| # | البند | لماذا | من يغلقه |
+| Item | Result | Detail | Owner |
 | --- | --- | --- | --- |
-| G5 | نسخة احتياطية واستعادة لـ Sheets/Calendar | يحتاج حسابًا حقيقيًا | ⟦أنت⟧ — `docs/go-live.md §3` خطوة B-6 |
-| G7 | فحص صحة وتنبيه للمشغّل | يحتاج نشرًا وتشغيلًا | ⟦الوكيل⟧ في الموجة ٣ (مشغّلات) |
-| G9/G10 | التشغيل الحقيقي | لم يُنفَّذ قط | ⟦أنت⟧ — سبع خطوات البروفة |
-| — | بيان العيادة (اسم/هاتف/طبيب/ترخيص) | بيانات لا تُخترع | ⟦أنت⟧ — تُكتب في `clinic.json` بسكربت `build-clinic-profile.js`، أو تصل في المحادثة فتكتب حرفيًا |
-| — | حماية `main` | جلسة الوكيل لا تملك صلاحية الإدارة | ⟦أنت⟧ — `sh scripts/bootstrap-github.sh` |
+| clinic.name — اسم العيادة الحقيقي | ❌ **FAIL (needs user action)** | لا يزال القالب الافتراضي | المستخدم |
+| clinic.phone — هاتف العيادة | ❌ **FAIL (needs user action)** | غير مضبوط | المستخدم |
+| clinic.doctor — اسم الطبيب | ❌ **FAIL (needs user action)** | غير مضبوط — تظهر شارة «لم يُتحقق بعد» | المستخدم |
+| clinic.license — رقم الترخيص | ❌ **FAIL (needs user action)** | غير مضبوط | المستخدم |
+| clinic.services — أنواع الزيارات | ℹ️ info | القالب الافتراضي (كشف جديد · متابعة) | المستخدم |
+| clinic.source — مصدر بيانات العيادة | ℹ️ info | قُرئ من القالب (بلا تصدير حقيقي) — أي أن الحالة أعلاه هي حالة «لم يُضبط بعد» وليست حالة عيادتك | المستخدم |
+| gate.workflows — عقود سير العمل والأسرار | ✅ **PASS** | · manifest secret GOOGLE_REFRESH_TOKEN_DEV is not referenced by any workflow (declared-only is allowed, keep it delibera | CC (المستودع) |
+| gate.secrets — مسح الأسرار | ✅ **PASS** | Secret scan passed — 87 text files (tracked files), 11 rules, 0 findings. | CC (المستودع) |
+| gate.parity — تطابق الإعدادات (حيّ/تجريبي) | ✅ **PASS** | Settings parity OK — 15 fields match between Settings.gs and app.js, prices round-trip, and the public profile ships ser | CC (المستودع) |
+| gate.backend — محاكاة الخادم | ✅ **PASS** | Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calen | CC (المستودع) |
+| gate.ui — الواجهة في متصفح | ✅ **PASS** | UI smoke test passed: rendering, booking, reference tracking, staff approval, and the admin assistant all work in demo m | CC (المستودع) |
+| site.up — الموقع المنشور | ⏸️ **NOT VERIFIED** | تم تخطي الشبكة (--offline) | المستخدم (شبكة) |
+| live.appsScript — الخادم يعمل في حساب Google | ⏸️ **NOT VERIFIED** | لم يُختبر في حساب حقيقي — المحاكاة لا تُغني عنه | المستخدم |
+| live.branchProtection — حماية main (مطلوب PR + CI) | ⏸️ **NOT VERIFIED** | لا يمكن قراءتها بلا صلاحية إدارة المستودع | المستخدم |
+| live.secrets — أسرار/متغيّرات GitHub | ⏸️ **NOT VERIFIED** | لا تُقرأ ولا تُطبع من هنا (الأسماء فقط في المانيفست) | المستخدم |
 
+<!-- GENERATED:END -->
 ---
 
-## كيف تُعاد هذه المصفوفة
+## كيف يُعاد توليد هذا الملف
 
 ```bash
-# ١) البوابات المحلية (لا تحتاج شبكة ولا حسابًا)
-node scripts/check-workflows.js && node scripts/check-workflows.js --self-test
-node scripts/scan-secrets.js && node scripts/check-config.js && node scripts/check-settings-parity.js
-node scripts/test-gas-simulated.js && node scripts/test-llm-adapter.js && node scripts/test-google-bridge.js
-npm i --no-save --prefix /tmp jsdom
-NODE_PATH=/tmp/node_modules node scripts/test-ui-smoke.js
-NODE_PATH=/tmp/node_modules node scripts/test-published-clinic.js
-NODE_PATH=/tmp/node_modules node scripts/test-demo-availability.js
-
-# ٢) الحكم النهائي (يشمل الموقع المنشور وبيانات العيادة)
-NODE_PATH=/tmp/node_modules node scripts/go-live-check.js
+npm i --no-save --prefix /tmp/jsd jsdom@25          # للبوابات الثلاث في المتصفح
+NODE_PATH=/tmp/jsd/node_modules node scripts/readiness-report.js --write
+NODE_PATH=/tmp/jsd/node_modules node scripts/readiness-report.js          # فحص فقط (يفشل إن تباعد)
 ```
 
----
-
-## بروفة Google (المرحلة 4)
+## بروفة Google
 
 كل خطوة في [`docs/google-rehearsal.md`](./google-rehearsal.md) لها حقل `evidence` في
-[`scripts/rehearsal-checklist.json`](../scripts/rehearsal-checklist.json) — ١٧ خطوة في ٦ أقسام.
-`node scripts/check-rehearsal.js` يعرض التقدّم (`0/17` الآن) ويرفض أن يحتوي الملف على مفتاح أو
-رقم هاتف خام. `--strict` يفشل ما دامت أي خطوة بلا دليل.
-
-**G1 وG14 يبقيان «غير مُتحقَّق» حتى تصل الأدلة.** لا يرقّيهما كلام ولا لقطة بلا محتوى.
+`scripts/rehearsal-checklist.json` (١٧ خطوة، التقدّم الحالي **0/17**). الفجوتان **G1** و**G14** لا
+تُغلقان إلا بأدلة من حسابك، ولا يرقّيهما كلام.

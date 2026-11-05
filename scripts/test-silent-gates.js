@@ -77,6 +77,15 @@ check('actionlint is not skipped when absent', !/command -v actionlint[\s\S]{0,2
 check('gitleaks does not pass when it cannot run', !/binary_ok.*!=.*1[\s\S]{0,300}exit 0/.test(ci));
 check('the jsdom suites are required, not optional', /CELIA_ALLOW_SKIP_UI/.test(fs.readFileSync(path.join(ROOT, 'scripts', 'test-ui-smoke.js'), 'utf8')));
 
+// 2b — the readiness document must be generated, not hand-written.
+// A status page nobody can prove matches the ledger is a rumour with a table.
+{
+  const doc = fs.readFileSync(path.join(ROOT, 'docs', 'production-readiness.md'), 'utf8');
+  check('the readiness document carries a generated block', /GENERATED:START[\s\S]*GENERATED:END/.test(doc));
+  check('the readiness document names its source of truth', /gaps\.json/.test(doc));
+  check('the readiness document does not reuse G-ids for pipeline stages', !/\|\s*\*\*G1 Build/.test(doc));
+}
+
 /* ------------------------------------------------- 3. live: guards that must reject input */
 // Skipped in the nested probe: recursion here once took nearly three minutes.
 if (STATIC_ONLY) {
