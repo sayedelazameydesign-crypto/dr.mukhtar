@@ -39,6 +39,7 @@ const document_ = html
 const wait = (ms = 140) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Boot the page with a stubbed clinic.json response. */
+const windows = [];
 async function boot(clinicJson) {
   const dom = new JSDOM(document_, {
     url: 'https://celia.test/',
@@ -57,6 +58,7 @@ async function boot(clinicJson) {
     }
   });
   await wait(320);
+  windows.push(dom.window);
   return dom.window;
 }
 
@@ -125,7 +127,12 @@ const check = (label, condition, detail = '') => {
   }
 
   console.log(`Published-clinic suite passed: ${passed} checks (filled, empty, missing and broken clinic.json).`);
+  // Exit explicitly: a jsdom window keeps timers alive, and without this the process hangs
+  // after printing success — which is exactly what made CI cancel the job.
+  windows.forEach((window) => window.close());
+  process.exit(0);
 })().catch((error) => {
   console.error(`Published-clinic suite FAILED: ${error.message}`);
+  windows.forEach((window) => window.close());
   process.exit(1);
 });
