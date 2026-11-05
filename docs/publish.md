@@ -8,10 +8,16 @@
 آخر تشغيل لـ `Deploy site` على `main` فشل في **خطوة واحدة فقط**:
 
 ```
-failure  Run actions/configure-pages@v5        ← هنا
+success  Workflow + secrets contract
+success  Assemble static site
+success  Verify backend simulation / LLM adapter / bundle
+failure  Run actions/configure-pages@v5        ← هنا (Pages غير موجود)
 skipped  Run actions/upload-pages-artifact@v3  ← لذلك تخطّى الباقي
 skipped  JOB deploy
 ```
+
+بعد هذا الفرع، نفس الدفعة تفشل **بخطوة تشرح السبب** بدل أن تفشل داخل الإجراء:
+`::error title=Pages is not enabled:: … settings/pages … ثم أعد التشغيل`.
 
 السبب: مستودع `dr.mukhtar` **ليس فيه موقع Pages بعد** (`GET /pages` → 404)، و`GITHUB_TOKEN`
 لا يستطيع **إنشاء** موقع Pages (403). ولذلك نحتاج توكينك الخاص للتوكين الأول فقط.
