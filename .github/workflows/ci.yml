@@ -139,6 +139,11 @@ jobs:
           export NODE_PATH="$PWD/node_modules"
           node scripts/readiness-report.js --offline --require-jsdom
 
+      # The check above must not depend on whether the runner has network: a document written
+      # offline has to pass on a networked machine, and real drift must still fail.
+      - name: Readiness check ignores network wording, not real drift
+        run: node scripts/test-readiness-report.js
+
       - name: Build Apps Script bundle
         run: python3 scripts/build-gas-package.py
 

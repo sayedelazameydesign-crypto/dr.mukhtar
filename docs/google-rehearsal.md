@@ -24,10 +24,10 @@
 
 1. افتح <https://script.google.com> ← **New project**، وسمّه `Celia Kids`.
 2. من `Project Settings` فعّل **Show "appsscript.json"**.
-3. شغّل محليًا: `python3 scripts/build-gas-package.py` — ينتج حزمة `gas/` (٣ ملفات Html/GS + manifest).
+3. شغّل محليًا: `python3 scripts/build-gas-package.py` — ينتج حزمة `gas/` (خمسة ملفات كود/HTML: `Index.html`, `Fonts.html`, `Code.gs`, `Llm.gs`, `Settings.gs` + `appsscript.json` = **٦ ملفات**).
 4. انسخ محتوى كل ملف من `gas/` إلى الملف المطابق في المحرّر (أو استخدم `clasp push`).
 5. **النتيجة المتوقعة:** المحرّر يعرض `Code.gs` و`Llm.gs` و`Settings.gs` بلا خطأ صياغة، و`appsscript.json` ظاهر.
-6. **الدليل المطلوب:** لقطة أو نص يقول «عدد الملفات ٥ + لا خطأ صياغة».
+6. **الدليل المطلوب:** لقطة أو نص يقول «عدد الملفات ٦ + لا خطأ صياغة».
 
 ### ٢. ربط ورقة البيانات (الحساب: أنت)
 

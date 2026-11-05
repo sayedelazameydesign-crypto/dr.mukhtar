@@ -10,7 +10,7 @@
       "closes": [],
       "steps": [
         { "id": "S1.1", "action": "أنشئ مشروع Apps Script وسمّه Celia Kids", "expected": "المحرّر يفتح المشروع", "evidence": "" },
-        { "id": "S1.2", "action": "شغّل python3 scripts/build-gas-package.py وانسخ ملفات gas/ إلى المحرّر", "expected": "٥ ملفات، بلا خطأ صياغة", "evidence": "" },
+        { "id": "S1.2", "action": "شغّل python3 scripts/build-gas-package.py وانسخ ملفات gas/ إلى المحرّر", "expected": "٦ ملفات، بلا خطأ صياغة", "evidence": "" },
         { "id": "S1.3", "action": "أضف CELIA_SHEET_ID في Script Properties", "expected": "القيمة محفوظة (لا تنسخها هنا)", "evidence": "" },
         { "id": "S1.4", "action": "شغّل initializeCeliaKids واقبل الصلاحيات", "expected": "أوراق Requests/Audit/Settings + مجلد Drive", "evidence": "" }
       ]
