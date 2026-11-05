@@ -78,9 +78,11 @@ jobs:
           node scripts/google/selftest.js --local
 
       - name: UI smoke test (jsdom)
+        timeout-minutes: 10
         run: |
           npm i --no-save --no-audit --no-fund jsdom@25
           node scripts/test-ui-smoke.js
+          node scripts/test-published-clinic.js
           node scripts/test-demo-availability.js
 
       - name: Build Apps Script bundle

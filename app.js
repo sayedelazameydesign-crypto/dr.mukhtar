@@ -707,6 +707,38 @@
     });
   }
 
+  /* ---------------- published clinic facts (stage A) ---------------- */
+  // Until a clinic runs the full Apps Script deployment, the public site can still carry
+  // its real phone and name — otherwise "the site is ready" only means "a form exists".
+  // clinic.json is a plain, non-secret file next to this script. Every field is optional:
+  // an empty value stays empty, the page never invents a number, and a missing or broken
+  // file changes nothing at all.
+  function applyPublishedClinic(data) {
+    if (!data || typeof data !== 'object') return;
+    const text = (value) => String(value === undefined || value === null ? '' : value).trim();
+    const name = text(data.clinicName);
+    const phone = text(data.phone) || text(data.whatsapp);
+    const address = text(data.address);
+    if (!name && !phone && !address) return;
+    // Announced facts only: the visit services and hours keep coming from the settings,
+    // because a published file must never be able to invent a booking slot.
+    if (name) { setFact('clinicName', name); state.clinicName = name; }
+    if (phone) { setPhone(phone); state.filled = Object.assign({}, state.filled, { phone: true }); }
+    if (address) { setFact('address', address); state.filled = Object.assign({}, state.filled, { address: true }); }
+    // A name supplied here counts as announced for the onboarding banner, which otherwise
+    // keeps claiming the page "still shows examples" after the clinic filled this file.
+    if (name) state.filled = Object.assign({}, state.filled, { name: true });
+    renderPlaceholders();
+    renderOnboarding();
+  }
+  async function loadPublishedClinicFacts() {
+    try {
+      const response = await fetch('clinic.json', { cache: 'no-store' });
+      if (!response.ok) return;
+      applyPublishedClinic(await response.json());
+    } catch (_) { /* a static file that is optional by design: silence is correct */ }
+  }
+
   /* ---------------- onboarding: is the page still showing examples? ---------------- */
   // A page that silently ships example names and default hours is a misrepresentation,
   // not a placeholder. These are the facts a real clinic must supply before the page
@@ -1699,6 +1731,8 @@
         const demo = demoProfile();
         applyClinicProfile(demo);
         applyServices(demo.services);
+        // Stage A: the published contact facts, without a Google deployment behind them.
+        loadPublishedClinicFacts();
       }
       syncSummary();
       syncProgress();
