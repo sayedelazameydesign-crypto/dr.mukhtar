@@ -124,6 +124,32 @@ const check = (label, condition, detail = '') => {
       text(window, '[data-config="address"]'));
   }
 
+  // 2b — the doctor and the licence travel in the same file (stage A has no dashboard
+  //      behind it, so a fact that is not here is not on the page at all).
+  {
+    const window = await boot({
+      clinicName: 'عيادة النور للأطفال',
+      phone: '01001234567',
+      doctorName: 'د. سارة محمود',
+      license: 'EG-12345'
+    });
+    check('the published doctor name reaches the page', /سارة محمود/.test(text(window, '[data-config="doctorName"]')),
+      text(window, '[data-config="doctorName"]'));
+    check('the published licence number reaches the page', /EG-12345/.test(text(window, '[data-config="license"]')),
+      text(window, '[data-config="license"]'));
+    check('a published licence counts as announced, not as unverified notice',
+      /تسجيل|سجّلته|مسجل|رسمي/.test(text(window, '.doctor-card')) && !/لم تُسجَّل بعد/.test(text(window, '.doctor-card')),
+      text(window, '.doctor-card').slice(0, 120));
+  }
+
+  // 2c — demoMode decides the badge, from the data, not from a build-time flag.
+  {
+    const demo = await boot({ demoMode: true, clinicName: 'عيادة النور' });
+    check('demoMode true keeps the demo badge', !demo.document.querySelector('#environmentBanner').hidden);
+    const live = await boot({ demoMode: false, clinicName: 'عيادة النور', phone: '01001234567', doctorName: 'د. سارة', license: 'EG-1' });
+    check('demoMode false hides the demo badge', live.document.querySelector('#environmentBanner').hidden);
+  }
+
   // 3 — missing and broken files are silent, not catastrophic.
   for (const mode of ['MISSING', 'BROKEN']) {
     const window = await boot(mode);
@@ -133,7 +159,7 @@ const check = (label, condition, detail = '') => {
       window.document.querySelectorAll('#dayChips .day-chip').length === 5);
   }
 
-  console.log(`Published-clinic suite passed: ${passed} checks (filled, empty, missing and broken clinic.json).`);
+  console.log(`Published-clinic suite passed: ${passed} checks (filled, doctor+licence, demo badge, empty, missing, broken).`);
   // Exit explicitly: a jsdom window keeps timers alive, and without this the process hangs
   // after printing success — which is exactly what made CI cancel the job.
   windows.forEach((window) => window.close());
