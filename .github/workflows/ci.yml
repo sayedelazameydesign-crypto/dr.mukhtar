@@ -108,8 +108,6 @@ jobs:
           set -uo pipefail
           base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
           asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          # The release redirects to a different host; follow redirects or the
-          # download fails after the code has already moved.
           binary_ok=0
           if curl -sSfL --retry 3 --retry-all-errors --max-time 120 -o /tmp/gitleaks.tgz "${base}/${asset}" \
              && tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks \
@@ -120,11 +118,27 @@ jobs:
             echo "::warning::gitleaks binary unavailable (release host unreachable); the built-in scanner already ran on the same tree."
             exit 0
           fi
-          # Scan the working tree, not the whole history: what ships is the tree that
-          # is assembled into _site, and history rewriting is not an option here.
-          # A finding in the tree still fails the job.
-          /tmp/gitleaks detect --no-git --source . --config .gitleaks.toml \
-            --no-banner --redact --verbose --exit-code 1
+          # Exit 0 here: the decision is made from the JSON report below, so a finding
+          # becomes a visible annotation instead of a silent "exit code 1".
+          /tmp/gitleaks dir . --config .gitleaks.toml --no-banner --redact \
+            --report-format json --report-path /tmp/leaks.json --exit-code 0 || true
+          node -e '
+            const fs = require("node:fs");
+            let findings = [];
+            try { findings = JSON.parse(fs.readFileSync("/tmp/leaks.json", "utf8")) || []; }
+            catch (error) { console.log(`::error::gitleaks produced no readable report: ${error.message}`); process.exit(1); }
+            for (const finding of findings.slice(0, 20)) {
+              const file = finding.File || "?";
+              const line = finding.StartLine || 0;
+              console.log(`::error file=${file},line=${line}::${finding.RuleID} — ${finding.Description || "secret detected"}`);
+            }
+            if (findings.length) {
+              console.log(`gitleaks: ${findings.length} finding(s) in the shipped tree.`);
+              process.exit(1);
+            }
+            console.log("gitleaks: 0 findings in the shipped tree.");
+          '
+
 
       - name: Dependency audit
         run: |
