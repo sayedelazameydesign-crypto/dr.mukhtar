@@ -92,7 +92,23 @@ def build_fonts_sheet(css: str, fonts_dir: Path) -> tuple[str, str]:
     return fonts_html, plain_css
 
 
+# The single source of truth for what the bundle contains. `--list` prints this without
+# touching the disk, so scripts/check-rehearsal.js can verify that the rehearsal document and
+# the checklist name every file (and no file that is not built).
+GENERATED_FILES = ("Index.html", "Fonts.html")
+COPIED_FILES = ("Code.gs", "Llm.gs", "Settings.gs", "WhatsApp.gs", "appsscript.json")
+
+
+def bundle_files() -> list[str]:
+    """Files the build produces, in a stable order."""
+    return list(GENERATED_FILES) + [name for name in COPIED_FILES if (ROOT / name).exists()]
+
+
 def main() -> None:
+    if "--list" in sys.argv[1:]:
+        for name in bundle_files():
+            print(name)
+        return
     html_path, css_path, js_path, fonts_dir = load_sources()
     html = html_path.read_text(encoding="utf-8")
     css = css_path.read_text(encoding="utf-8")
@@ -135,7 +151,7 @@ def main() -> None:
 
     (OUT / "Index.html").write_text(html, encoding="utf-8")
 
-    for name in ("Code.gs", "Llm.gs", "Settings.gs", "WhatsApp.gs", "appsscript.json"):
+    for name in COPIED_FILES:
         source = ROOT / name
         if source.exists():
             (OUT / name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")

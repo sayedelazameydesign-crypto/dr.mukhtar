@@ -108,6 +108,15 @@ jobs:
       - name: Go-live readiness report (offline, must be self-consistent)
         run: node scripts/test-go-live-check.js
 
+      # An older bundle may not ship WhatsApp.gs at all: the whole backend suite must still pass,
+      # which is what proves approval and cancellation never depend on the adapter.
+      - name: Backend simulation without the WhatsApp adapter
+        run: |
+          CELIA_OMIT_WHATSAPP_GS=1 node scripts/test-gas-simulated.js
+
+      - name: Rehearsal bundle contract (build, checklist, document agree)
+        run: node scripts/test-rehearsal-files.js
+
       - name: Backend simulation tests
         run: node scripts/test-gas-simulated.js
 

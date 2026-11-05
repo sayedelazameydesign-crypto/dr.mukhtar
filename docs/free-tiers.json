@@ -169,7 +169,26 @@
     },
     {
       "service": "whatsapp-cloud-api (sending to real numbers)",
-      "reason": "business-initiated messages are billed per delivery and Meta requires a payment method; adopted here only as an off/dry-run adapter — see docs/prd/whatsapp-cloud-api.md"
+      "reason": "business-initiated messages are billed per delivery and Meta requires a payment method; adopted here only as an off/dry-run adapter — see docs/prd/whatsapp-cloud-api.md",
+      "checked": "2026-11-05",
+      "sources": [
+        {
+          "url": "https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing",
+          "page_updated": "2026-09-30",
+          "verified": "Since 2026-10-01 service messages are billed per message; each business phone number gets 1,000 free service messages per month (no roll-over), charged from the 1,001st. Utility templates are billed per delivered message."
+        },
+        {
+          "url": "https://developers.facebook.com/documentation/business-messaging/whatsapp/business-phone-numbers/phone-numbers",
+          "page_updated": "2026-05-21",
+          "verified": "A test business phone number is generated and registered automatically by the Get Started flow; a number already in use with WhatsApp cannot be registered unless it is deleted first; the number must be able to receive SMS or voice calls."
+        }
+      ],
+      "unverified": [
+        "the maximum number of recipients a test number may message (not stated on the pages read)",
+        "whether a payment method is required even to stay inside the 1,000 free service messages",
+        "whether Graph API v21.0 (used in WhatsApp.gs) is still served; Meta's current examples use v23.0"
+      ],
+      "note": "Access to Cloud API itself is free; messages are billed. This entry exists because the adapter is adopted in dry-run only."
     }
   ]
 }
