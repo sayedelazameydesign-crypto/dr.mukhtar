@@ -196,7 +196,7 @@ function getAvailableSlots(day, visitType) {
     if (cached) return { ok: true, slots: cached, cached: true };
     const config = getConfig_();
     const date = makeDate_(day, config.start);
-    if (!config.workDays.includes(date.getDay())) return { ok: true, slots: [] };
+    if (!config.workDays.includes(clinicWeekday_(day))) return { ok: true, slots: [] };
     const minutes = config.duration;
     const visitMinutes = visitDuration_(visitType || 'كشف جديد');
     const startMinutes = timeToMinutes_(config.start);
@@ -746,12 +746,40 @@ function validateRequest_(payload) {
 function digits_(value) { return String(value || '').replace(/\D/g, ''); }
 function isValidDay_(day) { return /^\d{4}-\d{2}-\d{2}$/.test(String(day || '')) && !isNaN(new Date(String(day) + 'T12:00:00').getTime()); }
 function isValidTime_(time) { return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(time || '')); }
-function makeDate_(day, time) {
+// Minutes east of UTC for a zone at a given instant (+02:00 for Cairo in winter).
+function zoneOffsetMinutes_(date, timezone) {
+  if (!Utilities || typeof Utilities.formatDate !== 'function') return 0;
+  const stamp = Utilities.formatDate(date, timezone, 'yyyy-MM-dd HH:mm');
+  const chunks = stamp.split(' ');
+  const day = chunks[0].split('-').map(Number);
+  const clock = chunks[1].split(':').map(Number);
+  if (day.length !== 3 || clock.length !== 2 || day.concat(clock).some(isNaN)) return 0;
+  const asUTC = Date.UTC(day[0], day[1] - 1, day[2], clock[0], clock[1]);
+  return Math.round((asUTC - date.getTime()) / 60000);
+}
+// An instant that reads as the given clinic-local wall clock, whatever zone the script
+// itself runs in. `new Date(y, m, d, h, min)` used the runtime's zone, so a script account
+// in UTC built 09:00 Cairo two hours early — and "is this still in the future?" was then
+// answered for the wrong moment.
+function clinicWallClock_(day, time) {
   if (!isValidDay_(day) || !isValidTime_(time)) throw new Error('التاريخ أو الوقت غير صحيح.');
+  const timezone = getConfig_().timezone;
   const d = String(day).split('-').map(Number); const t = String(time).split(':').map(Number);
-  const date = new Date(d[0], d[1] - 1, d[2], t[0], t[1], 0, 0);
+  const guess = Date.UTC(d[0], d[1] - 1, d[2], t[0], t[1], 0, 0);
+  // Two passes settle the DST edge: the first probe may itself be off by an hour.
+  let instant = guess - zoneOffsetMinutes_(new Date(guess), timezone) * 60000;
+  instant = guess - zoneOffsetMinutes_(new Date(instant), timezone) * 60000;
+  return new Date(instant);
+}
+function makeDate_(day, time) {
+  const date = clinicWallClock_(day, time);
   if (Utilities.formatDate(date, getConfig_().timezone, 'yyyy-MM-dd') !== day) throw new Error('التاريخ غير صالح.');
   return date;
+}
+// Day of week (0=Sunday) of a clinic day, from the calendar date itself.
+function clinicWeekday_(day) {
+  const parts = String(day).split('-').map(Number);
+  return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])).getUTCDay();
 }
 function timeToMinutes_(time) { const p = time.split(':').map(Number); return p[0] * 60 + p[1]; }
 function minutesToTime_(minutes) { return ('0' + Math.floor(minutes / 60)).slice(-2) + ':' + ('0' + (minutes % 60)).slice(-2); }
@@ -762,7 +790,7 @@ function isSlotAvailable_(day, time, duration, excludeEventId) {
   const offset = (timeToMinutes_(time) - timeToMinutes_(config.start)) % config.duration;
   // One nanosecond of tolerance: `new Date()` inside the same millisecond as a slot
   // must not make "the next slot" look like the past.
-  if (start.getTime() - new Date().getTime() <= 0 || !config.workDays.includes(start.getDay()) || timeToMinutes_(time) < timeToMinutes_(config.start) || (offset !== 0 && offset !== duration % config.duration) || timeToMinutes_(time) + duration > timeToMinutes_(config.end)) return false;
+  if (start.getTime() - new Date().getTime() <= 0 || !config.workDays.includes(clinicWeekday_(day)) || timeToMinutes_(time) < timeToMinutes_(config.start) || (offset !== 0 && offset !== duration % config.duration) || timeToMinutes_(time) + duration > timeToMinutes_(config.end)) return false;
   if (closureBlocks_(day, time, duration)) return false;
   const events = getCalendar_().getEvents(start, end);
   return !events.some((event) => event.getId() !== excludeEventId && event.getStartTime() < end && event.getEndTime() > start);

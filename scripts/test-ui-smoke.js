@@ -89,6 +89,23 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   check('the first chip is the clinic tomorrow, not the device tomorrow',
     chipDays[0] === cairoTomorrow || chipDays[0] === nextOpenAfter(cairoTomorrow), `${chipDays[0]} vs ${cairoTomorrow}`);
   check('the date input cannot offer a past day', $('#visitDate').min === cairoToday, `${$('#visitDate').min} vs ${cairoToday}`);
+  // Regression: chip labels were positional, so the first chip said «غدًا» even when the
+  // clinic was shut the next day and it was really three days away. The label must be the
+  // distance from the clinic's today, never the chip's index.
+  const gapTo = (iso) => Math.round((Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${cairoToday}T00:00:00Z`)) / 86400000);
+  const chipLabels = $$('#dayChips .day-chip').map((chip) => chip.textContent.trim());
+  const expectedLabel = (gap) => {
+    if (gap <= 0) return 'اليوم';
+    if (gap === 1) return 'غدًا';
+    if (gap === 2) return 'بعد غد';
+    return `بعد ${String(gap).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)])} أيام`;
+  };
+  const mislabelled = chipDays
+    .map((iso, index) => ({ iso, gap: gapTo(iso), label: chipLabels[index] }))
+    .filter((item) => !item.label.startsWith(expectedLabel(item.gap)));
+  check('chip labels are the real distance from the clinic today', mislabelled.length === 0,
+    mislabelled.map((item) => `${item.iso} (+${item.gap}) said "${item.label}"`).join(' | '));
+  check('no chip calls a later day "tomorrow"', chipDays.every((iso, index) => gapTo(iso) !== 1 || chipLabels[index].startsWith('غدًا')));
   check('clinic clock filled', $('#heroClock') === null || $('#heroClock').textContent.trim() !== '—');
   check('slots offered', $$('#slotsGrid .slot-button').length > 0);
 
