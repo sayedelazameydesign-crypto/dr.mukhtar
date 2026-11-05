@@ -63,6 +63,9 @@ jobs:
       - name: Settings parity (live catalog vs demo mirror)
         run: node scripts/check-settings-parity.js
 
+      - name: Go-live readiness report (offline, must be self-consistent)
+        run: node scripts/test-go-live-check.js
+
       - name: Backend simulation tests
         run: node scripts/test-gas-simulated.js
 
