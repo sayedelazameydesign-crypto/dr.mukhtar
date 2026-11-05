@@ -25,7 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # Full history: the map staleness check asks whether meta.commit is an ancestor of
+      # HEAD, and a shallow clone cannot answer that (it would warn on every run).
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:
