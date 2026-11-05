@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-05T11:40:00Z",
-  "commit": "12e4a6d",
+  "generated_at": "2026-11-05T13:20:00Z",
+  "commit": "1a1ab54",
   "gaps": [
     {
       "id": "G1",
@@ -52,7 +52,13 @@
       "evidence": "app.js:121-145 recomputes duration and busy spans; Code.gs:134-158 does the same against Calendar",
       "impact": "A change to visit durations or work hours in one place silently diverges in the other; demo mode could promise a slot the backend refuses",
       "fix": "Keep the demo model generated from the backend defaults in config/clinic.example.json, or add a shared JSON fixture both sides read",
-      "severity": "med"
+      "severity": "med",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "node scripts/check-settings-parity.js -> \"15 fields match between Settings.gs and app.js, prices round-trip\"; node scripts/test-published-clinic.js -> \"a file cannot override the clinic hours\" / \"cannot add or price a visit type\" (25 checks)",
+        "note": "The duplication remains by design (one implementation per runtime), but it is now a contract with a gate on both sides: parity is asserted, and a published file cannot drift the demo model."
+      }
     },
     {
       "id": "G6",
@@ -183,5 +189,16 @@
     "Should CELIA_* mirrors become the canonical env names for a future non-GAS backend, or be dropped?",
     "Should the demo/dev Google profile stay attached to the developer account, or move to a dedicated system account before any real clinic data exists?"
   ],
-  "note": "G3-G11 triaged this round: resolved items carry a resolution object with command evidence. Still open: G1 (live Google run), G2 (GitHub settings), G4/G5/G12-G14."
+  "note": "G3-G11 triaged this round: resolved items carry a resolution object with command evidence. Still open: G1 (live Google run), G2 (GitHub settings), G4/G5/G12-G14.",
+  "new_gap_evidence": {
+    "silent_gates_fixed": [
+      "S1 setup-status ||true",
+      "S2 pages assets masked",
+      "S4 map staleness warning",
+      "S5 llm skip shown as pass"
+    ],
+    "gate_added": "scripts/test-silent-gates.js (10 checks, 5 negative probes)",
+    "clinic_gate": "scripts/clinic-ready.js + scripts/clinic-schema.js (45 checks)",
+    "harness_defect": "test-go-live-check.js used git checkout -- app.js, discarding uncommitted work; replaced with a byte snapshot"
+  }
 }
