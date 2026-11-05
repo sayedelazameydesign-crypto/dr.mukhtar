@@ -67,7 +67,7 @@ const CK_SETTINGS_CATALOG = [
     title: 'أنواع الزيارات ومدتها',
     help: 'تُبنى منها قائمة «نوع الزيارة» على الصفحة ومدة كل موعد والتحقق من السعة.',
     fields: [
-      { key: 'VISIT_SERVICES', label: 'أنواع الزيارات', type: 'services', help: 'سطر لكل نوع بالصيغة: الاسم = المدة بالدقائق' }
+      { key: 'VISIT_SERVICES', label: 'أنواع الزيارات وأسعارها', type: 'services', help: 'سطر لكل نوع: الاسم = المدة بالدقائق = السعر (السعر اختياري، واتركوه فارغًا إن لم يكن معلنًا)' }
     ]
   },
   {
@@ -195,7 +195,11 @@ function readVisitServices_(props) {
     if (!Array.isArray(parsed)) return CK_DEFAULT_SERVICES.slice();
     const list = parsed
       .map(function (item) {
-        return { label: String(item && item.label || '').trim().slice(0, 40), minutes: Math.round(Number(item && item.minutes)) };
+        return {
+          label: String(item && item.label || '').trim().slice(0, 40),
+          minutes: Math.round(Number(item && item.minutes)),
+          price: Math.max(0, Math.round(Number(item && item.price) || 0))
+        };
       })
       .filter(function (item) { return item.label && Number.isFinite(item.minutes) && item.minutes >= 5 && item.minutes <= 240; });
     return list.length ? list : CK_DEFAULT_SERVICES.slice();
@@ -206,14 +210,29 @@ function parseServicesInput_(raw) {
   const lines = String(raw || '').split('\n').map(function (line) { return line.trim(); }).filter(Boolean);
   const list = [];
   for (let index = 0; index < lines.length; index += 1) {
-    const match = /^(.{1,40}?)\s*[=\-–—:]\s*(\d{1,3})$/.exec(lines[index]);
-    if (!match) return { ok: false, message: 'صيغة أنواع الزيارات غير صحيحة في السطر ' + (index + 1) + '. استخدموا: الاسم = المدة بالدقائق.' };
-    const label = match[1].trim();
-    const minutes = Number(match[2]);
+    // Split explicitly instead of one clever regex: with `-` as a separator a negative
+    // price used to be swallowed as a separator and the line parsed as a 5-minute visit.
+    const parts = String(lines[index]).split(/\s*[=\-–—:]\s*/).map(function (part) { return part.trim(); });
+    if (parts.length < 2 || parts.length > 3) {
+      return { ok: false, message: 'صيغة أنواع الزيارات غير صحيحة في السطر ' + (index + 1) + '. استخدموا: الاسم = المدة بالدقائق، ويمكن إضافة السعر بعد علامة = ثانية.' };
+    }
+    const label = parts[0];
     if (!label) return { ok: false, message: 'اسم نوع الزيارة مطلوب في السطر ' + (index + 1) + '.' };
+    if (!/^\d{1,3}$/.test(parts[1])) return { ok: false, message: 'مدة الزيارة بالدقائق يجب أن تكون رقمًا صحيحًا في السطر ' + (index + 1) + '.' };
+    const minutes = Number(parts[1]);
     if (minutes < 5 || minutes > 240) return { ok: false, message: 'مدة الزيارة يجب أن تكون بين ٥ و٢٤٠ دقيقة.' };
+    // A price is optional on purpose: when the doctor has not decided a fee, the page
+    // must show no price at all rather than a zero. A dangling separator is an error,
+    // not "no price" — otherwise a typo would silently look like a free visit.
+    let price = 0;
+    if (parts.length === 3) {
+      if (!/^\d{1,6}$/.test(parts[2]) || Number(parts[2]) > 100000) {
+        return { ok: false, message: 'سعر الزيارة يجب أن يكون رقمًا صحيحًا بالجنيه في السطر ' + (index + 1) + '، أو احذفوا علامة = الأخيرة.' };
+      }
+      price = Number(parts[2]);
+    }
     if (list.some(function (item) { return item.label === label; })) return { ok: false, message: 'نوع الزيارة مكرر: ' + label };
-    list.push({ label: label, minutes: minutes });
+    list.push({ label: label, minutes: minutes, price: price });
   }
   if (!list.length) return { ok: false, message: 'أضيفوا نوع زيارة واحدًا على الأقل.' };
   if (list.length > CK_MAX_SERVICES) return { ok: false, message: 'الحد الأقصى ' + CK_MAX_SERVICES + ' أنواع زيارة.' };
@@ -231,7 +250,9 @@ function getClinicSettings(pin) {
       const field = map[key];
       if (field.secret) { values[key] = ''; return; }
       if (key === 'VISIT_SERVICES') {
-        values[key] = readVisitServices_(props).map(function (item) { return item.label + ' = ' + item.minutes; }).join('\n');
+        values[key] = readVisitServices_(props)
+          .map(function (item) { return item.label + ' = ' + item.minutes + (item.price ? ' = ' + item.price : ''); })
+          .join('\n');
         return;
       }
       if (key === 'WORK_DAYS') { values[key] = readDayList_(props.getProperty('WORK_DAYS'), CK.DEFAULT_WORK_DAYS); return; }

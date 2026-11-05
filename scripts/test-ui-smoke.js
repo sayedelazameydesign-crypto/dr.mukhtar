@@ -233,6 +233,28 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   await wait(360);
   check('a new service becomes bookable', $$('.choice-card').length === 2 && /كشف أول/.test($('.choice-grid').textContent), $('.choice-grid').textContent);
   check('the new duration is used in the summary', /٤٥/.test($('[data-summary="duration"]').textContent), $('[data-summary="duration"]').textContent);
+  // A price is shown only when the clinic announced one; an unset price must never
+  // become "0 EGP", which would read as a free visit.
+  const cards = $$('.choice-card').map((card) => card.textContent);
+  check('no price is invented for services that have none',
+    cards.every((text) => !/ج\.م/.test(text)), cards.join(' | '));
+  $('#setting-VISIT_SERVICES').value = 'كشف أول = 45 = 250\nمتابعة = 20';
+  submit('#settingsForm');
+  await wait(360);
+  const pricedCards = $$('.choice-card').map((card) => card.textContent);
+  check('an announced price reaches the visit card', /٢٥٠\s*ج\.م/.test(pricedCards[0] || ''), pricedCards[0]);
+  check('the priced service keeps its price in the summary',
+    /٢٥٠\s*ج\.م/.test($('[data-summary="duration"]').textContent), $('[data-summary="duration"]').textContent);
+  check('a service with no price stays unpriced', !/ج\.م/.test(pricedCards[1] || ''), pricedCards[1]);
+  check('the price is echoed back for editing', /250/.test($('#setting-VISIT_SERVICES').value), $('#setting-VISIT_SERVICES').value);
+  // A negative price must be refused, not silently read as a 5-minute visit.
+  $('#setting-VISIT_SERVICES').value = 'كشف أول = 45 = -5';
+  submit('#settingsForm');
+  await wait(300);
+  check('a negative price is refused', !$('#settingsError').hidden, 'no error shown');
+  $('#setting-VISIT_SERVICES').value = 'كشف أول = 45 = 250\nمتابعة = 20';
+  submit('#settingsForm');
+  await wait(300);
   // A parent on a phone taps the clinic's number instead of copying it.
   const phoneLink = $('[data-config="phone"] a');
   check('a configured phone becomes a tap-to-call link', phoneLink !== null && /^tel:\+?[0-9]{6,}$/.test(phoneLink.getAttribute('href')), phoneLink && phoneLink.getAttribute('href'));
