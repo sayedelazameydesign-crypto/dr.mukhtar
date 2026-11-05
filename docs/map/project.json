@@ -853,6 +853,22 @@
       "lang": "js",
       "layer": "infra",
       "role": "test: 29 offline cases over both adapters"
+    },
+    {
+      "id": "env.PAGES_TOKEN",
+      "kind": "env",
+      "path": ".github/workflows/pages.yml (enablement step)",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Secret name: optional first-run Pages enablement PAT"
+    },
+    {
+      "id": "env.PAGES_AUTO_ENABLE",
+      "kind": "env",
+      "path": ".github/workflows/pages.yml (enablement step)",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Variable name: gated first-run Pages creation"
     }
   ],
   "edges": [
@@ -1977,6 +1993,22 @@
         [
           "doc.free-tiers",
           "integration.external-oauth"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": ".github/workflows/pages.yml — configure-pages enablement step runs only when vars.PAGES_AUTO_ENABLE == 'true' and uses secrets.PAGES_TOKEN",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "ci.pages",
+          "env.PAGES_AUTO_ENABLE"
+        ],
+        [
+          "ci.pages",
+          "env.PAGES_TOKEN"
         ]
       ]
     }

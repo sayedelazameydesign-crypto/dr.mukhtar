@@ -4,11 +4,23 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # A feature branch touching the deploy wiring must prove it still runs —
+  # otherwise a broken pages.yml is only discovered after merge.
+  pull_request:
+    paths:
+      - '.github/workflows/pages.yml'
+      - 'scripts/check-workflows.js'
+      - 'scripts/enable-pages.sh'
+      - 'docs/publish.md'
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  # NOTE: "administration" is NOT a valid permissions key (GitHub rejects the
+  # whole workflow with "Unexpected value 'administration'"). Creating the Pages
+  # site needs an OWNER PAT with Administration+Pages write, passed to the
+  # enablement step below — GITHUB_TOKEN can never do it.
 
 concurrency:
   group: pages
@@ -54,13 +66,25 @@ jobs:
       - name: Verify Apps Script bundle builds
         run: python3 scripts/build-gas-package.py
 
-      - uses: actions/configure-pages@v5
+      - name: Enable Pages site if missing (owner PAT only)
+        if: ${{ vars.PAGES_AUTO_ENABLE == 'true' }}
+        continue-on-error: true
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+          token: ${{ secrets.PAGES_TOKEN }}
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
 
   deploy:
     needs: build
+    # Never deploy from a pull request: build-only there (deploy needs the
+    # github-pages environment and must stay a main-branch concern).
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
