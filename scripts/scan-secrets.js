@@ -68,8 +68,14 @@ function walk(dir) {
 
 function trackedFiles() {
   const args = includeUntracked ? ['ls-files', '--cached', '--others', '--exclude-standard'] : ['ls-files'];
-  const out = execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
-  return out.split('\n').map((line) => line.trim()).filter(Boolean);
+  try {
+    const out = execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return out.split('\n').map((line) => line.trim()).filter(Boolean);
+  } catch (error) {
+    // Not a git checkout (tarball, exported artifact, CI cache restore): walk instead.
+    console.log('· no git metadata available; walking the working tree');
+    return walk(ROOT).filter((relative) => !SKIP_PATH.test(relative));
+  }
 }
 
 const findings = [];
