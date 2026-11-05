@@ -114,25 +114,42 @@ function checkClinicData() {
 
   const filled = (key) => String(properties[key] || '').trim();
 
-  const nameOk = filled('CLINIC_NAME') !== '' && filled('CLINIC_NAME') !== 'Celia Kids';
-  add('clinic.name', 'اسم العيادة الحقيقي', nameOk ? 'ready' : 'action',
-    nameOk ? filled('CLINIC_NAME') : 'لا يزال القالب الافتراضي',
-    nameOk ? '' : 'أدخله من: لوحة العيادة ← إعدادات العيادة ← هوية العيادة');
+  // Stage A publishes facts through clinic.json, which reaches a stranger's browser; the
+  // dashboard and Script Properties do not. So a fact counts as published if EITHER source
+  // carries it, and the report says which — claiming a fact from the server while the page
+  // shows a placeholder would be exactly the misreport this report exists to prevent.
+  const published = (() => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(path.resolve(__dirname, '..'), 'clinic.json'), 'utf8'));
+    } catch (_) { return {}; }
+  })();
+  const pub = (key) => String(published[key] == null ? '' : published[key]).trim();
+  const fromWhere = (key, propertyKey) => {
+    if (pub(key)) return 'clinic.json';
+    if (filled(propertyKey || key)) return 'إعدادات الخادم';
+    return '';
+  };
 
-  const phone = filled('CLINIC_PHONE').replace(/\D/g, '');
+  const publishedName = pub('clinicName') || filled('CLINIC_NAME');
+  const nameOk = publishedName !== '' && publishedName !== 'Celia Kids';
+  add('clinic.name', 'اسم العيادة الحقيقي', nameOk ? 'ready' : 'action',
+    nameOk ? `${publishedName} (${fromWhere('clinicName', 'CLINIC_NAME')})` : 'لا يزال القالب الافتراضي',
+    nameOk ? '' : 'أدخله في clinic.json أو من: لوحة العيادة ← إعدادات العيادة ← هوية العيادة');
+
+  const phone = (pub('phone') || filled('CLINIC_PHONE')).replace(/\D/g, '');
   const phoneOk = phone.length >= 8;
   add('clinic.phone', 'هاتف العيادة', phoneOk ? 'ready' : 'action',
-    phoneOk ? `${phone.slice(0, 4)}… (مخفي جزئيًا)` : 'غير مضبوط',
-    phoneOk ? '' : 'من نفس الشاشة — بدونه لا يعمل زر الاتصال ولا واتساب');
+    phoneOk ? `${phone.slice(0, 4)}… (مخفي جزئيًا) · ${fromWhere('phone', 'CLINIC_PHONE')}` : 'غير مضبوط',
+    phoneOk ? '' : 'أدخله في clinic.json — بدونه لا يعمل زر الاتصال ولا واتساب');
 
-  const doctorOk = filled('DOCTOR_NAME') !== '';
+  const doctorOk = (pub('doctorName') || filled('DOCTOR_NAME')) !== '';
   add('clinic.doctor', 'اسم الطبيب', doctorOk ? 'ready' : 'action',
-    doctorOk ? 'مضبوط' : 'غير مضبوط — تظهر شارة «لم يُتحقق بعد»',
-    doctorOk ? '' : 'أدخله من «هوية الطبيب»؛ لا يُخترع من الكود');
+    doctorOk ? `مضبوط (${fromWhere('doctorName', 'DOCTOR_NAME')})` : 'غير مضبوط — تظهر شارة «لم يُتحقق بعد»',
+    doctorOk ? '' : 'أدخله في clinic.json أو «هوية الطبيب»؛ لا يُخترع من الكود');
 
-  const licenseOk = filled('DOCTOR_LICENSE') !== '';
+  const licenseOk = (pub('license') || filled('DOCTOR_LICENSE')) !== '';
   add('clinic.license', 'رقم الترخيص', licenseOk ? 'ready' : 'action',
-    licenseOk ? 'مضبوط' : 'غير مضبوط',
+    licenseOk ? `مضبوط (${fromWhere('license', 'DOCTOR_LICENSE')})` : 'غير مضبوط',
     licenseOk ? '' : 'لا تُدخله قبل التحقق منه فعليًا — كتابته غير المحقّقة أسوأ من غيابه');
 
   const services = filled('VISIT_SERVICES');
