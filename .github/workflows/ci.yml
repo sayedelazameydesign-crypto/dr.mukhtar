@@ -123,7 +123,8 @@ jobs:
           # Scan the working tree, not the whole history: what ships is the tree that
           # is assembled into _site, and history rewriting is not an option here.
           # A finding in the tree still fails the job.
-          /tmp/gitleaks detect --no-git --source . --no-banner --redact --verbose --exit-code 1
+          /tmp/gitleaks detect --no-git --source . --config .gitleaks.toml \
+            --no-banner --redact --verbose --exit-code 1
 
       - name: Dependency audit
         run: |

@@ -1,0 +1,34 @@
+# gitleaks configuration — the shipped tree is what matters.
+#
+# The built-in scanner (scripts/scan-secrets.js, 11 rules) is the contract gate and
+# runs on every push. This file makes the second, external scanner agree with it:
+# scan the working tree (not the git history), and skip paths that never ship or
+# that only hold deliberate test fixtures.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Non-shipping paths, generated output, and documented test fixtures"
+paths = [
+  # generated at build time (git-ignored) and CI artifacts
+  '''^gas/''',
+  '''^_site/''',
+  '''^node_modules/''',
+  '''^\.git/''',
+  # binary assets: fonts and probe images are noise for a text scanner
+  '''^assets/fonts/''',
+  '''(?i)\.(png|jpg|jpeg|webp|gif|woff2?|ttf|otf|ico|pdf)$''',
+  # test suites use deliberately fake values (see each file's header)
+  '''^scripts/test-''',
+  # the project map quotes real source lines; the source line is the authority
+  '''^docs/map/''',
+]
+regexes = [
+  # fixtures shaped like credentials, never real ones
+  '''test-admin-secret-''',
+  '''fake-key''',
+  '''fixture-''',
+  '''pin-[0-9a-f]{24}''',
+  # the unambiguous PIN alphabet is a constant, not a secret
+  '''ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789''',
+]
