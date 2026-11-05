@@ -697,6 +697,57 @@ walkRepo(ROOT).forEach((file) => {
 
 // 5b. Settings stay owner-editable and secret-free: the catalog lives in one place,
 //     the dashboard renders from it, and no secret name may enter it.
+/* ------------------------------------------------------ Apps Script scope contract */
+// oauthScopes must be explicit: automatic scopes grant whatever the code happens to touch,
+// which is precisely the permission set nobody reviewed. And a service the backend uses
+// without its scope fails at runtime in the owner's account — the exact wall S1.4 would hit.
+// The contract self-test builds throwaway repositories via CELIA_REPO_ROOT; a manifest is not
+// part of those fixtures, so this check applies to a real checkout only (like pages.yml above).
+if (!process.env.CELIA_REPO_ROOT) {
+  const manifestPath = path.join(ROOT, 'appsscript.json');
+  if (!fs.existsSync(manifestPath)) fail('appsscript.json is missing');
+  else {
+    let manifest = null;
+    try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); }
+    catch (error) { fail(`appsscript.json is not valid JSON: ${error.message}`); }
+    if (manifest) {
+      const scopes = Array.isArray(manifest.oauthScopes) ? manifest.oauthScopes : null;
+      if (!scopes) {
+        fail('appsscript.json — oauthScopes must be declared explicitly (automatic scopes hide the permission set)');
+      } else {
+        const SERVICE_SCOPE = {
+          SpreadsheetApp: 'spreadsheets',
+          CalendarApp: 'calendar',
+          DriveApp: 'drive',
+          UrlFetchApp: 'script.external_request',
+          GmailApp: 'gmail',
+          MailApp: 'script.send_mail'
+        };
+        const backend = ['Code.gs', 'Llm.gs', 'Settings.gs', 'WhatsApp.gs']
+          .filter((file) => fs.existsSync(path.join(ROOT, file)));
+        const used = new Set();
+        backend.forEach((file) => {
+          const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+          Object.keys(SERVICE_SCOPE).forEach((service) => {
+            if (new RegExp(`\\b${service}\\.`).test(text)) used.add(service);
+          });
+        });
+        const declared = (suffix) => scopes.some((scope) => String(scope).endsWith('/' + suffix));
+        used.forEach((service) => {
+          if (!declared(SERVICE_SCOPE[service])) {
+            fail(`appsscript.json — ${service} is used by the backend but ${SERVICE_SCOPE[service]} is not declared (OAuth would fail at runtime)`);
+          }
+        });
+        Object.entries(SERVICE_SCOPE).forEach(([service, suffix]) => {
+          if (!used.has(service) && declared(suffix)) {
+            fail(`appsscript.json — declares ${suffix} but no backend file uses ${service} (an unrequested permission is a risk, not a feature)`);
+          }
+        });
+      }
+    }
+  }
+}
+
 const settingsPath = path.join(ROOT, 'Settings.gs');
 if (fs.existsSync(settingsPath)) {
   const settings = fs.readFileSync(settingsPath, 'utf8');

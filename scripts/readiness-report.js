@@ -210,6 +210,23 @@ const HEADER = `# Production Readiness — سجل الفجوات وتقرير ا
 
 `;
 
+// The rehearsal counters used to be typed into this string, so adding a step silently made
+// the generated document lie. They are derived from the checklist now.
+let rehearsalTotal = 0;
+let rehearsalDone = 0;
+try {
+  const checklist = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'rehearsal-checklist.json'), 'utf8'));
+  (checklist.sections || []).forEach((section) => {
+    (section.steps || []).forEach((step) => {
+      rehearsalTotal += 1;
+      if (step.evidence && String(step.evidence).trim()) rehearsalDone += 1;
+    });
+  });
+} catch (error) {
+  console.error(`✗ cannot read scripts/rehearsal-checklist.json: ${error.message}`);
+  process.exit(1);
+}
+
 const TAIL = `
 ---
 
@@ -224,7 +241,7 @@ NODE_PATH=/tmp/jsd/node_modules node scripts/readiness-report.js          # فح
 ## بروفة Google
 
 كل خطوة في [\`docs/google-rehearsal.md\`](./google-rehearsal.md) لها حقل \`evidence\` في
-\`scripts/rehearsal-checklist.json\` (١٧ خطوة، التقدّم الحالي **0/17**). الفجوتان **G1** و**G14** لا
+\`scripts/rehearsal-checklist.json\` (${rehearsalTotal} خطوة، التقدّم الحالي **${rehearsalDone}/${rehearsalTotal}**). الفجوتان **G1** و**G14** لا
 تُغلقان إلا بأدلة من حسابك، ولا يرقّيهما كلام.
 `;
 

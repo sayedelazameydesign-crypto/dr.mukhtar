@@ -176,8 +176,17 @@ const context = {
 vm.createContext(context);
 // Apps Script concatenates every .gs file into one global scope; the offline test
 // must reproduce that, including Settings.gs and Llm.gs.
+// CELIA_OMIT_WHATSAPP_GS=1 reproduces an older bundle that predates the adapter: the whole
+// suite then runs without WhatsApp.gs, proving approval and cancellation do not depend on it.
+const OMIT_WHATSAPP = process.env.CELIA_OMIT_WHATSAPP_GS === '1';
 const BACKEND_FILES = ['Code.gs', 'Settings.gs', 'Llm.gs', 'WhatsApp.gs'];
 BACKEND_FILES.forEach((file) => {
+  // The opt-out must be checked before the file is looked up, otherwise the flag is a no-op
+  // on any checkout that has the adapter (which is every checkout after PR #39).
+  if (file === 'WhatsApp.gs' && OMIT_WHATSAPP) {
+    console.log('[sim] WhatsApp.gs omitted on purpose (CELIA_OMIT_WHATSAPP_GS=1)');
+    return;
+  }
   const target = ['gas/' + file, file].find((candidate) => fs.existsSync(candidate));
   if (!target) {
     if (file === 'Code.gs') throw new Error('Apps Script backend not found (gas/Code.gs or Code.gs)');

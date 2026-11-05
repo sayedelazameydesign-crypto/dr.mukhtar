@@ -19,9 +19,14 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
-const ROOT = path.resolve(__dirname, '..');
+// CELIA_REPO_ROOT lets scripts/test-rehearsal-files.js point the checks at a synthetic tree,
+// which is how the "a checklist that drifts from the build must fail" rule gets tested.
+const ROOT = process.env.CELIA_REPO_ROOT ? path.resolve(process.env.CELIA_REPO_ROOT) : path.resolve(__dirname, '..');
 const FILE = path.join(ROOT, 'scripts', 'rehearsal-checklist.json');
+const DOC = path.join(ROOT, 'docs', 'google-rehearsal.md');
+const BUILD = path.join(ROOT, 'scripts', 'build-gas-package.py');
 const strict = process.argv.includes('--strict');
 
 if (!fs.existsSync(FILE)) {
@@ -59,6 +64,42 @@ const ids = new Set();
 });
 
 if (!steps.length) errors.push('no steps found');
+
+/* ------------------------------------------------------------- bundle contract */
+// A rehearsal that tells the owner to copy "the files" is how a file gets forgotten. The step
+// that ships the bundle must name every file, and that list must match what the build actually
+// produces — both directions, so a stale name and a missing name are both failures.
+const fileSteps = [];
+(data.sections || []).forEach((section) => {
+  (section.steps || []).forEach((step) => { if (Array.isArray(step.files)) fileSteps.push(step); });
+});
+
+if (fileSteps.length !== 1) {
+  errors.push(`exactly one step must carry a "files" array (found ${fileSteps.length}) — the bundle list needs one home`);
+} else {
+  const declared = fileSteps[0].files.map((name) => String(name).trim()).filter(Boolean);
+  if (!declared.length) errors.push(`${fileSteps[0].id}: files array is empty`);
+  if (new Set(declared).size !== declared.length) errors.push(`${fileSteps[0].id}: files array has duplicates`);
+
+  const listed = spawnSync('python3', [BUILD, '--list'], { cwd: ROOT, encoding: 'utf8' });
+  if (listed.status !== 0) {
+    errors.push(`cannot read the bundle list (python3 scripts/build-gas-package.py --list): ${String(listed.stderr || listed.stdout).trim().slice(0, 160)}`);
+  } else {
+    const built = listed.stdout.split('\n').map((line) => line.trim()).filter(Boolean);
+    declared.forEach((name) => {
+      if (!built.includes(name)) errors.push(`${fileSteps[0].id}: «${name}» is listed in the checklist but the build does not produce it`);
+    });
+    built.forEach((name) => {
+      if (!declared.includes(name)) errors.push(`${fileSteps[0].id}: the build produces «${name}» but the checklist does not list it`);
+    });
+  }
+
+  const doc = fs.existsSync(DOC) ? fs.readFileSync(DOC, 'utf8') : '';
+  if (!doc) errors.push('docs/google-rehearsal.md is missing — S1.2 cannot be followed');
+  else declared.forEach((name) => {
+    if (!doc.includes(name)) errors.push(`docs/google-rehearsal.md never names «${name}» — the owner would copy an incomplete bundle`);
+  });
+}
 
 /* --------------------------------------------------------------- secret safety */
 // The checklist is committed. A pasted key is the most likely accident, so look for the

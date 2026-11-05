@@ -383,6 +383,28 @@ function getDashboard(pin) {
   return { ok: true, bookings: bookings, closures: closures, warnings: warnings };
 }
 
+/**
+ * Optional WhatsApp notice. Two failure modes must never reach the booking path:
+ * the adapter throwing, and the adapter being absent (an older bundle that predates
+ * WhatsApp.gs). In both cases the appointment stands: it is already saved and CONFIRMED
+ * before this is called, so a notification problem can never downgrade it.
+ * @param {string} kind confirmation | cancellation
+ * @param {Object} record
+ * @return {{ok: boolean, sent: boolean, reason: string}}
+ */
+function notifyWhatsapp_(kind, record) {
+  if (typeof whatsappNotify_ !== 'function') return { ok: false, sent: false, reason: 'adapter-missing' };
+  try {
+    return whatsappNotify_(kind, record);
+  } catch (error) {
+    logEvent_('warn', 'whatsapp_notify_failed', {
+      kind: kind,
+      code: String((error && error.code) || 'WHATSAPP_FAILED')
+    });
+    return { ok: false, sent: false, reason: 'error' };
+  }
+}
+
 function approveRequest(reference, pin) {
   if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
   const lock = LockService.getScriptLock();
@@ -409,9 +431,9 @@ function approveRequest(reference, pin) {
     updateRequestRow_(located.row, record);
     logEvent_('info', 'appointment_confirmed', { has_event: !!record.eventId });
     const auditStored = auditBestEffort_(record.reference, 'staff', 'APPROVED_AND_SAVED', oldStatus, 'CONFIRMED', 'calendar event id stored');
-    // Optional notice, OFF by default (WHATSAPP_MODE). whatsappNotify_ never throws and never
-    // changes the appointment state: the booking is already CONFIRMED and saved above.
-    whatsappNotify_('confirmation', record);
+    // Optional notice, OFF by default (WHATSAPP_MODE). Guarded twice (adapter present, and
+    // adapter throwing) so it can never change the outcome of an already-saved appointment.
+    notifyWhatsapp_('confirmation', record);
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم حفظ الموعد لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) {
     return { ok: false, message: error.message || 'تعذرت الموافقة. لم يُعرض تأكيد.' };
@@ -481,7 +503,7 @@ function cancelRequest(reference, reason, pin) {
     updateRequestRow_(located.row, record);
     logEvent_('info', 'appointment_cancelled', { from_status: oldStatus });
     const auditStored = auditBestEffort_(record.reference, 'staff', 'CANCELLED', oldStatus, 'CANCELLED', String(reason || '').slice(0, 100));
-    whatsappNotify_('cancellation', record);
+    notifyWhatsapp_('cancellation', record);
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم الإلغاء لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) { return { ok: false, message: error.message || 'تعذر إلغاء الطلب.' }; }
   finally { lock.releaseLock(); }
