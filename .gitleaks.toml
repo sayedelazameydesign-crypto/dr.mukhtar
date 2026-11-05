@@ -23,12 +23,18 @@ paths = [
   # the project map quotes real source lines; the source line is the authority
   '''^docs/map/''',
 ]
+# Match the reported line, not just the extracted secret: the allowlist below is
+# about the surrounding context (a fixture assignment), which is what a reviewer needs.
+regexTarget = "line"
 regexes = [
   # fixtures shaped like credentials, never real ones
   '''test-admin-secret-''',
   '''fake-key''',
   '''fixture-''',
   '''pin-[0-9a-f]{24}''',
+  # the demo login PIN is published on purpose (docs/settings.md «رمز العرض»); it
+  # guards nothing real and is rejected by the live Apps Script backend
+  '''const DEMO_PIN''',
   # the unambiguous PIN alphabet is a constant, not a secret
   '''ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789''',
 ]
