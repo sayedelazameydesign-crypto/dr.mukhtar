@@ -61,10 +61,23 @@ jobs:
       - name: Zero-Card ledger is valid JSON
         run: node -e "const d=require('./docs/free-tiers.json'); if(!Array.isArray(d.services)||!d.services.length) throw new Error('services missing'); d.services.forEach(s=>{if(!('card_required' in s)) throw new Error('card_required missing for '+s.service)}); console.log('free-tiers.json OK:', d.services.length, 'services');"
 
-      - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+      - name: Secret scan (built-in, always on)
+        run: node scripts/scan-secrets.js
+
+      - name: Secret scan (gitleaks, pinned; skipped if the download fails)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          set -uo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          if ! curl -sSfL --retry 2 --max-time 60 -o /tmp/gitleaks.tgz "${base}/${asset}"; then
+            echo "::warning::gitleaks download unavailable; built-in scanner already ran and passed."
+            exit 0
+          fi
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          /tmp/gitleaks version
+          /tmp/gitleaks detect --source . --no-banner --redact --verbose --exit-code 1
 
       - name: Dependency audit
         run: |

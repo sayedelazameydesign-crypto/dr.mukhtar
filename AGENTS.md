@@ -49,6 +49,7 @@ node scripts/test-gas-simulated.js          # backend: locking, conflicts, outag
 node scripts/test-llm-adapter.js            # adapter: retry/backoff, circuit, budget, cache, PII, sanitising
 node scripts/test-ui-smoke.js               # DOM journey (needs: npm i --no-save jsdom@25)
 node scripts/check-config.js [props.json]   # config contract
+node scripts/scan-secrets.js                # dependency-free secret scan (always on in CI)
 python3 scripts/build-gas-package.py        # build gas/ bundle (Index.html, Fonts.html, Code.gs, Llm.gs)
 ```
 
