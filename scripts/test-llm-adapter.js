@@ -92,7 +92,8 @@ const context = {
 };
 
 vm.createContext(context);
-for (const file of ['Llm.gs', 'Code.gs']) {
+// Settings.gs carries staffPinState_/pinHash_, which validateConfig now uses.
+for (const file of ['Llm.gs', 'Code.gs', 'Settings.gs']) {
   const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
   vm.runInContext(source, context, { filename: file });
 }
@@ -246,13 +247,16 @@ test('config validation rejects bad values instead of silently normalising', () 
   assert.doesNotThrow(() => context.getConfig_());
 });
 
-test('validateConfig reports the weak demo PIN as blocking', () => {
-  properties.set('ADMIN_PIN', '2468');
+test('validateConfig blocks when only the bootstrap PIN exists', () => {
+  properties.delete('ADMIN_PIN_HASH');
+  properties.set('CK_MUST_CHANGE_PIN', '1');
   const report = context.validateConfig();
   const pin = report.checks.find((check) => check.id === 'admin_pin');
-  assert.equal(pin.ok, false);
-  assert.equal(report.ok, false);
-  properties.set('ADMIN_PIN', 'test-admin-secret-0123456789abcdef');
+  assert.equal(pin.ok, false, 'an un-replaced bootstrap PIN blocks readiness');
+  assert.match(pin.detail, /مؤقت/, 'the message tells the doctor what to do');
+  properties.set('ADMIN_PIN_HASH', 'a'.repeat(64));
+  properties.delete('CK_MUST_CHANGE_PIN');
+  assert.equal(context.validateConfig().checks.find((check) => check.id === 'admin_pin').ok, true);
 });
 
 test('llmStatus exposes limits but never the key', () => {

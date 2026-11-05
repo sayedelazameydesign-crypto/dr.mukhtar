@@ -376,6 +376,20 @@ assert.equal(context.getClinicSettings('legacy-plain-pin-value-32-chars').ok, tr
 assert.equal(isHashRow(propertyValues.get('ADMIN_PIN_HASH')), true, 'the legacy PIN was hashed');
 assert.equal(propertyValues.has('ADMIN_PIN'), false, 'the plain PIN was deleted after migration');
 
+// First install plants a temporary PIN (stored as a hash) until the doctor replaces it.
+propertyValues.delete('ADMIN_PIN_HASH');
+assert.equal(context.staffPinState_().configured, false);
+propertyValues.set('ADMIN_PIN_HASH', hashPin('Celia-Kids-2026-temporary'));
+propertyValues.set('CK_MUST_CHANGE_PIN', '1');
+const bootstrapHash = hashPin('Celia-Kids-2026-temporary');
+assert.equal(context.getClinicSettings(bootstrapHash).meta.mustChangePin, true, 'the dashboard is told to ask for a new PIN');
+assert.equal(context.validateConfig().checks.find((c) => c.id === 'admin_pin').ok, false, 'readiness stays blocked until it is changed');
+assert.equal(context.saveStaffPin(bootstrapHash, hashPin('doctor-chosen-passphrase-2026'), bootstrapHash).ok, true);
+assert.equal(propertyValues.has('CK_MUST_CHANGE_PIN'), false, 'the flag clears after the change');
+const readinessAfter = context.validateConfig().checks.find((c) => c.id === 'admin_pin');
+assert.equal(readinessAfter.ok, true, 'readiness passes once the doctor owns the PIN — ' + readinessAfter.detail);
+assert.equal(context.getClinicSettings(bootstrapHash).ok, false, 'the bootstrap PIN stops working immediately');
+
 console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, a secret-free clinic profile, and dashboard-editable settings (validation, services, PIN hashing and migration).')
 ;
 console.log('Reminder: these mocked-service tests do not establish Google quotas, permissions, live deployment behavior, or legal readiness.');
