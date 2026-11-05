@@ -58,8 +58,6 @@ jobs:
       - name: Rehearsal checklist is well formed and holds no secret
         run: node scripts/check-rehearsal.js
 
-      - name: Readiness document matches the ledger and a real run
-        run: node scripts/readiness-report.js --offline
 
       - name: actionlint (pinned; the runner image does not ship it)
         env:
@@ -132,6 +130,14 @@ jobs:
           node scripts/test-ui-smoke.js
           node scripts/test-published-clinic.js
           node scripts/test-demo-availability.js
+
+      # Runs here, not earlier: the document must record the same measurement a developer
+      # sees, which means the browser gate has to be able to run. --require-jsdom turns a
+      # missing dependency into a failure instead of a quietly different table.
+      - name: Readiness document matches the ledger and a real run
+        run: |
+          export NODE_PATH="$PWD/node_modules"
+          node scripts/readiness-report.js --offline --require-jsdom
 
       - name: Build Apps Script bundle
         run: python3 scripts/build-gas-package.py

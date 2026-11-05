@@ -32,6 +32,7 @@ const MARK_END = '<!-- GENERATED:END -->';
 
 const write = process.argv.includes('--write');
 const offline = process.argv.includes('--offline');
+const requireJsdom = process.argv.includes('--require-jsdom');
 
 /* ------------------------------------------------------------------ sources */
 let gaps;
@@ -55,6 +56,20 @@ try {
   console.error('✗ go-live-check.js did not produce JSON — run it directly to see why:');
   console.error((run.stdout || '').slice(0, 600));
   console.error((run.stderr || '').slice(0, 600));
+  process.exit(1);
+}
+
+/* ------------------------------------------------------------ environment */
+// A measurement whose inputs differ per machine is not a measurement. When --require-jsdom is
+// passed (CI does), the browser gate must actually run, or the numbers would silently describe
+// a machine with fewer tools.
+let jsdomPresent = false;
+try { require.resolve('jsdom'); jsdomPresent = true; } catch (_) { jsdomPresent = false; }
+report.browser_gate = jsdomPresent ? 'ran' : 'missing';
+if (requireJsdom && !jsdomPresent) {
+  console.error('✗ --require-jsdom: jsdom is not installed, so the browser gate would report');
+  console.error('  "needs action" on this machine and produce different numbers than a developer');
+  console.error('  sees. Install it (npm i --no-save --prefix /tmp/deps jsdom@25) and set NODE_PATH.');
   process.exit(1);
 }
 
@@ -129,6 +144,7 @@ const generated = `${MARK_START}
 | القياس | القيمة |
 | --- | --- |
 | تاريخ القياس | ${String(report.measured_at).slice(0, 10)} |
+| بيئة القياس | ${report.browser_gate === 'ran' ? 'jsdom موجود (البوابة عملت)' : 'jsdom غائب (بوابة المتصفح «يحتاج إجراء»)'} |
 | الشبكة | ${report.offline ? 'متخطّاة (--offline)' : 'مستخدمة'} |
 | جاهز | **${report.counts.ready}** |
 | يحتاج إجراء | **${report.counts.action}** |

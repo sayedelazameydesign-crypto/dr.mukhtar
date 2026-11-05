@@ -41,6 +41,7 @@
 | القياس | القيمة |
 | --- | --- |
 | تاريخ القياس | 2026-11-05 |
+| بيئة القياس | jsdom موجود (البوابة عملت) |
 | الشبكة | متخطّاة (--offline) |
 | جاهز | **5** |
 | يحتاج إجراء | **4** |
@@ -84,7 +85,7 @@
 | clinic.services — أنواع الزيارات | ℹ️ info | القالب الافتراضي (كشف جديد · متابعة) | المستخدم |
 | clinic.source — مصدر بيانات العيادة | ℹ️ info | قُرئ من القالب (بلا تصدير حقيقي) — أي أن الحالة أعلاه هي حالة «لم يُضبط بعد» وليست حالة عيادتك | المستخدم |
 | gate.workflows — عقود سير العمل والأسرار | ✅ **PASS** | · manifest secret GOOGLE_REFRESH_TOKEN_DEV is not referenced by any workflow (declared-only is allowed, keep it delibera | CC (المستودع) |
-| gate.secrets — مسح الأسرار | ✅ **PASS** | Secret scan passed — 87 text files (tracked files), 11 rules, 0 findings. | CC (المستودع) |
+| gate.secrets — مسح الأسرار | ✅ **PASS** | Secret scan passed — 88 text files (tracked files), 11 rules, 0 findings. | CC (المستودع) |
 | gate.parity — تطابق الإعدادات (حيّ/تجريبي) | ✅ **PASS** | Settings parity OK — 15 fields match between Settings.gs and app.js, prices round-trip, and the public profile ships ser | CC (المستودع) |
 | gate.backend — محاكاة الخادم | ✅ **PASS** | Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calen | CC (المستودع) |
 | gate.ui — الواجهة في متصفح | ✅ **PASS** | UI smoke test passed: rendering, booking, reference tracking, staff approval, and the admin assistant all work in demo m | CC (المستودع) |
