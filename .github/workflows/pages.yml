@@ -66,14 +66,17 @@ jobs:
       - name: Verify Apps Script bundle builds
         run: python3 scripts/build-gas-package.py
 
-      - name: Enable Pages site if missing (owner PAT only)
-        if: ${{ vars.PAGES_AUTO_ENABLE == 'true' }}
+      # On a pull request the Pages site may not exist yet, and a PR has no
+      # business creating it: the check is the build itself (see docs/publish.md).
+      - name: Create the Pages site (owner PAT, only when asked to)
+        if: ${{ vars.PAGES_AUTO_ENABLE == 'true' && github.event_name != 'pull_request' }}
         continue-on-error: true
         uses: actions/configure-pages@v5
         with:
           enablement: true
           token: ${{ secrets.PAGES_TOKEN }}
 
+      # Metadata only: needs no existing site, so a PR build stays meaningful.
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
