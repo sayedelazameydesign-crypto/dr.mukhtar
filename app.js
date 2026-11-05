@@ -565,6 +565,29 @@
   function setFact(key, value) {
     $$(`[data-config="${key}"]`).forEach((node) => { node.textContent = value; });
   }
+  // A parent on a phone should not have to copy a number by hand: every "call the
+  // clinic" instruction on the page becomes a tappable tel: link. No number, no link.
+  const PHONE_LINK = /^\+?[0-9\s-]{6,22}$/;
+  function telHref(phone) {
+    const raw = String(phone || '').trim();
+    if (!PHONE_LINK.test(raw)) return '';
+    const digits = raw.replace(/[^0-9+]/g, '');
+    return digits.replace(/\D/g, '').length >= 6 ? `tel:${digits}` : '';
+  }
+  function setPhone(phone) {
+    const href = telHref(phone);
+    $$('[data-config="phone"]').forEach((node) => {
+      if (!href) { node.textContent = phone || 'يُضاف من إعداد العيادة'; return; }
+      const link = document.createElement('a');
+      link.href = href;
+      link.className = 'phone-link ltr';
+      link.textContent = phone;
+      link.setAttribute('dir', 'ltr');
+      // Screen readers read the digits; the label says what tapping it does.
+      link.setAttribute('aria-label', `اتصل بالعيادة على ${phone}`);
+      node.replaceChildren(link);
+    });
+  }
 
   /* ---------------- onboarding: is the page still showing examples? ---------------- */
   // A page that silently ships example names and default hours is a misrepresentation,
@@ -637,7 +660,7 @@
       ? profile.hours.workDays.slice()
       : WORK_DAYS;
     state.clinicName = profile.name || '';
-    if (profile.phone) setFact('phone', profile.phone);
+    if (profile.phone) setPhone(profile.phone);
     if (profile.address) setFact('address', profile.address);
     if (profile.doctorName) setFact('doctorName', profile.doctorName);
     if (profile.doctorRole) setFact('doctorRole', profile.doctorRole);

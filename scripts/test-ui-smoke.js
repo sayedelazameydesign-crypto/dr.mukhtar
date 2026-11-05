@@ -87,6 +87,9 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   check('opening hours are derived, not hardcoded', /الأحد – الخميس/.test($('[data-config="hours"]').textContent) && /٩:٠٠ ص/.test($('[data-config="hours"]').textContent), $('[data-config="hours"]').textContent);
   check('structured data carries no hardcoded schedule', !/openingHoursSpecification/.test($('script[type="application/ld+json"]').textContent));
   check('phone stays a placeholder until the clinic fills it', /إعداد العيادة/.test($('[data-config="phone"]').textContent));
+  // No configured number means no tel: link at all — never a tap target to nowhere,
+  // and never an invented number.
+  check('no call link before a number is configured', $('a[href^="tel:"]') === null);
 
   // ---- the page says out loud that it still runs on examples ----
   check('onboarding banner exists in the dashboard', $('#onboardingBanner') !== null);
@@ -190,6 +193,10 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   await wait(360);
   check('a new service becomes bookable', $$('.choice-card').length === 2 && /كشف أول/.test($('.choice-grid').textContent), $('.choice-grid').textContent);
   check('the new duration is used in the summary', /٤٥/.test($('[data-summary="duration"]').textContent), $('[data-summary="duration"]').textContent);
+  // A parent on a phone taps the clinic's number instead of copying it.
+  const phoneLink = $('[data-config="phone"] a');
+  check('a configured phone becomes a tap-to-call link', phoneLink !== null && /^tel:\+?[0-9]{6,}$/.test(phoneLink.getAttribute('href')), phoneLink && phoneLink.getAttribute('href'));
+  check('the dialable number keeps no spaces or dashes', phoneLink !== null && !/[\s-]/.test(phoneLink.getAttribute('href')), phoneLink && phoneLink.getAttribute('href'));
   // Regression: a frozen VISIT_MINUTES table used to shadow the edited durations, so a
   // changed duration only showed in the label while the slot maths kept the old value.
   const chipAfterEdit = $$('#dayChips .day-chip')[0];
