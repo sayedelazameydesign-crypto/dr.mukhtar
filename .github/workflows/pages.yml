@@ -4,6 +4,14 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # A feature branch touching the deploy wiring must prove it still runs —
+  # otherwise a broken pages.yml is only discovered after merge.
+  pull_request:
+    paths:
+      - '.github/workflows/pages.yml'
+      - 'scripts/check-workflows.js'
+      - 'scripts/enable-pages.sh'
+      - 'docs/publish.md'
 
 permissions:
   contents: read
@@ -73,6 +81,9 @@ jobs:
 
   deploy:
     needs: build
+    # Never deploy from a pull request: build-only there (deploy needs the
+    # github-pages environment and must stay a main-branch concern).
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
