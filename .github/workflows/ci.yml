@@ -13,17 +13,37 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Non-sensitive configuration only (GitHub Variables). Secrets never live here.
+  APP_ENV: ${{ vars.APP_ENV || 'ci' }}
+  NODE_VERSION: ${{ vars.NODE_VERSION || '20' }}
+  LLM_PRIMARY: ${{ vars.LLM_PRIMARY || 'gemini' }}
+
 jobs:
   quality:
     name: lint · typecheck · test · build · audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Workflow + secrets contract
+        run: node scripts/check-workflows.js
+
+      - name: Contract checker self-test
+        run: node scripts/check-workflows.js --self-test
+
+      - name: actionlint (preinstalled on the runner images)
+        run: |
+          if command -v actionlint >/dev/null 2>&1; then
+            actionlint -color
+          else
+            echo "::warning::actionlint is not preinstalled on this runner image; scripts/check-workflows.js already covered the local rules."
+          fi
 
       - name: Syntax gate (JS)
         run: |
@@ -82,3 +102,24 @@ jobs:
       - name: Dependency audit
         run: |
           if [ -f package-lock.json ]; then npm audit --audit-level=high; else echo "No npm manifest: zero runtime dependencies by design — skipping audit."; fi
+
+  live-llm-smoke:
+    # Optional provider probe: needs a repository secret, so it never runs for
+    # fork PRs (they cannot see secrets by design) and is opt-in for the repo owner.
+    name: live LLM smoke (optional)
+    if: github.event.pull_request.head.repo.fork != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Probe the configured provider
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_PRIMARY == 'groq' && 'llama-3.3-70b-versatile' || 'gemini-2.5-flash' }}
+          LLM_SMOKE_ENABLED: ${{ vars.LLM_SMOKE_ENABLED || 'false' }}
+        run: node scripts/live-llm-smoke.js

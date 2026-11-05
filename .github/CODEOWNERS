@@ -1,0 +1,18 @@
+# Default owner for everything
+*                       @sayedelazameydesign-crypto
+
+# Workflow + secret contract changes need explicit owner review.
+/.github/workflows/     @sayedelazameydesign-crypto
+/.github/CODEOWNERS     @sayedelazameydesign-crypto
+/docs/secrets-manifest.json @sayedelazameydesign-crypto
+/docs/secrets.md        @sayedelazameydesign-crypto
+/.env.example           @sayedelazameydesign-crypto
+/scripts/check-workflows.js @sayedelazameydesign-crypto
+/scripts/scan-secrets.js    @sayedelazameydesign-crypto
+/scripts/live-llm-smoke.js  @sayedelazameydesign-crypto
+
+# Provider boundary and config contract
+/Llm.gs                 @sayedelazameydesign-crypto
+/Code.gs                @sayedelazameydesign-crypto
+/config/clinic.example.json @sayedelazameydesign-crypto
+/SECURITY.md            @sayedelazameydesign-crypto

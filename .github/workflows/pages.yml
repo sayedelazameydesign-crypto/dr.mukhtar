@@ -19,11 +19,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: ${{ vars.NODE_VERSION || '20' }}
+
+      - name: Workflow + secrets contract
+        run: node scripts/check-workflows.js
 
       - name: Assemble static site
         run: |

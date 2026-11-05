@@ -28,18 +28,23 @@ Three runtimes, one source of truth:
    The assistant refuses medical questions and is optional; booking must work with it off.
 3. **No secrets in the repo.** Keys live in Script Properties or GitHub Secrets.
    If a secret leaks: rotate first, then clean history.
-4. **Provider boundaries.** `Code.gs` must never build provider URLs or name models.
+4. **Secrets: names only.** GitHub secrets/variables and their metadata live in
+   `docs/secrets-manifest.json`; the human guide is `docs/secrets.md`. An agent may add a *name*
+   (plus `.env.example` entry and workflow reference) in the same PR — never a value, never a
+   `--body` secret, never asking the user for a value. Workflow rules: secrets via `env:` only,
+   never inlined in `run:`; skip secret-dependent jobs on fork PRs; environment secrets for deploy.
+5. **Provider boundaries.** `Code.gs` must never build provider URLs or name models.
    All LLM work goes through `llmAnswer_()` in `Llm.gs`. Calendar/Sheets access stays
    inside `getCalendar_*`, `*Sheet_*` helpers so a provider swap is one file.
-5. **Config, not code.** Limits, models, work hours and chain order come from Script
+6. **Config, not code.** Limits, models, work hours and chain order come from Script
    Properties, validated by `validateConfig()` / `scripts/check-config.js`. Invalid
    config fails loudly — never silently substitute a "sensible" default.
-6. **Zero-Card.** Any new external service: email/GitHub/Google sign-up only, no card,
+7. **Zero-Card.** Any new external service: email/GitHub/Google sign-up only, no card,
    no card-trial. Record it in `docs/free-tiers.json` with `card_required` and fallback,
    and add a line to `docs/exit-plan.md`. If a card field appears: stop and report.
-7. **No silent failure.** Errors are typed, logged as structured JSON (no PII), and
+8. **No silent failure.** Errors are typed, logged as structured JSON (no PII), and
    surfaced to staff. `catch (_) {}` is only acceptable for cosmetic UI storage.
-8. **Evidence over claims.** "Done" requires a command + output (tests, build, `curl`).
+9. **Evidence over claims.** "Done" requires a command + output (tests, build, `curl`).
 
 ## 3. Commands
 
@@ -50,12 +55,16 @@ node scripts/test-llm-adapter.js            # adapter: retry/backoff, circuit, b
 node scripts/test-ui-smoke.js               # DOM journey (needs: npm i --no-save jsdom@25)
 node scripts/check-config.js [props.json]   # config contract
 node scripts/scan-secrets.js                # dependency-free secret scan (always on in CI)
+node scripts/check-workflows.js [--self-test]  # secrets/variables + workflow policy contract
+node scripts/live-llm-smoke.js              # optional provider probe (env only; skips without a key)
+sh scripts/pre-commit.sh                    # local gate: secrets + contract (+ actionlint if installed)
 python3 scripts/build-gas-package.py        # build gas/ bundle (Index.html, Fonts.html, Code.gs, Llm.gs)
 ```
 
-CI (`.github/workflows/ci.yml`) runs: JS/Python syntax → backend tests → adapter tests →
-UI smoke → bundle build → self-containment guard → config contract → free-tier ledger →
-gitleaks → audit. **Merge only on green.**
+CI (`.github/workflows/ci.yml`) runs: workflow/secrets contract (+actionlint) → JS/Python syntax →
+backend tests → adapter tests → UI smoke → bundle build → self-containment guard → config contract →
+free-tier ledger → secret scan (built-in + gitleaks) → audit, and an optional live LLM smoke job that
+is skipped for fork PRs. **Merge only on green.**
 
 ## 4. Architecture map
 
@@ -82,5 +91,7 @@ gitleaks → audit. **Merge only on green.**
 - [ ] All five scripts above exit 0
 - [ ] No new external URL, model name or limit hardcoded in `Code.gs`/`app.js`
 - [ ] `docs/free-tiers.json` + `docs/exit-plan.md` updated if a provider/limit changed
+- [ ] New secret/variable? → manifest + `.env.example` + workflow + `docs/secrets.md` in the same PR
+- [ ] `node scripts/check-workflows.js` and `node scripts/scan-secrets.js` pass
 - [ ] README/TODO reflect the change; no TODO left without an issue
 - [ ] Demo mode never claims a real confirmation

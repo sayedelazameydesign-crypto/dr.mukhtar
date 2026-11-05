@@ -66,6 +66,8 @@ node scripts/test-llm-adapter.js     # إعادة المحاولة، القاط�
 node scripts/test-ui-smoke.js        # بناء DOM كامل: حجز، تتبع، دخول اللوحة، سؤال إداري
 node scripts/check-config.js         # عقد الإعداد (24 مفتاحًا) ضد قالب clinic.example.json
 node scripts/scan-secrets.js         # فحص أسرار بلا تبعيات (يعمل في CI أيضًا)
+node scripts/check-workflows.js      # عقد الأسرار/المتغيرات وسياسة الـworkflows (+ --self-test)
+node scripts/live-llm-smoke.js       # فحص حي اختياري للمزوّد (من env فقط، ويُتخطّى بلا مفتاح)
 python3 scripts/build-gas-package.py # بناء حزمة Apps Script (Index + Fonts + Code + Llm)
 ```
 
@@ -135,8 +137,20 @@ gh api -X POST repos/sayedelazameydesign-crypto/dr.mukhtar/pages -f source.branc
   مع احتياطي متسلسل، إعادة محاولة بأُسّية، قاطع دائرة، حد يومي/ساعي، وكاش بالهاش — ولا تُرسل أي بيانات
   شخصية لأن الفحص يحدث قبل المزوّد.
 
+## الأسرار والمتغيرات (GitHub Actions)
+
+- المرجع الآلي: `docs/secrets-manifest.json` (أسماء وبيانات وصفية فقط — لا قيم). الدليل البشري:
+  `docs/secrets.md` مع روابط الإعداد وأوامر `gh` التي لا تُظهر القيم.
+- الحالة الحالية: **0 أسرار، 0 متغيرات** — البناء والاختبار والنشر لا تحتاج أي سر. المساعد الحي
+  اختياري (`GEMINI_API_KEY`) ووظيفته تُتخطّى في PRs من forks.
+- القاعدة: الأسرار تُمرّر عبر `env:` فقط، وكل `secrets.NAME`/`vars.NAME` يجب أن يكون في السجل،
+  وإلا يفشل `node scripts/check-workflows.js` (ومعه 9 اختبارات ذاتية للقواعد).
+- قيم التشغيل الحقيقية تبقى في Script Properties؛ نسخة GitHub من `CELIA_ADMIN_PIN` مخصّصة لقائمة
+  النشر فقط.
+
 ## الأمان والتشغيل
 
+- `.github/CODEOWNERS` يفرض مراجعة المالك على مسارات الـworkflows والسجل قبل الدمج.
 - `SECURITY.md` يوضّح ما يُخزَّن، الضوابط الحالية، القيود المقبولة، وإجراء تدوير المفاتيح.
 - `AGENTS.md` هو المرجع الوحيد لقواعد العمل في هذا المستودع (بما فيها منع التأكيد التلقائي
   ومنع البيانات الطبية).
