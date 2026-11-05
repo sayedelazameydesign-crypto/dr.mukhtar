@@ -120,7 +120,9 @@
     const store = demoStore();
     if (method === 'getAvailableSlots') {
       const day = args[0];
+      // Work in whole minutes: `visitType` here is the *service* visit type.
       const visitType = args[1] || 'كشف جديد';
+      const visitDuration = visitType === 'متابعة' ? 30 : 60;
       if (store.closures.some((item) => item.day === day)) return { ok: true, slots: [] };
       const parts = String(day).split('-').map(Number);
       const weekday = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
@@ -128,7 +130,7 @@
       const start = 9 * 60;
       const end = 14 * 60;
       const step = 30;
-      const duration = visitType === 'متابعة' ? 30 : 60;
+      const duration = visitDuration;
       const toTime = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
       const toMinutes = (time) => { const [h, m] = String(time).split(':').map(Number); return h * 60 + m; };
       const busy = store.bookings

@@ -64,6 +64,7 @@ PORT=3000 python3 scripts/preview.py # منفذ آخر عند الحاجة
 node scripts/test-gas-simulated.js   # منافسة المواعيد، فشل Sheets/Calendar/Audit، طوابير الانقطاع
 node scripts/test-llm-adapter.js     # إعادة المحاولة، القاطع، الحصة، الكاش، حجب PII، تنقية المخرجات
 node scripts/test-ui-smoke.js        # بناء DOM كامل: حجز، تتبع، دخول اللوحة، سؤال إداري
+node scripts/test-demo-availability.js # الأوقات التجريبية تحترم مدة الزيارة وساعات العمل
 node scripts/check-config.js         # عقد الإعداد (24 مفتاحًا) ضد قالب clinic.example.json
 node scripts/scan-secrets.js         # فحص أسرار بلا تبعيات (يعمل في CI أيضًا)
 node scripts/check-workflows.js      # عقد الأسرار/المتغيرات وسياسة الـworkflows (+ --self-test)

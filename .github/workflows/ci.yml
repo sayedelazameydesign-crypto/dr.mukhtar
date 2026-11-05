@@ -66,6 +66,7 @@ jobs:
         run: |
           npm i --no-save --no-audit --no-fund jsdom@25
           node scripts/test-ui-smoke.js
+          node scripts/test-demo-availability.js
 
       - name: Build Apps Script bundle
         run: python3 scripts/build-gas-package.py
