@@ -388,6 +388,30 @@ if (!fs.existsSync(ENV_EXAMPLE)) {
 const MAP_DIR = path.join(ROOT, 'docs', 'map');
 const EDGE_TYPES = new Set(['imports', 'calls', 'reads', 'writes', 'uses_env', 'deploys_to', 'tests', 'shares_contract', 'emits', 'handles']);
 
+function git(args) {
+  try {
+    const { execFileSync } = require('node:child_process');
+    return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch (error) {
+    return null;
+  }
+}
+/** Is `sha` a commit this repository knows about? */
+function commitExists(sha) {
+  if (!sha) return false;
+  return git(['cat-file', '-e', `${sha}^{commit}`]) !== null;
+}
+/** Is `sha` an ancestor of (or equal to) `ref`? */
+function isAncestor(sha, ref) {
+  if (!sha || !ref) return false;
+  try {
+    const { execFileSync } = require('node:child_process');
+    execFileSync('git', ['merge-base', '--is-ancestor', sha, ref], { cwd: ROOT, stdio: 'ignore' });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
 function gitHead() {
   try {
     const { execFileSync } = require('node:child_process');
@@ -475,10 +499,17 @@ if (!fs.existsSync(MAP_DIR)) {
     });
   }
 
+  // A map can never stamp the commit that *contains* the stamp: writing the hash changes
+  // the tree, so HEAD always differs from the value just written. Requiring equality
+  // produced an endless re-stamp loop, so the rule is now "the stamp exists in history":
+  // either HEAD itself, or an ancestor of HEAD (the map was refreshed, then more work
+  // landed on top). Anything else means the map was never refreshed at this branch.
   const head = gitHead();
   const mapped = project && project.meta && project.meta.commit;
-  if (head && mapped && !head.startsWith(mapped) && !mapped.startsWith(head.slice(0, 7))) {
-    warn(`docs/map/ is stale — meta.commit ${mapped} but HEAD is ${head.slice(0, 7)}; refresh per project-map.md §8`);
+  if (head && mapped && !commitExists(mapped)) {
+    warn(`docs/map/ — meta.commit ${mapped} is not a commit in this repository`);
+  } else if (head && mapped && !head.startsWith(mapped) && !isAncestor(mapped, head)) {
+    warn(`docs/map/ is stale — meta.commit ${mapped} is not on the path to HEAD ${head.slice(0, 7)}; refresh per project-map.md §8`);
   }
 }
 
