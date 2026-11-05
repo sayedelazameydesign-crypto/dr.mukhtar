@@ -47,20 +47,28 @@ jobs:
       - name: Publish contract (what reaches the public site)
         run: node scripts/test-publish-contract.js
 
-      - name: actionlint
+      - name: actionlint (pinned; the runner image does not ship it)
+        env:
+          ACTIONLINT_VERSION: 1.7.7
         run: |
-          # A missing linter used to be a warning, i.e. a gate that silently disappears
-          # (gap G13). Never skip it silently: probe, then either lint or fail loudly.
+          # The image has shellcheck but no actionlint, so this step used to warn and skip —
+          # a gate that never ran (gap G13). Fetch the pinned release and lint; a download
+          # that cannot be verified fails the job rather than passing silently.
           set -uo pipefail
-          AL=$(command -v actionlint || true)
-          SC=$(command -v shellcheck || true)
-          echo "::notice title=actionlint probe::actionlint=${AL:-absent} shellcheck=${SC:-absent}"
-          if [ -z "$AL" ]; then
-            echo "::error title=actionlint missing::This image has no actionlint, so the
-          workflow lint did not run. Coverage must not degrade silently — install it (or
-          update the image) instead of accepting a green build without it."
-            exit 1
+          if ! command -v actionlint >/dev/null 2>&1; then
+            base="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+            asset="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+            if curl -sSfL --retry 3 --retry-all-errors --max-time 120 -o /tmp/actionlint.tgz "${base}/${asset}" \
+               && tar -xzf /tmp/actionlint.tgz -C /tmp actionlint \
+               && /tmp/actionlint --version; then
+              install -m 0755 /tmp/actionlint /usr/local/bin/actionlint
+            else
+              echo "::error title=actionlint unavailable::Could not fetch actionlint ${ACTIONLINT_VERSION}. The workflow lint did not run; fix the download instead of accepting a green build without it."
+              exit 1
+            fi
           fi
+          # The image already ships the shell linter that actionlint delegates to.
+          echo "::notice title=linters::actionlint=$(actionlint --version) shellcheck=$(shellcheck --version 2>/dev/null | sed -n 's/^version: //p')"
           actionlint -color
 
       - name: Syntax gate (JS)
