@@ -47,21 +47,20 @@ jobs:
       - name: Publish contract (what reaches the public site)
         run: node scripts/test-publish-contract.js
 
-      - name: actionlint (preinstalled on the runner images)
+      - name: actionlint
         run: |
           # A missing linter used to be a warning, i.e. a gate that silently disappears
-          # (gap G13). Install the pinned release explicitly when the image lacks it, and
-          # let any failure fail the job — no fallback that quietly does nothing.
-          set -euo pipefail
-          if ! command -v actionlint >/dev/null 2>&1; then
-            version=1.7.7
-            echo "actionlint not preinstalled — installing v${version}"
-            curl -fsSL -o /tmp/actionlint.tar.gz \
-              "https://github.com/rhysd/actionlint/releases/download/v${version}/actionlint_${version}_linux_amd64.tar.gz"
-            tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
-            sudo install -m 0755 /tmp/actionlint /usr/local/bin/actionlint
+          # (gap G13). Never skip it silently: probe, then either lint or fail loudly.
+          set -uo pipefail
+          AL=$(command -v actionlint || true)
+          SC=$(command -v shellcheck || true)
+          echo "::notice title=actionlint probe::actionlint=${AL:-absent} shellcheck=${SC:-absent}"
+          if [ -z "$AL" ]; then
+            echo "::error title=actionlint missing::This image has no actionlint, so the
+          workflow lint did not run. Coverage must not degrade silently — install it (or
+          update the image) instead of accepting a green build without it."
+            exit 1
           fi
-          actionlint --version
           actionlint -color
 
       - name: Syntax gate (JS)
