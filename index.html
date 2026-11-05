@@ -131,7 +131,7 @@
             </div>
             <div>
               <dt><svg aria-hidden="true"><use href="#i-pin"/></svg> العنوان</dt>
-              <dd><span data-config="address">يُضاف من إعداد العيادة</span><span class="fact-note">الجيزة، مصر</span></dd>
+              <dd><span data-config="address">يُضاف من إعداد العيادة</span><span class="fact-note" data-address-note>العنوان الفعلي يُكتب من الإعداد</span></dd>
             </div>
             <div>
               <dt><svg aria-hidden="true"><use href="#i-phone"/></svg> هاتف العيادة</dt>
@@ -139,11 +139,11 @@
             </div>
             <div>
               <dt><svg aria-hidden="true"><use href="#i-badge"/></svg> ترخيص مزاولة المهنة</dt>
-              <dd><span class="ltr" data-config="license">غير منشور</span><span class="fact-note" data-license-state>يُضاف من إعداد العيادة — لم يُتحقق بعد</span></dd>
+              <dd><span class="ltr" data-config="license">غير منشور</span><span class="fact-note is-unverified" data-license-state>لم تُسجَّل بعد — تُكتب من إعداد العيادة</span></dd>
             </div>
             <div>
               <dt><svg aria-hidden="true"><use href="#i-leaf"/></svg> مدة الزيارة</dt>
-              <dd><span data-visit-duration>كشف جديد ٦٠ دقيقة</span><span class="fact-note">المتابعة ٣٠ دقيقة</span></dd>
+              <dd><span data-visit-duration>كشف جديد ٦٠ دقيقة</span><span class="fact-note" data-duration-note>حسب نوع الزيارة المختار</span></dd>
             </div>
           </dl>
           <p class="doctor-foot"><svg aria-hidden="true"><use href="#i-shield"/></svg> بيانات الطبيب والعيادة تُدار من إعداد العيادة، وتظهر هنا كما هي دون تعديل.</p>
@@ -340,6 +340,15 @@
 
         <div id="staffDashboard" hidden>
           <div id="staffAlerts" class="staff-alerts" hidden></div>
+          <div id="onboardingBanner" class="onboarding-banner" hidden role="status">
+            <svg aria-hidden="true"><use href="#i-alert"/></svg>
+            <div>
+              <p><strong>الصفحة لا تزال تعمل على بيانات افتراضية.</strong> الأسماء والتخصص وأرقام التواصل في هذه النسخة أمثلة، لا بيانات عيادتك.</p>
+              <p id="onboardingMissing" class="onboarding-missing"></p>
+            </div>
+            <button type="button" class="secondary-button" id="onboardingFix">املأ بيانات العيادة</button>
+            <button type="button" class="link-button" id="onboardingDemo" hidden>تجربة سريعة (نسخة العرض فقط)</button>
+          </div>
           <div id="pinBanner" class="pin-banner" hidden role="status">
             <svg aria-hidden="true"><use href="#i-alert"/></svg>
             <p><strong>الرمز الحالي مؤقت.</strong> غيّروه الآن من «إعدادات العيادة ← رمز الدخول» حتى لا يبقى رمز التهيئة معروفًا.</p>
