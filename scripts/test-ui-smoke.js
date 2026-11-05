@@ -190,6 +190,7 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   check('the PIN can be rotated from the UI', $('#settingsError').hidden, $('#settingsError').textContent);
   check('the temporary-PIN banner disappears after the change', $('#pinBanner').hidden);
   check('the new PIN is stored as a hash only', /^[a-f0-9]{64}$/.test(window.localStorage.getItem('celia-kids-staff-pin-v1') || ''));
+  check('the change is recorded so the banner stays off', window.localStorage.getItem('celia-kids-pin-changed-v1') === '1');
 
   $$('[data-staff-tab]').find((button) => button.dataset.staffTab === 'board').click();
   await wait(120);

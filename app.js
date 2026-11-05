@@ -147,9 +147,12 @@
     try { return localStorage.getItem(DEMO_PIN_KEY) || ''; } catch (_) { return ''; }
   }
   let sessionHash = '';
-  // SHA-256 of the documented demo PIN, so the "temporary PIN" banner is exercised
-  // in the demo exactly as in a freshly initialised deployment.
-  const BOOTSTRAP_HASH = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
+  // The demo mirrors a fresh deployment: until the documented demo PIN is replaced
+  // through the settings screen, the dashboard keeps asking for a new one.
+  const PIN_CHANGED_KEY = 'celia-kids-pin-changed-v1';
+  function demoPinChanged() {
+    try { return localStorage.getItem(PIN_CHANGED_KEY) === '1'; } catch (_) { return false; }
+  }
   // Accepts the raw PIN (typed by the user) and turns it into the session hash.
   async function staffSession(rawPin) {
     const hash = await sha256Hex(rawPin);
@@ -389,7 +392,7 @@
         fields: group.fields.map((field) => Object.assign({}, field)) }));
       return { ok: true, version: 1, catalog, values: Object.assign({}, values, { STAFF_PIN: '' }),
         meta: { staffPinConfigured: !!demoPinHash(), staffPinHashed: true, minPinLength: 16, demo: true,
-          mustChangePin: demoPinHash() === BOOTSTRAP_HASH } };
+          mustChangePin: !demoPinChanged() } };
     }
     if (method === 'saveClinicSettings') {
       if (!isStaffSession(args[1])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
@@ -447,7 +450,10 @@
       if (!isStaffSession(args[0])) return { ok: false, message: 'الرمز الحالي غير صحيح.' };
       const next = String(args[1] || '');
       if (next.length < 16) return { ok: false, message: 'الرمز الجديد يجب أن يكون 16 حرفًا على الأقل.' };
-      try { localStorage.setItem(DEMO_PIN_KEY, next); } catch (_) { return { ok: false, message: 'تعذر حفظ الرمز في هذا المتصفح.' }; }
+      try {
+        localStorage.setItem(DEMO_PIN_KEY, next);
+        localStorage.setItem(PIN_CHANGED_KEY, '1');
+      } catch (_) { return { ok: false, message: 'تعذر حفظ الرمز في هذا المتصفح.' }; }
       return { ok: true, warning: '' };
     }
     if (method === 'resetClinicSettings') {

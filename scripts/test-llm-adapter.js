@@ -253,7 +253,7 @@ test('validateConfig blocks when only the bootstrap PIN exists', () => {
   const report = context.validateConfig();
   const pin = report.checks.find((check) => check.id === 'admin_pin');
   assert.equal(pin.ok, false, 'an un-replaced bootstrap PIN blocks readiness');
-  assert.match(pin.detail, /مؤقت/, 'the message tells the doctor what to do');
+  assert.match(pin.detail, /مؤقت|غيّروه/, 'the message tells the doctor what to do');
   properties.set('ADMIN_PIN_HASH', 'a'.repeat(64));
   properties.delete('CK_MUST_CHANGE_PIN');
   assert.equal(context.validateConfig().checks.find((check) => check.id === 'admin_pin').ok, true);

@@ -3,9 +3,9 @@
   "properties": {
     "ADMIN_PIN": {
       "value": "",
-      "required": true,
+      "required": false,
       "secret": true,
-      "rule": "length >= 16, must not equal the demo pin 2468, must not be a single repeated character"
+      "rule": "اختياري/قديم: initializeCeliaKids() يولّد رمزًا عشوائيًا ويُغيَّر من لوحة العيادة. يُخزَّن كبصمة ADMIN_PIN_HASH"
     },
     "TIMEZONE": {
       "value": "Africa/Cairo",

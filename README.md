@@ -157,8 +157,9 @@ gh api -X POST repos/sayedelazameydesign-crypto/dr.mukhtar/pages -f source.branc
    | `GEMINI_MODEL` | افتراضي `gemini-2.5-flash` |
    | `GEMINI_DAILY_LIMIT` | افتراضي 25 سؤالًا يوميًا على مستوى المشروع |
 
-5. شغّل `initializeCeliaKids()` مرة واحدة ووافق على صلاحيات Sheets وCalendar. يثبّت رمز دخول مؤقتًا
-   (`Celia-Kids-2026-temporary`) — **غيّره فورًا** من لوحة العيادة ← إعدادات العيادة ← رمز الدخول.
+5. شغّل `initializeCeliaKids()` مرة واحدة ووافق على صلاحيات Sheets وCalendar. يولّد رمز دخول عشوائيًا
+   ويطبعه **مرة واحدة** — احفظه ثم **غيّره فورًا** من لوحة العيادة ← إعدادات العيادة ← رمز الدخول
+   (لا يوجد أي رمز مكتوب داخل المستودع).
 6. **Deploy → New deployment → Web app** وفق سياسة العيادة.
 
 ### ضمانات الخادم

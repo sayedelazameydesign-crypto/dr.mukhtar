@@ -379,12 +379,18 @@ assert.equal(propertyValues.has('ADMIN_PIN'), false, 'the plain PIN was deleted 
 // First install plants a temporary PIN (stored as a hash) until the doctor replaces it.
 propertyValues.delete('ADMIN_PIN_HASH');
 assert.equal(context.staffPinState_().configured, false);
-propertyValues.set('ADMIN_PIN_HASH', hashPin('Celia-Kids-2026-temporary'));
+// A generated PIN (never a literal in the repo) is installed as a hash only.
+const generatedPin = context.randomStaffPin_();
+assert.equal(generatedPin.length, 24, 'the bootstrap PIN is generated, not typed');
+assert.equal(/[Il1O0o]/.test(generatedPin), false, 'the alphabet avoids look-alike characters');
+assert.notEqual(context.randomStaffPin_(), generatedPin, 'each deployment gets its own PIN');
+propertyValues.set('ADMIN_PIN_HASH', hashPin(generatedPin));
 propertyValues.set('CK_MUST_CHANGE_PIN', '1');
-const bootstrapHash = hashPin('Celia-Kids-2026-temporary');
+const bootstrapHash = hashPin(generatedPin);
 assert.equal(context.getClinicSettings(bootstrapHash).meta.mustChangePin, true, 'the dashboard is told to ask for a new PIN');
 assert.equal(context.validateConfig().checks.find((c) => c.id === 'admin_pin').ok, false, 'readiness stays blocked until it is changed');
 assert.equal(context.saveStaffPin(bootstrapHash, hashPin('doctor-chosen-passphrase-2026'), bootstrapHash).ok, true);
+assert.equal(context.isStaff_(bootstrapHash), false, 'the generated PIN is dead after the change');
 assert.equal(propertyValues.has('CK_MUST_CHANGE_PIN'), false, 'the flag clears after the change');
 const readinessAfter = context.validateConfig().checks.find((c) => c.id === 'admin_pin');
 assert.equal(readinessAfter.ok, true, 'readiness passes once the doctor owns the PIN — ' + readinessAfter.detail);

@@ -16,9 +16,9 @@ const CK = {
   DEFAULT_MINUTES: 30,
   DEFAULT_WORK_DAYS: '0,1,2,3,4',
   DEFAULT_WEEKEND_DAYS: '5,6',
-  // Initial staff PIN for a brand-new deployment. It is only a hash on disk, and the
-  // dashboard shows a "change this now" banner until the doctor replaces it.
-  BOOTSTRAP_PIN: 'Celia-Kids-2026-temporary',
+  // Never ship a literal staff credential: the first run generates a random PIN,
+  // prints it once, and the dashboard insists it is replaced (see Settings.gs).
+  MUST_CHANGE_FLAG: 'CK_MUST_CHANGE_PIN',
   MAX_OUTAGE_REQUESTS: 25,
   MAX_OUTAGE_AUDITS: 100
 };
@@ -112,11 +112,13 @@ function initializeCeliaKids() {
   if (!ss) throw new Error('اربط Apps Script بملف Google Sheets أو أضف CELIA_SHEET_ID في Script Properties.');
   props.setProperty('CELIA_SHEET_ID', ss.getId());
   if (!props.getProperty('TIMEZONE')) props.setProperty('TIMEZONE', Session.getScriptTimeZone() || 'Africa/Cairo');
-  // First run: the temporary PIN is stored as a hash, and the doctor replaces it
-  // from «إعدادات العيادة» inside the dashboard (no code, no Script Properties).
+  // First run: generate a random PIN, keep only its hash, and show the PIN once in
+  // this execution's return value. The doctor replaces it from the dashboard.
+  let bootstrapPin = '';
   if (!staffPinState_().configured) {
-    props.setProperty('ADMIN_PIN_HASH', pinHash_(CK_BOOTSTRAP_PIN));
-    props.setProperty('CK_MUST_CHANGE_PIN', '1');
+    bootstrapPin = randomStaffPin_();
+    props.setProperty('ADMIN_PIN_HASH', pinHash_(bootstrapPin));
+    props.setProperty(CK.MUST_CHANGE_FLAG, '1');
     logEvent_('warn', 'bootstrap_pin_installed', {});
   }
   ensureSheet_(ss, CK.REQUESTS, CK.REQUEST_HEADERS);
@@ -129,13 +131,18 @@ function initializeCeliaKids() {
   });
   const calendar = ensureClinicCalendar_(props);
   const readiness = validateConfig();
-  const blocked = readiness.checks.filter((check) => !check.ok && check.id !== 'llm_optional');
+  // A freshly generated PIN is expected to block readiness until it is replaced, so
+  // it is reported but never aborts setup — otherwise the printed PIN would be lost.
+  const blocked = readiness.checks.filter((check) => !check.ok && check.id !== 'llm_optional' && check.id !== 'admin_pin');
   logEvent_(blocked.length ? 'warn' : 'info', 'initialize_complete', { calendar: calendar.getName(), blocked: blocked.length });
   if (blocked.length) {
     throw new Error('تم تجهيز الأوراق والتقويم، لكن الإعداد غير مكتمل: ' +
       blocked.map((check) => check.id + ' — ' + check.detail).join(' | '));
   }
-  return 'تم تجهيز الأوراق والتقويم وربط تقويم: ' + calendar.getName() + '. الإعداد صالح للنشر.';
+  const ready = 'تم تجهيز الأوراق والتقويم وربط تقويم: ' + calendar.getName() + '. الإعداد صالح للنشر.';
+  if (!bootstrapPin) return ready;
+  return ready + '\n\nرمز دخول مؤقت لهذه النسخة (يُعرض مرة واحدة فقط): ' + bootstrapPin +
+    '\nاحفظوه الآن ثم غيّروه من: لوحة العيادة ← إعدادات العيادة ← رمز الدخول. لا يمكن استرجاعه بعد ذلك.';
 }
 
 /** Reuse a configured calendar; otherwise create one dedicated Celia Kids calendar. */

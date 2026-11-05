@@ -96,6 +96,22 @@ function pinHash_(pin) {
   return bytes.map(function (b) { return ('0' + (b & 0xFF).toString(16)).slice(-2); }).join('');
 }
 
+/**
+ * A random staff PIN for a brand-new deployment. 24 characters from an unambiguous
+ * alphabet (~139 bits) are generated per deployment and never stored: only the hash
+ * is kept, and initializeCeliaKids returns the PIN once for the doctor to save.
+ */
+function randomStaffPin_() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const hex = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+  let pin = '';
+  for (let index = 0; index < 24; index += 1) {
+    const byte = parseInt(hex.substr(index * 2, 2), 16);
+    pin += alphabet.charAt(byte % alphabet.length);
+  }
+  return pin;
+}
+
 function isPinHash_(value) {
   return /^[a-f0-9]{64}$/.test(String(value || ''));
 }
