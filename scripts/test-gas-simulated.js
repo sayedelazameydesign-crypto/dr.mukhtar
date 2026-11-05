@@ -87,7 +87,7 @@ class FakeCalendar {
 
 // The real deployment stores a SHA-256 hash and the browser sends the same hash.
 const crypto = require('node:crypto');
-const staffPinFixture = 'fake-admin-secret-32-characters-long';
+const staffPinFixture = `fixture-${require('node:crypto').randomBytes(12).toString('hex')}`;
 function hashPin(pin) { return crypto.createHash('sha256').update(String(pin)).digest('hex'); }
 const staffHash = hashPin(staffPinFixture);
 const propertyValues = new Map([
@@ -361,7 +361,7 @@ assert.equal(context.saveClinicSettings({ values: { GEMINI_API_KEY: 'x' } }, pin
 assert.equal(context.saveClinicSettings({ values: { CLINIC_NAME: 'x' } }, 'not-the-pin-000000').ok, false, 'settings need a valid session');
 
 // The PIN itself is only ever stored as a hash, and a change needs the current one.
-const newPin = 'another-long-staff-passphrase-2026';
+const newPin = `pin-${crypto.randomBytes(12).toString('hex')}`;
 assert.equal(context.saveStaffPin('wrong-current-pin-0000', hashPin(newPin), pin).ok, false, 'a wrong current PIN is refused');
 assert.equal(context.saveStaffPin(staffPinFixture, hashPin(newPin), pin).ok, true, 'the PIN can be rotated');
 assert.equal(propertyValues.get('ADMIN_PIN_HASH'), hashPin(newPin), 'only the hash is stored');
@@ -389,7 +389,7 @@ propertyValues.set('CK_MUST_CHANGE_PIN', '1');
 const bootstrapHash = hashPin(generatedPin);
 assert.equal(context.getClinicSettings(bootstrapHash).meta.mustChangePin, true, 'the dashboard is told to ask for a new PIN');
 assert.equal(context.validateConfig().checks.find((c) => c.id === 'admin_pin').ok, false, 'readiness stays blocked until it is changed');
-assert.equal(context.saveStaffPin(bootstrapHash, hashPin('doctor-chosen-passphrase-2026'), bootstrapHash).ok, true);
+assert.equal(context.saveStaffPin(bootstrapHash, hashPin(`pin-${crypto.randomBytes(12).toString('hex')}`), bootstrapHash).ok, true);
 assert.equal(context.isStaff_(bootstrapHash), false, 'the generated PIN is dead after the change');
 assert.equal(propertyValues.has('CK_MUST_CHANGE_PIN'), false, 'the flag clears after the change');
 const readinessAfter = context.validateConfig().checks.find((c) => c.id === 'admin_pin');
