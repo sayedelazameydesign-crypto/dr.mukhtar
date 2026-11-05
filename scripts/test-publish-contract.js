@@ -19,7 +19,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ROOT = path.resolve(__dirname, '..');
+// CELIA_REPO_ROOT lets the silent-gate suite run this against a throwaway copy.
+const ROOT = process.env.CELIA_REPO_ROOT ? path.resolve(process.env.CELIA_REPO_ROOT) : path.resolve(__dirname, '..');
 const WORKFLOW = path.join(ROOT, '.github', 'workflows', 'pages.yml');
 
 let passed = 0;

@@ -53,7 +53,8 @@ jobs:
           mkdir -p _site assets
           cp index.html app.css app.js brand.svg manifest.webmanifest \
              robots.txt sitemap.xml 404.html clinic.json _site/
-          cp -r assets/. _site/assets/ 2>/dev/null || true
+          # No masking: a missing assets/ used to publish a site with no fonts and no error.
+          cp -r assets/. _site/assets/
           echo "--- published files:"
           find _site -type f | sort
 
@@ -69,6 +70,12 @@ jobs:
             echo "Shipped pages must stay self-contained."
             exit 1
           fi
+
+      # The release gate reads the same clinic.json the page reads. In demo mode it passes
+      # only because the badge is visible; with demoMode removed it refuses to publish until
+      # the clinic name, phone, doctor and licence are all present and valid.
+      - name: Clinic data gate (demo with badge, or complete for production)
+        run: node scripts/clinic-ready.js
 
       - name: Verify Apps Script bundle builds
         run: python3 scripts/build-gas-package.py

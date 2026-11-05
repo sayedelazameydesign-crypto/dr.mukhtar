@@ -47,6 +47,17 @@ jobs:
       - name: Publish contract (what reaches the public site)
         run: node scripts/test-publish-contract.js
 
+      - name: Silent-gate guard (a gate that cannot fail is not a gate)
+        run: node scripts/test-silent-gates.js
+
+      - name: Clinic data schema + release gate
+        run: |
+          node scripts/test-clinic-schema.js
+          node scripts/clinic-ready.js
+
+      - name: Rehearsal checklist is well formed and holds no secret
+        run: node scripts/check-rehearsal.js
+
       - name: actionlint (pinned; the runner image does not ship it)
         env:
           ACTIONLINT_VERSION: 1.7.7

@@ -55,6 +55,27 @@ const check = (label, condition, detail = '') => {
     /لا بأي فحص محلي/.test(result.stdout));
 }
 
+// 1b — stage A: the four facts published in clinic.json must count as ready even though the
+// server template is still empty. This is the only path that reaches a stranger's browser,
+// so a report that ignored it would tell the clinic to fill the wrong screen.
+{
+  const original = fs.readFileSync(path.join(ROOT, 'clinic.json'), 'utf8');
+  try {
+    fs.writeFileSync(path.join(ROOT, 'clinic.json'), JSON.stringify({
+      demoMode: false, clinicName: 'عيادة النور للأطفال', phone: '01001234567',
+      doctorName: 'د. سارة محمود', license: 'EG-12345'
+    }));
+    const result = run(['--offline']);
+    ['اسم العيادة الحقيقي', 'هاتف العيادة', 'اسم الطبيب', 'رقم الترخيص'].forEach((label) => {
+      const line = result.stdout.split('\n').find((item) => item.includes(label)) || '';
+      check(`published fact counts as ready: ${label}`, line.includes('جاهز'), line.trim().slice(0, 80));
+    });
+    check('the report names clinic.json as the source', /clinic\.json/.test(result.stdout));
+  } finally {
+    fs.writeFileSync(path.join(ROOT, 'clinic.json'), original);
+  }
+}
+
 // 2 — a complete clinic: identity filled, nothing else broken.
 {
   const file = writeProps('complete.json', {
@@ -105,7 +126,11 @@ const check = (label, condition, detail = '') => {
 
 // 4 — a broken gate must surface as an action, not as a pass.
 {
-  const original = fs.readFileSync(path.join(ROOT, 'Code.gs'), 'utf8');
+  // Snapshot the exact bytes and restore them in finally. The previous version used
+  // `git checkout -- app.js`, which silently discarded any uncommitted work on that file —
+  // a test that destroys the change it is meant to protect.
+  const appPath = path.join(ROOT, 'app.js');
+  const original = fs.readFileSync(appPath, 'utf8');
   const file = writeProps('gates.json', {
     CLINIC_NAME: 'عيادة النور للأطفال', CLINIC_PHONE: '01001234567',
     DOCTOR_NAME: 'د. سارة', DOCTOR_LICENSE: 'EG-1',
@@ -113,17 +138,14 @@ const check = (label, condition, detail = '') => {
   });
   try {
     // Break the parity gate on purpose: the demo label no longer matches the live one.
-    fs.writeFileSync(path.join(ROOT, 'app.js'),
-      fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8')
-        .replace("label: 'أنواع الزيارات وأسعارها'", "label: 'أنواع الزيارات'"));
+    fs.writeFileSync(appPath, original.replace("label: 'أنواع الزيارات وأسعارها'", "label: 'أنواع الزيارات'"));
     const result = run(['--offline', '--profile', file]);
     check('a broken gate turns the verdict to "needs action"', result.status === 1, `exit ${result.status}`);
     check('the failing gate is named', /تطابق الإعدادات/.test(result.stdout));
   } finally {
-    fs.writeFileSync(path.join(ROOT, 'Code.gs'), original);
-    spawnSync('git', ['checkout', '--', 'app.js'], { cwd: ROOT });
+    fs.writeFileSync(appPath, original);
   }
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });
-console.log(`Go-live report suite passed: ${passed} checks (template, complete clinic, placeholder, broken gate).`);
+console.log(`Go-live report suite passed: ${passed} checks (template, published clinic.json, complete clinic, placeholder, broken gate).`);

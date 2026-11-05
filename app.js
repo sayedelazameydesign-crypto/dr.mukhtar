@@ -719,12 +719,18 @@
     const name = text(data.clinicName);
     const phone = text(data.phone) || text(data.whatsapp);
     const address = text(data.address);
-    if (!name && !phone && !address) return;
+    const doctor = text(data.doctorName);
+    const licence = text(data.license);
+    if (!name && !phone && !address && !doctor && !licence) return;
     // Announced facts only: the visit services and hours keep coming from the settings,
     // because a published file must never be able to invent a booking slot.
     if (name) { setFact('clinicName', name); state.clinicName = name; }
     if (phone) { setPhone(phone); state.filled = Object.assign({}, state.filled, { phone: true }); }
     if (address) { setFact('address', address); state.filled = Object.assign({}, state.filled, { address: true }); }
+    // The doctor's identity travels in the same file: in stage A there is no deployment
+    // behind the page, so a fact that is not published here does not exist at all.
+    if (doctor) { setFact('doctorName', doctor); state.filled = Object.assign({}, state.filled, { doctorName: true }); }
+    if (licence) { setLicence(licence, true); state.filled = Object.assign({}, state.filled, { license: true, licenseVerified: true }); }
     // A name supplied here counts as announced for the onboarding banner, which otherwise
     // keeps claiming the page "still shows examples" after the clinic filled this file.
     if (name) state.filled = Object.assign({}, state.filled, { name: true });
@@ -735,7 +741,13 @@
     try {
       const response = await fetch('clinic.json', { cache: 'no-store' });
       if (!response.ok) return;
-      applyPublishedClinic(await response.json());
+      const data = await response.json();
+      // `demoMode: false` means the clinic claims this as its real page: the demo badge must
+      // disappear, or the page understates itself. Absent/true keeps the badge.
+      if (data && data.demoMode === false) {
+        $$('[data-demo-badge]').forEach((node) => { node.hidden = true; });
+      }
+      applyPublishedClinic(data);
     } catch (_) { /* a static file that is optional by design: silence is correct */ }
   }
 

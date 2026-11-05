@@ -53,7 +53,9 @@ if (process.argv.includes('--self-test')) {
   const GOOD_ENV = 'APP_ENV=ci\nGEMINI_API_KEY=\n';
   const GOOD_ENV_JS = `const ENV_SPECS = [\n  { name: 'GEMINI_API_KEY', secret: true, required: false, pattern: null, hint: '' },\n  { name: 'APP_ENV', secret: false, required: false, pattern: /^(ci)$/, hint: '' }\n];\n`;
   const GOOD_MAP_PROJECT = JSON.stringify({
-    meta: { name: 'fixture', commit: '0000000', generated_at: '2026-01-01T00:00:00Z', coverage: 'partial' },
+    // meta.commit is required, and the staleness rule is now an error: a synthetic SHA would
+    // trip it. Use a commit this repository really has; the stale case overrides it.
+    meta: { name: 'fixture', commit: 'FIXTURE_HEAD', generated_at: '2026-01-01T00:00:00Z', coverage: 'partial' },
     summary_L0: 'one line',
     nodes: [
       { id: 'ui.index', kind: 'component', path: 'index.html', layer: 'ui', role: 'markup' },
@@ -93,7 +95,11 @@ jobs:
     { name: 'missing permissions block is rejected', workflow: GOOD_WORKFLOW.replace('permissions:\n  contents: read\n', ''), expect: 1 },
     { name: 'self-hosted runner is rejected', workflow: GOOD_WORKFLOW.replace('runs-on: ubuntu-latest', 'runs-on: [self-hosted, linux]'), expect: 1 },
     { name: 'pull_request_target with head checkout is rejected', workflow: GOOD_WORKFLOW.replace('on: [push]', 'on: [pull_request_target]') + '      - uses: actions/checkout@v5\n        with:\n          ref: \${{ github.event.pull_request.head.sha }}\n', expect: 1 },
-    { name: 'stale project map is rejected under --strict', map: GOOD_MAP_PROJECT, expect: 1, strict: true, mapCommit: 'deadbee' },
+    // A commit this repository cannot see: in a full clone that is an error; in a shallow
+    // clone it is only a warning (checked below by the deploy path, which uses depth 1).
+    // An ancestor of HEAD is acceptable (documented in §8: a code-only commit must not be
+    // blocked by a doc bump).
+    { name: 'a map pinned to an unknown commit is rejected', map: GOOD_MAP_PROJECT, expect: 1, mapCommit: 'deadbee' },
     { name: 'env dump is flagged', workflow: GOOD_WORKFLOW.replace('run: echo "using $APP_ENV"', 'run: printenv'), expect: 0, expectWarning: true },
     { name: 'map edge pointing at an undeclared node is rejected', map: GOOD_MAP_PROJECT.replace(JSON.stringify('domain.code'), JSON.stringify('domain.ghost')), expect: 1 },
     { name: 'map missing a declared env name is rejected', map: GOOD_MAP_PROJECT.replace(/env\.APP_ENV/g, 'env.OTHER_NAME'), expect: 1 },
@@ -128,15 +134,28 @@ jobs:
       // A local git repo makes the map's commit comparable with HEAD, so the
       // staleness rule can be exercised (git is present wherever CI runs).
       const git = (...args) => require('node:child_process').execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+      // Declared outside the block: the map is written after it, and a block-scoped const
+      // here silently left the fixture pinned to a placeholder SHA.
+      let fixtureHead = null;
       if (!testCase.noGit) {
         git('init', '-q');
         git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'head');
+        // The fixture map must name a commit *this* repository has: the staleness rule is an
+        // error now, so a hardcoded SHA from the real repo would fail every clean case.
+        fixtureHead = git('rev-parse', 'HEAD').toString().trim().slice(0, 7);
         if (testCase.mapCommit) {
           fs.writeFileSync(path.join(dir, 'docs', 'map', 'project.json'),
             testCase.map.replace(/\"commit\":\"[^\"]*\"/, `\"commit\":\"${testCase.mapCommit}\"`));
         }
       }
-      fs.writeFileSync(path.join(dir, 'docs', 'map', 'project.json'), testCase.map || GOOD_MAP_PROJECT);
+      // Do not clobber an injected commit: the previous line wrote the substituted map and
+      // this line overwrote it with the pristine fixture, so no map-commit case could ever
+      // reach the staleness rule.
+      if (!testCase.mapCommit) {
+        const base = testCase.map || GOOD_MAP_PROJECT;
+        fs.writeFileSync(path.join(dir, 'docs', 'map', 'project.json'),
+          typeof fixtureHead === 'string' ? base.replace(/\"commit\":\"[^\"]*\"/, `\"commit\":\"${fixtureHead}\"`) : base);
+      }
       fs.writeFileSync(path.join(dir, 'docs', 'map', 'gaps.json'), GOOD_GAPS);
       fs.writeFileSync(path.join(dir, 'docs', 'map', 'ARCHITECTURE.md'), '# fixture\n');
     }
@@ -510,10 +529,21 @@ if (!fs.existsSync(MAP_DIR)) {
   // landed on top). Anything else means the map was never refreshed at this branch.
   const head = gitHead();
   const mapped = project && project.meta && project.meta.commit;
+  // These two were warnings for several commits and nothing ever acted on them, which is
+  // how a map becomes fiction. A map that points at a commit this repository does not have,
+  // or that is not on the path to HEAD, is now an error: refresh it in the same change.
+  // A shallow clone cannot see older commits, so "unknown commit" and "we did not fetch it"
+  // are different findings. The deploy workflow checked out with depth 1 and this rule then
+  // failed for a map that was correct — a gate that punishes its own environment.
+  const shallow = git(['rev-parse', '--is-shallow-repository']) === 'true';
   if (head && mapped && !commitExists(mapped)) {
-    warn(`docs/map/ — meta.commit ${mapped} is not a commit in this repository`);
+    if (shallow) {
+      warn(`docs/map/ — meta.commit ${mapped} cannot be verified in a shallow clone; use fetch-depth: 0 to check it`);
+    } else {
+      fail(`docs/map/ — meta.commit ${mapped} is not a commit in this repository`);
+    }
   } else if (head && mapped && !head.startsWith(mapped) && !isAncestor(mapped, head)) {
-    warn(`docs/map/ is stale — meta.commit ${mapped} is not on the path to HEAD ${head.slice(0, 7)}; refresh per project-map.md §8`);
+    fail(`docs/map/ is stale — meta.commit ${mapped} is not on the path to HEAD ${head.slice(0, 7)}; refresh per project-map.md §8`);
   }
 }
 
