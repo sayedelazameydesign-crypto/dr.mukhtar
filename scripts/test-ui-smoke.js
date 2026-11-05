@@ -90,6 +90,8 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   // No configured number means no tel: link at all — never a tap target to nowhere,
   // and never an invented number.
   check('no call link before a number is configured', $('a[href^="tel:"]') === null);
+  // The page promises WhatsApp but shipped no way to reach it.
+  check('no WhatsApp button before a number is configured', $('a[href^="https://wa.me/"]') === null);
 
   // ---- the page says out loud that it still runs on examples ----
   check('onboarding banner exists in the dashboard', $('#onboardingBanner') !== null);
@@ -197,6 +199,12 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   const phoneLink = $('[data-config="phone"] a');
   check('a configured phone becomes a tap-to-call link', phoneLink !== null && /^tel:\+?[0-9]{6,}$/.test(phoneLink.getAttribute('href')), phoneLink && phoneLink.getAttribute('href'));
   check('the dialable number keeps no spaces or dashes', phoneLink !== null && !/[\s-]/.test(phoneLink.getAttribute('href')), phoneLink && phoneLink.getAttribute('href'));
+  const wa = $('a[href^="https://wa.me/"]');
+  check('a configured number turns on the WhatsApp button', wa !== null, 'no wa.me link');
+  check('the WhatsApp opener carries no personal or medical details', wa !== null
+    && /wa\.me\/01001234567\?text=/.test(wa.getAttribute('href'))
+    && !/اسم|هاتف|عمر|سنة|أعراض|ألم|حرارة/.test(decodeURIComponent(wa.getAttribute('href').split('text=')[1] || '')),
+    wa && decodeURIComponent(wa.getAttribute('href')));
   // Regression: a frozen VISIT_MINUTES table used to shadow the edited durations, so a
   // changed duration only showed in the label while the slot maths kept the old value.
   const chipAfterEdit = $$('#dayChips .day-chip')[0];
@@ -236,6 +244,22 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   await wait(120);
   check('board tab returns', !$('#staffBoard').hidden && $('#staffSettings').hidden);
 
+  // ---- an unverified slot must be visible in the dashboard, not just stored ----
+  await window.eval(`(async () => {
+    const store = JSON.parse(localStorage.getItem('celia-kids-demo-v1'));
+    store.bookings.unshift({
+      reference: 'CK-UNVERIFIED-1', createdAt: new Date().toISOString(), status: 'REQUESTED',
+      visitType: 'كشف جديد', guardianName: 'ولي أمر بلا تحقق', phone: '01009998877',
+      day: store.bookings[0].day, time: '09:00', eventId: '', consent: true, slotVerified: false
+    });
+    localStorage.setItem('celia-kids-demo-v1', JSON.stringify(store));
+  })()`);
+  document.dispatchEvent(new window.Event('visibilitychange'));
+  await wait(700);
+  const pendingHtml = $('#pendingList').innerHTML;
+  check('a slot the calendar could not verify is flagged in the dashboard', /لم يُتحقق من التقويم/.test(pendingHtml), pendingHtml.slice(0, 120));
+  check('the flagged request is visually marked', $$('#pendingList .request-item.is-unverified').length > 0);
+
   // ---- admin question ----
   $('#faqQuestion').value = 'كيف أغيّر الموعد؟';
   submit('#faqForm');
@@ -248,6 +272,10 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   check('booking view restored', !$('#bookingView').hidden && $('#staffView').hidden);
 
   check('no runtime errors', problems.length === 0, problems.join(' | '));
+  check('reveal enhancement only hides when the script opted in',
+    document.documentElement.classList.contains('js-reveal-ready')
+      ? $$('.card, .side-card, .tool-card, .steps-strip').every((node) => node.classList.contains('is-revealed') || node.getBoundingClientRect().top >= window.innerHeight)
+      : $$('.card').every((node) => !node.style.opacity || node.style.opacity === '1'));
 
   if (failures.length) {
     console.error(`UI smoke test FAILED (${failures.length}):`);

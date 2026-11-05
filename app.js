@@ -336,7 +336,19 @@
       const payload = args[0];
       const booked = store.bookings.some((item) => item.day === payload.day && item.time === payload.time && item.status === 'CONFIRMED');
       if (booked) return { ok: false, message: 'اختير هذا الوقت للتو. يرجى اختيار وقت آخر.' };
-      const booking = { ...payload, reference: newRef(), createdAt: new Date().toISOString(), status: 'PENDING_APPROVAL', eventId: '', consent: true };
+      // Same rule as findOpenDuplicate_ in Code.gs: one open request per phone per day.
+      const wanted = String(payload.phone || '').replace(/\D/g, '');
+      const open = ['REQUESTED', 'PENDING_APPROVAL', 'RESCHEDULED'];
+      const duplicate = store.bookings.find((item) => open.includes(item.status)
+        && item.day === payload.day
+        && String(item.phone || '').replace(/\D/g, '') === wanted && wanted.length >= 8);
+      if (duplicate) {
+        return { ok: false, duplicate: true, reference: duplicate.reference,
+          message: `لديكم طلب قائم لهذا اليوم بالرقم ${duplicate.reference}. تابعوه من «طلب سابق» أو انتظروا تأكيد العيادة.` };
+      }
+      const verified = state.availabilityVerified;
+      const booking = { ...payload, reference: newRef(), createdAt: new Date().toISOString(),
+        status: verified ? 'PENDING_APPROVAL' : 'REQUESTED', slotVerified: verified, eventId: '', consent: true };
       store.bookings.unshift(booking);
       saveDemo(store);
       return { ok: true, booking, savedLocally: true };
@@ -574,7 +586,23 @@
     const digits = raw.replace(/[^0-9+]/g, '');
     return digits.replace(/\D/g, '').length >= 6 ? `tel:${digits}` : '';
   }
+  // A neutral opener: no name, no symptom, no appointment details. The parent decides
+  // what to write; we only save them the step of finding the number.
+  const WHATSAPP_OPENER = 'السلام عليكم، أرغب في الاستفسار عن موعد.';
+  function setWhatsApp(phone) {
+    const digitsOnly = String(phone || '').replace(/\D/g, '');
+    const usable = digitsOnly.length >= 8;
+    const links = $$('#whatsappLink, #whatsappLinkAccess');
+    links.forEach((link) => {
+      const holder = link.closest('p');
+      if (!usable) { if (holder) holder.hidden = true; link.removeAttribute('href'); return; }
+      link.href = `https://wa.me/${digitsOnly}?text=${encodeURIComponent(WHATSAPP_OPENER)}`;
+      link.setAttribute('aria-label', `مراسلة العيادة على واتساب على ${phone}`);
+      if (holder) holder.hidden = false;
+    });
+  }
   function setPhone(phone) {
+    setWhatsApp(phone);
     const href = telHref(phone);
     $$('[data-config="phone"]').forEach((node) => {
       if (!href) { node.textContent = phone || 'يُضاف من إعداد العيادة'; return; }
@@ -618,6 +646,7 @@
   // This runs on every profile load, whether or not staff ever open the dashboard.
   function renderPlaceholders() {
     const filled = state.filled || {};
+    if (!filled.phone) setWhatsApp('');
     if (!filled.doctorName) setFact('doctorName', 'بيانات الطبيب لم تُسجَّل بعد');
     if (!filled.doctorRole) setFact('doctorRole', 'اللقب العلمي يُسجَّل من الإعداد');
     if (!filled.subspecialty) setFact('subspecialty', 'طب الأطفال');
@@ -1141,6 +1170,31 @@
   /* ---------------- booking flow ---------------- */
   function formatStatus(status) { return statusText[status] || status || 'قيد المراجعة'; }
 
+  // A duplicate is not an error: the parent already has a request today. Say so plainly
+  // and hand them the reference, instead of letting them think nothing happened.
+  function showDuplicateNotice(response) {
+    const result = $('#bookingResult');
+    if (!result) { toast(response.message || 'لديكم طلب قائم لهذا اليوم.'); return; }
+    result.innerHTML = `
+      <div class="result-top">
+        <span class="result-check is-info" aria-hidden="true"><svg><use href="#i-clock"/></svg></span>
+        <div>
+          <h3>لديكم طلب قائم لهذا اليوم</h3>
+          <p>لم نُنشئ طلبًا ثانيًا. الرقم المرجعي: <strong class="ltr">${escapeHTML(response.reference || '')}</strong></p>
+        </div>
+      </div>
+      <p class="result-note">تابعوه من «طلب سابق»، أو انتظروا تأكيد العيادة. إن أردتم يومًا آخر فاختاروا تاريخًا مختلفًا ثم أرسلوا.</p>
+      <button type="button" class="secondary-button" id="duplicateTrack">تابعوا الطلب الحالي</button>`;
+    result.hidden = false;
+    const track = $('#duplicateTrack');
+    if (track) track.addEventListener('click', () => {
+      if ($('#trackReference')) $('#trackReference').value = response.reference || '';
+      if ($('#trackCard') && typeof $('#trackCard').scrollIntoView === 'function') $('#trackCard').scrollIntoView({ block: 'center' });
+      if ($('#trackForm')) $('#trackForm').requestSubmit();
+    });
+    if (typeof result.scrollIntoView === 'function') result.scrollIntoView({ block: 'center' });
+  }
+
   function showBookingResult(booking, savedLocally = false, localDemo = false, warning = '') {
     const result = $('#bookingResult');
     const note = warning
@@ -1218,6 +1272,7 @@
     label.textContent = 'جارٍ إرسال الطلب…';
     try {
       const response = await api('createRequest', payload);
+      if (response && response.duplicate) { showDuplicateNotice(response); return; }
       if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر حفظ الطلب. يرجى المحاولة مجددًا.');
       showBookingResult(response.booking, !!response.savedLocally, !IS_GAS, response.warning || '');
       form.reset();
@@ -1294,14 +1349,19 @@
         ${isConfirmed ? `<button data-action="move" data-ref="${ref}">تعديل الموعد</button><button data-action="complete" data-ref="${ref}">إكمال الزيارة</button><button data-action="cancel" data-ref="${ref}" class="action-danger">إلغاء</button><a class="text-button" href="${whatsappLink(booking)}" target="_blank" rel="noopener noreferrer">رسالة WhatsApp</a>` : ''}
         ${booking.status === 'RESCHEDULED' ? `<a class="text-button" href="${whatsappLink(booking, true)}" target="_blank" rel="noopener noreferrer">إرسال الاقتراح يدويًا</a>` : ''}
       </div>` : '';
-    return `<article class="request-item">
+    // A slot the calendar could not confirm is a *preference*, not a booking. The clinic
+    // must see that before approving, otherwise "unverified" is a stored flag nobody reads.
+    const unchecked = booking.slotVerified === false
+      ? `<p class="request-warning"><svg aria-hidden="true"><use href="#i-alert"/></svg> لم يُتحقق من التقويم وقت الطلب — راجعوا الجدول قبل القبول.</p>`
+      : '';
+    return `<article class="request-item${booking.slotVerified === false ? ' is-unverified' : ''}">
       <div class="request-item-top">
         <div>
           <h4>${escapeHTML(booking.guardianName)} <span class="request-ref">${ref}</span></h4>
           <div class="request-meta">${escapeHTML(booking.visitType)} · ${escapeHTML(bookingDateTime(booking))}<br>${escapeHTML(booking.phone)}</div>
         </div>
         <span class="status-pill ${statusClass(booking.status)}">${escapeHTML(formatStatus(booking.status))}</span>
-      </div>${actions}
+      </div>${unchecked}${actions}
     </article>`;
   }
 
@@ -1436,25 +1496,24 @@
   }
 
   /* ---------------- motion polish ---------------- */
+  // Progressive enhancement, not a requirement: hidden state lives in CSS and is enabled
+  // by a class added here. If this script never runs, nothing is hidden and the page is
+  // simply a page — previously the script set opacity:0 inline, so a JS failure blanked
+  // whole sections on a slow phone.
   function revealOnScroll() {
     if (reduceMotion || !('IntersectionObserver' in window)) return;
     const targets = [...$$('.card, .side-card, .tool-card, .steps-strip')];
+    const below = targets.filter((node) => node.getBoundingClientRect().top >= window.innerHeight);
+    if (!below.length) return;
+    document.documentElement.classList.add('js-reveal-ready');
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
-        entry.target.style.transition = 'opacity .6s cubic-bezier(.22,.61,.36,1), transform .6s cubic-bezier(.22,.61,.36,1)';
-        entry.target.style.opacity = '1';
-        entry.target.style.transform = 'none';
+        entry.target.classList.add('is-revealed');
         observer.unobserve(entry.target);
       });
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
-    targets.forEach((node) => {
-      const box = node.getBoundingClientRect();
-      if (box.top < window.innerHeight) return;
-      node.style.opacity = '0';
-      node.style.transform = 'translateY(18px)';
-      observer.observe(node);
-    });
+    below.forEach((node) => observer.observe(node));
   }
 
   /* ---------------- wiring + boot ---------------- */

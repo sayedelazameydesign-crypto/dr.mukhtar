@@ -214,12 +214,50 @@ function getAvailableSlots(day, visitType) {
   }
 }
 
+/**
+ * An open request from the same phone for the same day. A parent who taps twice (or
+ * reloads on a slow connection) must not end up as two rows the clinic has to reconcile,
+ * and the clinic must not receive the same child twice.
+ */
+function findOpenDuplicate_(phone, day) {
+  const wanted = digits_(phone);
+  if (wanted.length < 8) return null;
+  try {
+    const sheet = requestsSheet_();
+    const values = sheet.getDataRange().getValues();
+    if (values.length < 2) return null;
+    const head = values[0].map(function (cell) { return String(cell); });
+    const at = function (name) { return head.indexOf(name); };
+    const iRef = at('reference'); const iStatus = at('status'); const iPhone = at('phone'); const iDay = at('day');
+    if (iRef < 0 || iStatus < 0 || iPhone < 0 || iDay < 0) return null;
+    const open = ['REQUESTED', 'PENDING_APPROVAL', 'RESCHEDULED'];
+    for (let row = 1; row < values.length; row += 1) {
+      if (open.indexOf(String(values[row][iStatus])) < 0) continue;
+      if (String(values[row][iDay]) !== String(day)) continue;
+      if (digits_(values[row][iPhone]) !== wanted) continue;
+      return String(values[row][iRef]);
+    }
+    return null;
+  } catch (error) {
+    return null; // never block intake because the duplicate check failed
+  }
+}
+
 /** Public intake: creates a pending request, never a Calendar event. */
 function createRequest(payload) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return { ok: false, message: 'هناك طلب آخر قيد المعالجة. حاولوا مرة أخرى بعد لحظات.' };
   try {
     const clean = validateRequest_(payload);
+    const duplicate = findOpenDuplicate_(clean.phone, clean.day);
+    if (duplicate) {
+      return {
+        ok: false,
+        duplicate: true,
+        reference: duplicate,
+        message: 'لديكم طلب قائم لهذا اليوم بالرقم ' + duplicate + '. تابعوه من «طلب سابق» أو انتظروا تأكيد العيادة.'
+      };
+    }
     let verified = false;
     try {
       if (!isSlotAvailable_(clean.day, clean.time, visitDuration_(clean.visitType), '')) {

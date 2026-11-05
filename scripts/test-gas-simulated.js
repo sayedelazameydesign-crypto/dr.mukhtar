@@ -56,6 +56,8 @@ class FakeSheet {
   getRange(row, column, rowCount = 1, columnCount = 1) {
     return new FakeRange(this, row, column, rowCount, columnCount);
   }
+  // Whole-sheet reads (findOpenDuplicate_ scans for an existing open request).
+  getDataRange() { return new FakeRange(this, 1, 1, Math.max(this.rows.length, 1), 12); }
   setFrozenRows() { return this; }
 }
 
@@ -191,8 +193,13 @@ function nextWorkday() {
 const day = nextWorkday();
 // Every staff call now sends the hash, exactly as the browser does.
 const pin = staffHash;
+// Each simulated parent gets its own phone number: two *different* families may compete
+// for the same slot (the case below), while the duplicate rule is about one family.
+let parentNumber = 0;
 function request(time, visitType = 'كشف جديد') {
-  return context.createRequest({ visitType, guardianName: 'ولي أمر تجريبي', phone: '0000000000', day, time, consent: true });
+  parentNumber += 1;
+  const phone = `0100000${String(parentNumber).padStart(4, '0')}`;
+  return context.createRequest({ visitType, guardianName: 'ولي أمر تجريبي', phone, day, time, consent: true });
 }
 function isHashRow(value) { return /^[a-f0-9]{64}$/.test(String(value || '')); }
 function assertSaved(result, label) {
@@ -391,6 +398,30 @@ assert.equal(context.getClinicSettings(bootstrapHash).meta.mustChangePin, true, 
 assert.equal(context.validateConfig().checks.find((c) => c.id === 'admin_pin').ok, false, 'readiness stays blocked until it is changed');
 assert.equal(context.saveStaffPin(bootstrapHash, hashPin(`pin-${crypto.randomBytes(12).toString('hex')}`), bootstrapHash).ok, true);
 assert.equal(context.isStaff_(bootstrapHash), false, 'the generated PIN is dead after the change');
+
+// ---- one open request per phone per day (the clinic must not receive the child twice) ----
+const dupPin = context.randomStaffPin_();
+propertyValues.set('ADMIN_PIN_HASH', hashPin(dupPin));
+const dupDay = '2030-06-03';
+const firstRequest = context.createRequest({
+  visitType: 'كشف جديد', day: dupDay, time: '10:00',
+  guardianName: 'ولي أمر تجريبي', phone: '0100 111 2233', consent: true
+});
+assert.equal(firstRequest.ok, true, 'the first request is accepted');
+// Same service on purpose: the only difference is the phone formatting and the time, so
+// a refusal can only come from the duplicate rule.
+const secondRequest = context.createRequest({
+  visitType: 'كشف جديد', day: dupDay, time: '11:00',
+  guardianName: 'ولي أمر تجريبي', phone: '01001112233', consent: true
+});
+assert.equal(secondRequest.ok, false, 'a second open request for the same phone and day is refused');
+assert.equal(secondRequest.duplicate, true, 'the refusal is marked as a duplicate');
+assert.equal(secondRequest.reference, firstRequest.booking.reference, 'the existing reference is returned, so the parent can track it');
+const otherDay = context.createRequest({
+  visitType: 'كشف جديد', day: '2030-06-04', time: '11:00',
+  guardianName: 'ولي أمر تجريبي', phone: '01001112233', consent: true
+});
+assert.equal(otherDay.ok, true, 'a different day is a new request, not a duplicate');
 
 // A 45-minute visit on a 30-minute grid must not be offered a start that ends after
 // closing: 09:00-14:00 offers 09:00..13:00 and never 13:30.

@@ -526,6 +526,14 @@ svg{display:block}
   .card,.tool-card,.side-card{border:1px solid #bbb;box-shadow:none}
 }
 
+/* Progressive enhancement: the reveal animation is opt-in via a class that the script
+   adds. Without JS (or if the script fails) every section simply renders visible. */
+.js-reveal-ready .card:not(.is-revealed),
+.js-reveal-ready .side-card:not(.is-revealed),
+.js-reveal-ready .tool-card:not(.is-revealed),
+.js-reveal-ready .steps-strip:not(.is-revealed){opacity:0;transform:translateY(18px)}
+.js-reveal-ready .is-revealed{opacity:1;transform:none;transition:opacity .6s cubic-bezier(.22,.61,.36,1),transform .6s cubic-bezier(.22,.61,.36,1)}
+
 /* Onboarding gate: the page ships with examples, and it says so until the clinic
    fills its own facts. Deliberately louder than an ordinary notice. */
 .onboarding-banner{display:flex;align-items:flex-start;gap:12px;margin:0 0 14px;padding:14px 16px;border:1px solid #e6cfa0;border-left:4px solid #c08a2b;border-radius:14px;background:#fdf6e7;color:#5a4416}
@@ -542,3 +550,16 @@ svg{display:block}
 .phone-link{color:var(--teal);font-weight:600;text-decoration:none;border-bottom:1px solid rgba(14,111,97,.28);unicode-bidi:isolate}
 .phone-link:hover,.phone-link:focus-visible{color:var(--ink);border-bottom-color:currentColor}
 .phone-link::before{content:'';display:inline-block;width:4px;height:4px;margin-inline-end:6px;border-radius:50%;background:currentColor;vertical-align:middle}
+
+/* An unverified slot is a preference, not a booking: the clinic must see it at a glance. */
+.request-item.is-unverified{border-inline-start:3px solid #c08a2b}
+.request-warning{display:flex;align-items:flex-start;gap:6px;margin:8px 0 0;padding:8px 10px;border-radius:8px;background:#fdf6e7;color:#6b5014;font-size:11.5px;line-height:1.55}
+.request-warning svg{width:13px;height:13px;flex:none;margin-top:2px;color:#a8721c}
+/* Duplicate-request notice: informational, not a success and not an error. */
+.result-check.is-info{background:#e8eef7;color:#2f5b8a}
+.result-check.is-info svg{width:15px;height:15px}
+/* WhatsApp affordance: same weight as a secondary action, only when a number exists. */
+.doctor-contact{padding:0 18px 16px;margin:0}
+.clinic-contact{margin-top:12px}
+.whatsapp-button{display:inline-flex;align-items:center;gap:7px;text-decoration:none}
+.whatsapp-button svg{width:15px;height:15px;flex:none}
