@@ -91,6 +91,8 @@ jobs:
     fs.writeFileSync(path.join(dir, '.env.example'), GOOD_ENV);
     fs.mkdirSync(path.join(dir, 'scripts'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'scripts', 'env.js'), GOOD_ENV_JS);
+    fs.writeFileSync(path.join(dir, 'scripts', 'bootstrap-github.sh'),
+      '#!/usr/bin/env sh\n# --dry-run supported\ngit status >/dev/null\n');
     fs.writeFileSync(path.join(dir, '.github', 'workflows', 'test.yml'), testCase.workflow);
 
     let outcome;
