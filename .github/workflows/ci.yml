@@ -73,11 +73,13 @@ jobs:
           # reason is invisible is a gate people learn to ignore.
           status=0
           actionlint -color 2>&1 | tee /tmp/actionlint.txt || status=1
-          while IFS= read -r line; do
-            case "$line" in
-              *.yml:*|*.yaml:*) echo "::error title=actionlint::${line}" ;;
-            esac
-          done < /tmp/actionlint.txt
+          if [ "$status" != '0' ]; then
+            # Always attach the reason: an unreadable failure is an ignored failure.
+            reason=$(tr '\n' ' ' < /tmp/actionlint.txt | cut -c1-800)
+            echo "::error title=actionlint failed::${reason:-no output}"""
+          else
+            echo "::notice title=actionlint::clean"
+          fi
           exit "$status"
 
       - name: Syntax gate (JS)
