@@ -457,6 +457,39 @@ assert.equal(capped.ok, false, 'the fourth request that day is refused');
 assert.equal(capped.rateLimited, true, 'the refusal names the reason, so the UI can explain it');
 assert.match(capped.message, /الحد الأقصى/, 'the message tells the parent what happened');
 
+// ---- the clinic's clock, not the script account's ----
+// `new Date(y, m, d, h, min)` reads the *runtime's* zone. A script account in UTC built
+// 09:00 Cairo as 09:00 UTC — two hours late — so "is this slot still in the future?"
+// and the weekday check were answered for the wrong moment.
+const cairoNine = context.clinicWallClock_('2031-03-10', '09:00');
+assert.equal(dateParts(cairoNine, 'Africa/Cairo').hour, '09', '09:00 is 09:00 at the clinic');
+assert.equal(dateParts(cairoNine, 'Africa/Cairo').minute, '00', 'and not shifted by minutes');
+assert.equal(cairoNine.getTime(), Date.parse('2031-03-10T07:00:00Z'), '09:00 Cairo is 07:00 UTC in March');
+// The booking path itself, not just the helper. This suite pins TZ to the clinic by
+// default, which would hide the bug, so the same call is repeated with the script
+// effectively running somewhere else (Apps Script accounts commonly run in UTC).
+const withRuntimeZone = (zone, fn) => {
+  const previous = process.env.TZ;
+  process.env.TZ = zone;
+  try { return fn(); } finally { process.env.TZ = previous; }
+};
+const madeNine = context.makeDate_('2031-03-10', '09:00');
+assert.equal(madeNine.getTime(), cairoNine.getTime(), 'makeDate_ builds the clinic wall clock, not the runtime zone');
+assert.equal(dateParts(madeNine, 'Africa/Cairo').hour, '09', 'a 09:00 appointment reads 09:00 at the clinic');
+['UTC', 'America/New_York', 'Pacific/Kiritimati'].forEach((zone) => {
+  const instant = withRuntimeZone(zone, () => context.makeDate_('2031-03-10', '09:00'));
+  assert.equal(instant.getTime(), cairoNine.getTime(),
+    `09:00 stays 09:00 at the clinic when the script runs in ${zone}`);
+});
+// The weekday must come from the calendar date, never from an instant's runtime zone.
+assert.equal(context.clinicWeekday_('2031-03-10'), 1, '2031-03-10 is a Monday');
+assert.equal(context.clinicWeekday_('2031-03-14'), 5, '2031-03-14 is a Friday');
+// The clinic works Sunday-Thursday, so Friday is the closed day: a valid future day with
+// no slots, not an error — and it stays closed whatever zone the script runs in.
+const fridaySlots = context.getAvailableSlots('2031-03-14', 'كشف جديد');
+assert.equal(fridaySlots.ok, true, 'a closed day is a valid day with no slots, not an error');
+assert.equal(fridaySlots.slots.length, 0, 'the clinic is closed on Friday whatever zone the script runs in');
+
 // A 45-minute visit on a 30-minute grid must not be offered a start that ends after
 // closing: 09:00-14:00 offers 09:00..13:00 and never 13:30.
 assert.equal(context.paddedStartIndex_(300, 45, 30), 30, 'the end padding for a 45-minute visit');

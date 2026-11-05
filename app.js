@@ -97,6 +97,21 @@
     date.setUTCDate(date.getUTCDate() + days);
     return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
   }
+  // Days between two ISO days.
+  function daysBetweenISO(from, to) {
+    return Math.round((isoToDate(to).getTime() - isoToDate(from).getTime()) / 86400000);
+  }
+  // A relative name for a day, counted from the clinic's today. Positional labels
+  // ("tomorrow", "day 3") used to be glued to the chip index, so after a closed weekend
+  // Sunday — three days away — was still announced as «غدًا».
+  function relativeDayLabel(iso) {
+    const gap = daysBetweenISO(clinicTodayISO(), iso);
+    if (gap === 0) return 'اليوم';
+    if (gap === 1) return 'غدًا';
+    if (gap === 2) return 'بعد غد';
+    if (gap > 2) return `بعد ${arabicDigits(gap)} أيام`;
+    return 'موعد سابق';
+  }
   function isoLabel(iso, options) {
     // The label is a calendar date, so it must not be rendered in the visitor's zone.
     try {
@@ -1133,7 +1148,6 @@
     const wrap = $('#dayChips');
     if (!wrap) return;
     wrap.replaceChildren();
-    const labels = ['غدًا', 'بعد غد', 'اليوم الثالث', 'اليوم الرابع', 'اليوم الخامس'];
     for (let i = 1; i <= 5; i += 1) {
       const openDays = state.workDays.length ? state.workDays : WORK_DAYS;
       const iso = nextWorkdayISO(i, openDays);
@@ -1141,7 +1155,7 @@
       chip.type = 'button';
       chip.className = 'day-chip';
       chip.dataset.day = iso;
-      chip.innerHTML = `${labels[i - 1]} · <b>${isoLabel(iso, { weekday: 'short', day: 'numeric', month: 'short' })}</b>`;
+      chip.innerHTML = `${relativeDayLabel(iso)} · <b>${isoLabel(iso, { weekday: 'short', day: 'numeric', month: 'short' })}</b>`;
       chip.addEventListener('click', () => {
         $('#visitDate').value = iso;
         loadAvailability(iso);
@@ -1476,7 +1490,9 @@
     state.bookings = bookings;
     state.closures = response.closures || [];
     const pending = bookings.filter((item) => ['REQUESTED', 'PENDING_APPROVAL', 'RESCHEDULED'].includes(item.status));
-    const today = localISO(new Date());
+    // The clinic's today — the dashboard counts visits for the clinic's date, not the
+    // phone's, or a doctor reviewing after midnight sees yesterday's numbers.
+    const today = clinicTodayISO();
     const todayConfirmed = bookings.filter((item) => item.day === today && ['CONFIRMED', 'COMPLETED'].includes(item.status));
     const week = currentWeekBookings(bookings);
     $('#dashboardStats').innerHTML = `
