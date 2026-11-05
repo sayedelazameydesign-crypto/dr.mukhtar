@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f6f7f2">
+  <meta name="theme-color" content="#fbfbf9">
   <meta name="color-scheme" content="light">
-  <meta name="description" content="Celia Kids — طلب مواعيد عيادة الأطفال: اختاروا اليوم والوقت، ويراجع فريق العيادة كل طلب ويؤكده قبل إضافته إلى جدول الطبيب.">
-  <title>Celia Kids | حجز مواعيد الأطفال</title>
+  <meta name="description" content="عيادة أطفال: طلب موعد لطفلكم في ثلاث خطوات. يختار ولي الأمر نوع الزيارة والوقت، ويؤكد فريق العيادة الموعد قبل إضافته إلى جدول الطبيب. الحالات الطارئة تُحوَّل إلى خدمات الطوارئ.">
+  <title>عيادة أطفال | طلب موعد — Celia Kids</title>
   <link rel="icon" href="./brand.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,207 +16,328 @@
   <link rel="stylesheet" href="./app.css?v=2026">
   <script src="./app.js?v=2026" defer></script>
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"MedicalClinic","name":"Celia Kids","description":"عيادة أطفال — استقبال طلبات المواعيد إلكترونياً مع تأكيد بشري من العيادة.","medicalSpecialty":"Pediatric","areaServed":"EG","availableLanguage":"ar"}
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "MedicalClinic",
+        "@id": "#clinic",
+        "name": "Celia Kids",
+        "description": "عيادة أطفال: استقبال طلبات المواعيد إلكترونيًا مع تأكيد من فريق العيادة قبل إضافة الموعد إلى جدول الطبيب.",
+        "medicalSpecialty": "Pediatric",
+        "availableService": [
+          { "@type": "MedicalProcedure", "name": "كشف جديد" },
+          { "@type": "MedicalProcedure", "name": "متابعة" }
+        ],
+        "areaServed": "EG",
+        "availableLanguage": "ar",
+        "openingHoursSpecification": [
+          { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"], "opens": "09:00", "closes": "14:00" }
+        ]
+      },
+      {
+        "@type": "Physician",
+        "@id": "#doctor",
+        "medicalSpecialty": "Pediatric",
+        "worksFor": { "@id": "#clinic" }
+      }
+    ]
+  }
   </script>
 </head>
 <body>
-  <a class="skip-link" href="#bookingView">تجاوز إلى نموذج الحجز</a>
-  <div class="ambient" aria-hidden="true"><span class="orb orb-a"></span><span class="orb orb-b"></span><span class="grain"></span></div>
+  <a class="skip-link" href="#bookingView">تجاوز إلى طلب الموعد</a>
 
-  <div class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="#" aria-label="Celia Kids — الصفحة الرئيسية">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="7" width="40" height="37" rx="13" fill="url(#ckg)"/><path d="M15 4.5v8M33 4.5v8" stroke="#0f5d55" stroke-width="3" stroke-linecap="round"/><path d="M16 26h5l2.4-5 3.4 9.6 2.4-4.6H32" stroke="#083c37" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="ckg" x1="4" y1="7" x2="44" y2="44" gradientUnits="userSpaceOnUse"><stop stop-color="#d9f2e6"/><stop offset="1" stop-color="#b7e3d5"/></linearGradient></defs></svg>
-        </span>
-        <span class="brand-text"><strong>Celia&nbsp;Kids</strong><small>عيادة أطفال · القاهرة</small></span>
+  <svg class="sr-only" aria-hidden="true" focusable="false" width="0" height="0">
+    <defs>
+      <symbol id="i-mark" viewBox="0 0 32 32" fill="none"><path d="M11 3v6M21 3v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4.5" y="7.5" width="23" height="21" rx="6" stroke="currentColor" stroke-width="2"/><path d="M9.5 19h4l2-4.5 3 9 2.5-4.5h3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-calendar" viewBox="0 0 20 20" fill="none"><rect x="2.5" y="4" width="15" height="13.5" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 8h15M6.5 2.5v3M13.5 2.5v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M10 6v4.3l3 1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+      <symbol id="i-phone" viewBox="0 0 20 20" fill="none"><path d="M4 3.5h3l1.4 3.4-2 1.4a10 10 0 0 0 5.3 5.3l1.4-2 3.4 1.4v3c0 1-.9 1.7-1.9 1.6C8.3 17 3 11.7 2.4 5.4 2.3 4.4 3 3.5 4 3.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+      <symbol id="i-pin" viewBox="0 0 20 20" fill="none"><path d="M10 17s6-5.1 6-9.2A6 6 0 0 0 4 7.8C4 11.9 10 17 10 17Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="10" cy="7.8" r="2.2" stroke="currentColor" stroke-width="1.6"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 20 20" fill="none"><path d="M10 2.5 4 5v5c0 3.6 2.5 6.6 6 7.5 3.5-.9 6-3.9 6-7.5V5l-6-2.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7.5 10.2 9.3 12l3.2-3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-badge" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7.5" r="4.5" stroke="currentColor" stroke-width="1.6"/><path d="m7.4 11.4-1 6 3.6-1.9 3.6 1.9-1-6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+      <symbol id="i-steth" viewBox="0 0 24 24" fill="none"><path d="M6 3v5a5 5 0 0 0 10 0V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M11 13v2.5a4.5 4.5 0 0 0 9 0V13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="20" cy="11" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 2.5h3M14.5 2.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 20 20" fill="none"><path d="M10 3.2 2.2 16.5h15.6L10 3.2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 8v3.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="13.9" r=".9" fill="currentColor"/></symbol>
+      <symbol id="i-info" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="6.4" r=".95" fill="currentColor"/></symbol>
+      <symbol id="i-check" viewBox="0 0 20 20" fill="none"><path d="m4.5 10.5 3.4 3.4 7.6-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 20 20" fill="none"><rect x="4" y="8.5" width="12" height="9" rx="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M7 8.5V6.8a3 3 0 0 1 6 0v1.7" stroke="currentColor" stroke-width="1.6"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 20 20" fill="none"><path d="M16 10H4m5-5-5 5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-ask" viewBox="0 0 20 20" fill="none"><path d="M3.5 5.5A2 2 0 0 1 5.5 3.5h9a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3.5v-3.5h-.5a1 1 0 0 1-1-1v-7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+      <symbol id="i-leaf" viewBox="0 0 20 20" fill="none"><path d="M16 4c-6 .4-9.5 3-10.5 8.5C8.5 13.6 15 11 16 4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M5 16c1-4 3.5-6.5 7-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+      <symbol id="i-visit" viewBox="0 0 20 20" fill="none"><path d="M3.5 4.5h9l4 4v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 2.5 15.5v-9a1.5 1.5 0 0 1 1-2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6 9.5h5M6 12.5h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="emergency-rail" role="note">
+    <div class="app-shell">
+      <svg aria-hidden="true"><use href="#i-alert"/></svg>
+      <p><strong>حالة طارئة؟</strong> لا تستخدموا هذه الصفحة. اتصلوا بخدمات الطوارئ (١٢٣ — الإسعاف في مصر) أو توجهوا إلى أقرب قسم طوارئ. هذه الصفحة لطلب مواعيد غير عاجلة فقط.</p>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#top" aria-label="Celia Kids — عيادة أطفال">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><use href="#i-mark"/></svg></span>
+        <span class="brand-text"><strong>Celia Kids</strong><small>عيادة أطفال · طلب المواعيد</small></span>
       </a>
-
-      <nav class="top-nav" aria-label="التنقل الرئيسي">
-        <button class="nav-button active" type="button" data-view="booking">حجز موعد</button>
-        <button class="nav-button" type="button" data-view="staff">لوحة العيادة</button>
-        <span class="nav-indicator" aria-hidden="true"></span>
+      <nav class="top-nav" aria-label="أقسام الصفحة">
+        <a class="nav-button" href="#bookingView" data-view="booking">طلب موعد</a>
+        <a class="nav-button" href="#clinic">العيادة</a>
+        <a class="nav-button" href="#about">عن الطبيب</a>
+        <a class="nav-button" href="#faq">أسئلة شائعة</a>
+        <a class="nav-button" href="#trackCard">متابعة طلب</a>
+        <button class="nav-button" type="button" data-view="staff">دخول العيادة</button>
       </nav>
-
       <div class="status-cluster">
-        <div class="live-pill" id="modePill" role="status">
-          <span class="live-dot" aria-hidden="true"></span>
-          <span id="modeLabel">وضع تجريبي</span>
-        </div>
+        <span class="live-pill" id="modePill"><span class="live-dot" aria-hidden="true"></span><span id="modeLabel">وضع تجريبي</span></span>
       </div>
-    </header>
+    </div>
+  </header>
 
-    <main id="main">
-      <section class="hero-row">
+  <main id="top">
+    <section class="hero">
+      <div class="app-shell hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="eyebrow-line"></span> استقبال رقمي · بلا مكالمات معلّقة</p>
-          <h1>موعد طفلك،<br><em>بهدوء ومن أول محاولة.</em></h1>
-          <p class="hero-description">اختاروا اليوم والوقت المناسبين وأرسلوا الطلب في أقل من دقيقة. فريق العيادة يراجع كل طلب بشرياً ويؤكده قبل إضافته إلى جدول الطبيب.</p>
+          <p class="eyebrow"><svg aria-hidden="true"><use href="#i-steth"/></svg> عيادة أطفال · طلب موعد إلكتروني</p>
+          <h1>موعد طفلكم يبدأ بخطوة <em>واضحة</em>، ونؤكده بأنفسنا.</h1>
+          <p class="hero-description">اختاروا نوع الزيارة والوقت المناسب لكم، ثم يراجع فريق العيادة الجدول ويؤكد الموعد معكم هاتفيًا أو عبر واتساب قبل إضافته إلى جدول الطبيب. الطلب لا يُعد تأكيدًا قبل مراجعة العيادة.</p>
           <div class="hero-actions">
-            <a class="primary-button hero-cta" href="#bookingForm"><span>ابدأوا طلب الموعد</span><span class="button-arrow" aria-hidden="true">←</span></a>
-            <a class="ghost-button" href="#trackCard">تابعوا طلباً سابقاً</a>
+            <a class="primary-button hero-cta" href="#bookingView"><span>ابدأوا طلب موعد</span><svg class="button-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+            <a class="ghost-button" href="#trackCard">لديكم طلب سابق؟</a>
           </div>
           <ul class="trust-strip">
-            <li><span aria-hidden="true">✓</span> تأكيد بشري دائمًا</li>
-            <li><span aria-hidden="true">▦</span> متزامن مع Google Calendar</li>
-            <li><span aria-hidden="true">⌁</span> بلا بيانات طبية</li>
-            <li><span aria-hidden="true">✦</span> إصدار 2026</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg> تأكيد من العيادة قبل الموعد</li>
+            <li><svg aria-hidden="true"><use href="#i-calendar"/></svg> متوافق مع تقويم الطبيب</li>
+            <li><svg aria-hidden="true"><use href="#i-shield"/></svg> النموذج لا يجمع بيانات طبية</li>
+            <li><svg aria-hidden="true"><use href="#i-clock"/></svg> الزيارة الأولى ٦٠ دقيقة والمتابعة ٣٠</li>
           </ul>
         </div>
 
-        <div class="hero-visual" aria-hidden="true">
-          <div class="visual-glow"></div>
-          <article class="visual-card calendar-card">
-            <div class="vcal-head">
-              <div>
-                <p class="vcal-kicker">جدول العيادة</p>
-                <strong id="heroMonth">هذا الشهر</strong>
-              </div>
-              <span class="vcal-badge">مفتوح</span>
+        <aside class="doctor-card" aria-labelledby="doctorName">
+          <div class="doctor-head">
+            <span class="doctor-portrait" aria-hidden="true"><svg><use href="#i-steth"/></svg></span>
+            <div>
+              <p class="doctor-name" id="doctorName"><span data-config="doctorName">طبيب أطفال — العيادة</span></p>
+              <p class="doctor-role"><span data-config="doctorRole">التخصص: طب الأطفال وحديثي الولادة</span></p>
             </div>
-            <div class="vcal-grid" id="heroCalendar">
-              <span class="dow">أحد</span><span class="dow">اثن</span><span class="dow">ثلا</span><span class="dow">أرب</span><span class="dow">خمي</span><span class="dow">جمع</span><span class="dow">سبت</span>
+          </div>
+          <dl class="doctor-facts">
+            <div>
+              <dt><svg aria-hidden="true"><use href="#i-visit"/></svg> التخصص</dt>
+              <dd><span data-config="subspecialty">طب أطفال عام</span><span class="fact-note">متابعة النمو والتغذية والتحصينات</span></dd>
             </div>
-            <div class="vcal-foot">
-              <span class="dot-legend"><i class="dot dot-open"></i> أوقات متاحة</span>
-              <span class="dot-legend"><i class="dot dot-booked"></i> محجوز</span>
+            <div>
+              <dt><svg aria-hidden="true"><use href="#i-clock"/></svg> ساعات العيادة</dt>
+              <dd><span data-config="hours">الأحد – الخميس · ٩:٠٠ ص – ٢:٠٠ م</span><span class="fact-note">الجمعة والسبت مغلقان · الآن <b id="heroClock">—</b> بتوقيت القاهرة</span></dd>
             </div>
-          </article>
+            <div>
+              <dt><svg aria-hidden="true"><use href="#i-pin"/></svg> العنوان</dt>
+              <dd><span data-config="address">يُضاف من إعداد العيادة</span><span class="fact-note">الجيزة، مصر</span></dd>
+            </div>
+            <div>
+              <dt><svg aria-hidden="true"><use href="#i-phone"/></svg> هاتف العيادة</dt>
+              <dd><span data-config="phone">يُضاف من إعداد العيادة</span><span class="fact-note">للتأكيد وتغيير الموعد</span></dd>
+            </div>
+            <div>
+              <dt><svg aria-hidden="true"><use href="#i-badge"/></svg> ترخيص مزاولة المهنة</dt>
+              <dd><span class="ltr" data-config="license">—</span><span class="fact-note">يُضاف من إعداد العيادة</span></dd>
+            </div>
+            <div>
+              <dt><svg aria-hidden="true"><use href="#i-leaf"/></svg> مدة الزيارة</dt>
+              <dd><span data-visit-duration>كشف جديد ٦٠ دقيقة</span><span class="fact-note">المتابعة ٣٠ دقيقة</span></dd>
+            </div>
+          </dl>
+          <p class="doctor-foot"><svg aria-hidden="true"><use href="#i-shield"/></svg> بيانات الطبيب والعيادة تُدار من إعداد العيادة، وتظهر هنا كما هي دون تعديل.</p>
+        </aside>
+      </div>
+    </section>
 
-          <div class="float-chip chip-status">
-            <span class="chip-icon" aria-hidden="true">✓</span>
-            <div><strong>مراجعة بشرية</strong><small>لكل طلب قبل التأكيد</small></div>
-          </div>
-
-          <div class="float-chip chip-time">
-            <span class="pulse-ring"><i></i></span>
-            <div><strong id="heroClock">—</strong><small>بتوقيت القاهرة</small></div>
-          </div>
-
-          <div class="float-chip chip-slots">
-            <span class="chip-kicker">أقرب أوقات</span>
-            <div class="mini-slots"><b>٠٩:٣٠</b><b>١٠:٠٠</b><b>١١:٣٠</b></div>
-          </div>
-        </div>
-      </section>
-
+    <div class="app-shell">
       <div class="environment-banner" id="environmentBanner" role="status">
-        <span class="banner-symbol" aria-hidden="true">i</span>
-        <p><strong>نسخة عرض ببيانات وهمية.</strong> الطلبات في هذا العرض تُحفظ على هذا المتصفح فقط ولا تصل إلى أي عيادة. للاستخدام الحقيقي، انشروا حزمة Google Apps Script الموضحة في دليل المشروع.</p>
+        <svg aria-hidden="true"><use href="#i-info"/></svg>
+        <p><strong>نسخة عرض توضيحية.</strong> الطلبات هنا تُحفظ على هذا المتصفح فقط ولا تصل إلى أي عيادة. في التشغيل الحقيقي تُحفظ في سجل العيادة ويُدار التأكيد من لوحة العيادة.</p>
       </div>
 
-      <section class="steps-strip" aria-label="كيف يعمل الطلب">
-        <div class="step-item"><span class="step-num">١</span><div><strong>اختاروا الوقت</strong><small>أيام وأوقات متاحة فعليًا</small></div></div>
-        <div class="step-sep" aria-hidden="true"></div>
-        <div class="step-item"><span class="step-num">٢</span><div><strong>نراجع الطلب</strong><small>فريق العيادة يتحقق من الجدول</small></div></div>
-        <div class="step-sep" aria-hidden="true"></div>
-        <div class="step-item"><span class="step-num">٣</span><div><strong>نؤكد الموعد</strong><small>رسالة تأكيد من العيادة فقط</small></div></div>
-      </section>
-
-      <section id="bookingView" class="view-panel">
+      <section id="bookingView" class="view-panel" aria-labelledby="bookingTitle">
         <div class="booking-layout">
           <div class="booking-main card">
             <div class="section-heading">
-              <div><p class="section-kicker">طلب جديد</p><h2>احجزوا زيارة</h2></div>
-              <span class="step-badge"><span>١</span> من ٣</span>
+              <div>
+                <p class="section-kicker">طلب موعد</p>
+                <h2 id="bookingTitle">بيانات الزيارة</h2>
+              </div>
+              <span class="step-badge" aria-hidden="true"></span>
             </div>
 
+            <ol class="booking-progress" aria-label="خطوات الطلب">
+              <li data-step="1" data-state="current"><b>١</b><span>نوع الزيارة</span></li>
+              <li data-step="2" data-state="todo"><b>٢</b><span>اليوم والوقت</span></li>
+              <li data-step="3" data-state="todo"><b>٣</b><span>بيانات ولي الأمر</span></li>
+            </ol>
+
             <form id="bookingForm" novalidate>
-              <fieldset class="form-section">
-                <legend><span class="legend-number">١</span><span>نوع الزيارة</span></legend>
+              <fieldset class="form-section" data-section="1">
+                <legend><span class="legend-number">١</span><span>نوع الزيارة</span><span class="legend-hint">يحدد مدة الموعد</span></legend>
                 <div class="choice-grid">
                   <label class="choice-card selected" data-choice="new">
                     <input type="radio" name="visitType" value="كشف جديد" checked>
-                    <span class="choice-icon icon-sun" aria-hidden="true">✳</span>
-                    <span class="choice-text"><strong>كشف جديد</strong><small>الزيارة الأولى · ٦٠ دقيقة</small></span>
+                    <span class="choice-icon" aria-hidden="true"><svg><use href="#i-steth"/></svg></span>
+                    <span class="choice-text"><strong>كشف جديد</strong><small data-duration-for="كشف جديد">زيارة أولى شاملة · ٦٠ دقيقة</small></span>
                     <span class="radio-indicator" aria-hidden="true"></span>
                   </label>
                   <label class="choice-card" data-choice="followup">
                     <input type="radio" name="visitType" value="متابعة">
-                    <span class="choice-icon icon-leaf" aria-hidden="true">↗</span>
-                    <span class="choice-text"><strong>متابعة</strong><small>مراجعة سريعة · ٣٠ دقيقة</small></span>
+                    <span class="choice-icon" aria-hidden="true"><svg><use href="#i-visit"/></svg></span>
+                    <span class="choice-text"><strong>متابعة</strong><small data-duration-for="متابعة">مراجعة قصيرة · ٣٠ دقيقة</small></span>
                     <span class="radio-indicator" aria-hidden="true"></span>
                   </label>
                 </div>
               </fieldset>
 
-              <fieldset class="form-section">
-                <legend><span class="legend-number">٢</span><span>اليوم والوقت المفضل</span></legend>
-                <label class="field-label" for="visitDate">اختاروا اليوم</label>
-                <div class="date-field"><span class="date-icon" aria-hidden="true">▦</span><input id="visitDate" type="date" required></div>
-                <div id="dayChips" class="day-chips" aria-label="اقتراحات سريعة"></div>
-                <div class="slots-heading"><span>الأوقات المتاحة</span><span id="slotStatus" class="soft-caption">جارٍ التحقق...</span></div>
+              <fieldset class="form-section" data-section="2">
+                <legend><span class="legend-number">٢</span><span>اليوم والوقت المفضل</span><span class="legend-hint">تُعرض الأوقات المتاحة فعليًا</span></legend>
+                <label class="field-label" for="visitDate">التاريخ</label>
+                <div class="date-field"><span class="date-icon" aria-hidden="true"><svg><use href="#i-calendar"/></svg></span><input id="visitDate" type="date" required></div>
+                <div id="dayChips" class="day-chips" aria-label="أقرب الأيام المتاحة"></div>
+                <div class="slots-heading"><span>الأوقات المتاحة</span><span id="slotStatus" class="soft-caption">جارٍ التحقق…</span></div>
                 <div id="slotsGrid" class="slots-grid" aria-live="polite"></div>
                 <p id="availabilityNote" class="availability-note" hidden></p>
                 <input id="visitTime" type="hidden" required>
               </fieldset>
 
-              <fieldset class="form-section contact-section">
-                <legend><span class="legend-number">٣</span><span>بيانات ولي الأمر</span></legend>
+              <fieldset class="form-section contact-section" data-section="3">
+                <legend><span class="legend-number">٣</span><span>بيانات ولي الأمر</span><span class="legend-hint">لإدارة الطلب فقط</span></legend>
                 <div class="field-row">
-                  <label class="input-wrap"><span class="field-label">اسم ولي الأمر</span><input id="guardianName" name="guardianName" type="text" autocomplete="name" maxlength="80" placeholder="الاسم" required></label>
+                  <label class="input-wrap"><span class="field-label">اسم ولي الأمر</span><input id="guardianName" name="guardianName" type="text" autocomplete="name" maxlength="80" placeholder="الاسم الكامل" required></label>
                   <label class="input-wrap"><span class="field-label">رقم الهاتف</span><input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="22" placeholder="01xxxxxxxxx" required></label>
                 </div>
                 <label class="consent-row"><input id="consent" type="checkbox" required><span class="consent-box" aria-hidden="true"></span><span>أوافق على استخدام بيانات التواصل هذه لإدارة طلب الموعد فقط.</span></label>
-                <p class="no-medical-data">لا تكتبوا أعراضاً أو تشخيصاً أو معلومات طبية في هذا النموذج.</p>
+                <p class="no-medical-data">لا تكتبوا أعراضًا أو تشخيصًا أو نتائج تحاليل في هذا النموذج؛ مكانها داخل العيادة.</p>
               </fieldset>
 
-              <button id="submitBooking" class="primary-button submit-button" type="submit"><span>إرسال طلب الموعد</span><span class="button-arrow" aria-hidden="true">←</span></button>
-              <p class="submit-footnote">سيظهر رقم الطلب فور الإرسال. الموعد بانتظار مراجعة العيادة — الإرسال لا يُعد تأكيداً.</p>
+              <button id="submitBooking" class="primary-button submit-button" type="submit"><span>إرسال طلب الموعد</span><svg class="button-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+              <p class="submit-footnote">يصلكم رقم الطلب فورًا. الموعد يبقى «بانتظار التأكيد» حتى تراجعه العيادة — الإرسال ليس تأكيدًا.</p>
             </form>
           </div>
 
-          <aside class="booking-side">
-            <div class="side-card doctor-card">
-              <div class="doctor-topline"><span class="mini-label">عيادة الأطفال</span><span class="open-status"><i></i> استقبال الطلبات</span></div>
-              <div class="doctor-illustration" aria-hidden="true">
-                <div class="sun-shape"></div><div class="plant plant-one"></div><div class="plant plant-two"></div>
-                <div class="doctor-avatar"><span class="avatar-hair"></span><span class="avatar-face"></span><span class="avatar-coat"></span><span class="avatar-steth">♡</span></div>
-                <span class="sparkle sparkle-a">✦</span><span class="sparkle sparkle-b">✧</span>
-              </div>
-              <div class="doctor-details"><div><p class="section-kicker">Celia Kids</p><h3>زيارة بهدوء واهتمام</h3><p>اختاروا الوقت الأنسب لكم، وسنتابع الطلب معكم.</p></div><span class="flower-mark" aria-hidden="true">✿</span></div>
-              <div class="doctor-facts"><span><b>٣٠</b><small>دقيقة للزيارة</small></span><span><b>يدويًا</b><small>تأكيد من العيادة</small></span></div>
-            </div>
+          <aside class="booking-side" aria-label="ملخص الطلب ومعلومات مساعدة">
+            <section class="side-card visit-summary" aria-labelledby="summaryTitle">
+              <h3 id="summaryTitle">ملخص طلبكم</h3>
+              <p>يتحدّث تلقائيًا مع اختياراتكم.</p>
+              <dl class="summary-list">
+                <div><dt>نوع الزيارة</dt><dd data-summary="visit">كشف جديد</dd></div>
+                <div><dt>المدة</dt><dd data-summary="duration">٦٠ دقيقة</dd></div>
+                <div><dt>التاريخ</dt><dd data-summary="day" class="pending">لم يُحدد</dd></div>
+                <div><dt>الوقت</dt><dd data-summary="time" class="pending">لم يُحدد</dd></div>
+                <div><dt>التأكيد</dt><dd>من العيادة</dd></div>
+              </dl>
+            </section>
 
-            <div class="side-card reassurance-card"><span class="reassurance-icon" aria-hidden="true">⌁</span><div><strong>خصوصية الأسرة أولًا</strong><p>نجمع الاسم ورقم التواصل فقط لإدارة الطلب.</p></div></div>
+            <section class="side-card privacy-card">
+              <svg aria-hidden="true"><use href="#i-shield"/></svg>
+              <div><strong>خصوصية الأسرة أولًا</strong><p>نجمع الاسم ورقم التواصل فقط لإدارة الطلب. لا نطلب ولا نخزّن أي بيانات صحية في هذا النموذج.</p></div>
+            </section>
 
-            <div class="side-card assistant-card">
-              <div class="assistant-head"><span class="assistant-mark" aria-hidden="true">✦</span><div><strong>Celia Assistant</strong><small>إداري فقط · غير طبي</small></div></div>
-              <p>أسئلة عن خطوات الحجز وتعديل الطلب؟ استخدموا صندوق «سؤال سريع» أسفل الصفحة.</p>
-              <div class="assistant-tags"><span>لا يشخّص</span><span>لا يصف علاجاً</span></div>
-            </div>
+            <section class="side-card helper-card">
+              <strong>زيارتكم الأولى؟</strong>
+              <p>أحضروا دفتر التحصينات وبطاقة التأمين إن وُجدت. خصصوا وقتًا كافيًا؛ الكشف الجديد ٦٠ دقيقة.</p>
+              <div class="helper-tags"><span>تأكيد هاتفي</span><span>تذكير قبل الموعد</span><span>إمكانية إعادة الجدولة</span></div>
+            </section>
           </aside>
         </div>
 
         <div id="bookingResult" class="result-card" hidden aria-live="polite"></div>
 
-        <section class="lower-tools">
+        <section class="lower-tools" aria-label="المتابعة والمساعدة">
           <div id="trackCard" class="tool-card tracking-card">
-            <div class="tool-head"><p class="section-kicker">لديكم طلب سابق؟</p><h3>تابعوا حالة الطلب</h3><p>استخدموا الرقم المرجعي الذي ظهر بعد الإرسال.</p></div>
-            <form id="trackForm" class="track-form"><input id="trackReference" type="text" maxlength="40" placeholder="مثال: CK-ABC123" aria-label="الرقم المرجعي" autocomplete="off" spellcheck="false"><button class="secondary-button" type="submit">عرض الحالة</button></form>
+            <div class="tool-head"><p class="section-kicker">طلب سابق</p><h3>تابعوا حالة الطلب</h3><p>استخدموا الرقم المرجعي الذي ظهر بعد الإرسال.</p></div>
+            <form id="trackForm" class="track-form"><label class="sr-only" for="trackReference">الرقم المرجعي</label><input id="trackReference" type="text" maxlength="40" placeholder="CK-XXXXXXXX" autocomplete="off" spellcheck="false"><button class="secondary-button" type="submit">عرض الحالة</button></form>
             <div id="trackResult" class="track-result" hidden aria-live="polite"></div>
           </div>
 
           <div class="tool-card faq-card">
-            <div class="faq-heading"><span class="faq-spark" aria-hidden="true">✦</span><div><p class="section-kicker">مساعدة إدارية</p><h3>سؤال سريع؟</h3></div><span id="geminiStatus" class="optional-tag">Gemini اختياري</span></div>
-            <form id="faqForm"><label class="sr-only" for="faqQuestion">سؤال إداري</label><div class="faq-input-row"><input id="faqQuestion" type="text" maxlength="500" placeholder="مثال: كيف أغيّر الموعد؟" autocomplete="off"><button type="submit" aria-label="إرسال السؤال">←</button></div></form>
-            <p class="faq-warning">للأسئلة الإدارية العامة فقط. لا تشاركوا بيانات شخصية أو صحية؛ Celia لا تشخّص ولا تصف علاجًا.</p>
+            <div class="faq-heading"><span class="faq-spark" aria-hidden="true"><svg><use href="#i-ask"/></svg></span><div><p class="section-kicker">مساعدة إدارية</p><h3>سؤال عن الحجز؟</h3></div><span id="geminiStatus" class="optional-tag">مساعد اختياري</span></div>
+            <form id="faqForm"><label class="sr-only" for="faqQuestion">سؤال إداري</label><div class="faq-input-row"><input id="faqQuestion" type="text" maxlength="500" placeholder="مثال: كيف أعدّل الموعد؟" autocomplete="off"><button type="submit" aria-label="إرسال السؤال"><svg aria-hidden="true"><use href="#i-arrow"/></svg></button></div></form>
+            <p class="faq-warning">للأسئلة الإدارية فقط. لا تكتبوا بيانات شخصية أو صحية. المساعد لا يشخّص ولا يصف علاجًا، ولا يستبدل رأي الطبيب.</p>
             <div id="faqAnswer" class="faq-answer" hidden aria-live="polite"></div>
           </div>
         </section>
       </section>
 
-      <section id="staffView" class="view-panel staff-view" hidden>
+      <section class="section" id="about" aria-labelledby="aboutTitle">
+        <div class="section-head">
+          <div><p class="section-kicker">عن الطبيب</p><h2 id="aboutTitle">رعاية أطفال بمنهج واضح</h2></div>
+          <p>البيانات التعريفية للطبيب (الاسم، اللقب العلمي، رقم الترخيص) تُدار من إعداد العيادة وتظهر أعلى الصفحة.</p>
+        </div>
+        <div class="info-grid">
+          <article class="info-card card">
+            <h3>كيف نسير الزيارة</h3>
+            <p>نبدأ بالتاريخ الطبي للطفل والنمو والتغذية، ثم الفحص السريري، وننهي الزيارة بخطة مكتوبة واضحة لولي الأمر.</p>
+            <ul><li>مراجعة التحصينات والنمو في كل زيارة</li><li>شرح النتائج بلغة مفهومة قبل المغادرة</li><li>خطة متابعة محددة بمواعيد</li></ul>
+          </article>
+          <article class="info-card card">
+            <h3>متى نطلب رعاية فورية؟</h3>
+            <p>هذه الأعراض لا تنتظر موعدًا إلكترونيًا — توجهوا مباشرة إلى الطوارئ أو اتصلوا بالإسعاف (١٢٣):</p>
+            <ul><li>صعوبة في التنفس أو ازرقاق الشفاه</li><li>حرارة عالية عند رضيع عمره أقل من ٣ أشهر</li><li>تشنجات أو فقدان وعي أو تصلّب في الرقبة</li><li>جفاف شديد أو رفض تام للسوائل</li></ul>
+          </article>
+          <article class="info-card card">
+            <h3>حدود هذه الخدمة</h3>
+            <p>الصفحة لطلب المواعيد فقط. لا تشخّص ولا تصف علاجًا، ولا تُستخدم لتبادل نتائج التحاليل أو أي بيانات صحية.</p>
+            <ul><li>الطلب يصبح موعدًا بعد تأكيد العيادة</li><li>الحالات العاجلة تُوجَّه إلى الطوارئ</li><li>بيانات التواصل تُستخدم لإدارة الطلب فقط</li></ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="clinic" aria-labelledby="clinicTitle">
+        <div class="section-head">
+          <div><p class="section-kicker">العيادة</p><h2 id="clinicTitle">المواعيد والوصول</h2></div>
+          <p>حدّثوا هذه البيانات من إعداد العيادة (الاسم، الهاتف، العنوان، ساعات الدوام) لتظهر هنا مباشرة.</p>
+        </div>
+        <div class="info-grid">
+          <article class="info-card card">
+            <h3>ساعات الدوام</h3>
+            <p><span data-config="hours">الأحد – الخميس · ٩:٠٠ ص – ٢:٠٠ م</span></p>
+            <ul><li>الجمعة والسبت مغلقان</li><li>الحجز عبر الصفحة على مدار الساعة</li><li>التأكيد خلال ساعات الدوام</li></ul>
+          </article>
+          <article class="info-card card">
+            <h3>العنوان والهاتف</h3>
+            <p><span data-config="address">يُضاف من إعداد العيادة</span></p>
+            <ul><li>الهاتف: <span data-config="phone">يُضاف من إعداد العيادة</span></li><li>للتأكيد أو تغيير الموعد</li><li>يُفضّل الاتصال داخل ساعات الدوام</li></ul>
+          </article>
+          <article class="info-card card">
+            <h3>قبل الزيارة</h3>
+            <p>ما يسهّل الزيارة على الطفل وولي الأمر.</p>
+            <ul><li>دفتر التحصينات وأي تقارير سابقة</li><li>قائمة الأدوية الحالية إن وُجدت</li><li>الوصول قبل الموعد بعشر دقائق</li></ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="faq" aria-labelledby="faqTitle">
+        <div class="section-head">
+          <div><p class="section-kicker">أسئلة شائعة</p><h2 id="faqTitle">قبل أن ترسلوا الطلب</h2></div>
+        </div>
+        <div class="faq-list">
+          <details class="faq-item"><summary>هل إرسال الطلب يعني أن الموعد مؤكد؟</summary><p>لا. الطلب يصل إلى العيادة بحالة «بانتظار التأكيد»، ويراجع الفريق الجدول ثم يؤكد الموعد أو يقترح وقتًا بديلًا. رقم الطلب يظهر فور الإرسال ويمكن متابعته من هذه الصفحة.</p></details>
+          <details class="faq-item"><summary>كم تستغرق الزيارة؟</summary><p>الكشف الجديد ٦٠ دقيقة، والمتابعة ٣٠ دقيقة. يظهر الوقت المناسب في قائمة الأوقات المتاحة بعد اختيار نوع الزيارة.</p></details>
+          <details class="faq-item"><summary>كيف أعدّل موعدًا مؤكدًا أو ألغيه؟</summary><p>اتصلوا بهاتف العيادة أو استخدموا الرقم المرجعي في متابعة الطلب. التعديل يحتاج تأكيدًا جديدًا من العيادة.</p></details>
+          <details class="faq-item"><summary>هل أستطيع كتابة الأعراض في الطلب؟</summary><p>لا. النموذج مخصص للاسم ورقم التواصل فقط، ولا يجمع بيانات صحية. تُناقش الأعراض داخل العيادة مع الطبيب.</p></details>
+          <details class="faq-item"><summary>ماذا لو كان طفلي بحالة طارئة الآن؟</summary><p>لا تنتظروا ردًا من الصفحة. اتصلوا بالإسعاف (١٢٣) أو توجهوا إلى أقرب قسم طوارئ. هذه الخدمة للمواعيد غير العاجلة فقط.</p></details>
+        </div>
+      </section>
+
+      <section id="staffView" class="view-panel staff-view" hidden aria-labelledby="staffTitle">
         <div class="staff-header">
-          <div><p class="section-kicker">للاستخدام الداخلي</p><h2>لوحة العيادة</h2><p>مراجعة بشرية لكل طلب قبل تأكيد الموعد.</p></div>
-          <span class="staff-lock">⌑ <span>دخول الموظف</span></span>
+          <div><p class="section-kicker">للاستخدام الداخلي</p><h2 id="staffTitle">لوحة العيادة</h2><p>مراجعة بشرية لكل طلب قبل تأكيد الموعد.</p></div>
+          <span class="staff-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg><span>دخول الموظف</span></span>
         </div>
 
         <div id="staffLogin" class="staff-login card">
-          <div class="login-mark" aria-hidden="true">⌑</div>
+          <div class="login-mark" aria-hidden="true"><svg><use href="#i-lock"/></svg></div>
           <div class="login-copy"><h3>دخول فريق العيادة</h3><p>أدخلوا رمز الموظف لمراجعة الطلبات.</p></div>
           <form id="staffLoginForm"><label class="sr-only" for="staffPin">رمز الموظف</label><input id="staffPin" type="password" inputmode="text" autocomplete="current-password" placeholder="رمز الموظف" required><button class="primary-button" type="submit">دخول اللوحة</button></form>
-          <p id="demoPinHint" class="demo-pin-hint">رمز العرض التجريبي: <b>2468</b> — لا تستخدموه في التشغيل الحقيقي.</p>
+          <p id="demoPinHint" class="demo-pin-hint">وضع العرض التجريبي: الرمز <b>2468</b> يعمل على هذا المتصفح فقط، ولا يُستخدم في التشغيل الحقيقي.</p>
           <p id="staffLoginError" class="inline-error" hidden></p>
         </div>
 
@@ -229,7 +350,7 @@
               <div id="pendingList" class="request-list"></div>
             </section>
             <section class="dashboard-card">
-              <div class="dashboard-title"><div><p class="section-kicker">جدول الطبيب</p><h3>هذا الأسبوع</h3></div><span class="calendar-mark" aria-hidden="true">▦</span></div>
+              <div class="dashboard-title"><div><p class="section-kicker">جدول الطبيب</p><h3>هذا الأسبوع</h3></div><span class="calendar-mark" aria-hidden="true"><svg><use href="#i-calendar"/></svg></span></div>
               <div id="weekList" class="request-list"></div>
             </section>
           </div>
@@ -240,18 +361,29 @@
               <label><span>ملاحظة قصيرة</span><input id="closureLabel" type="text" maxlength="80" placeholder="إجازة / دوام مغلق"></label>
               <button class="secondary-button" type="submit">إغلاق اليوم</button>
             </form>
-            <p class="privacy-reminder">تذكير: استخدموا بيانات وهمية أثناء التطوير. لا تؤكدوا موعدًا قبل إعادة التحقق وحفظه في التقويم.</p>
+            <p class="privacy-reminder">تذكير: استخدموا بيانات وهمية في العروض التجريبية. لا تؤكدوا موعدًا قبل التحقق من الجدول وحفظه في التقويم.</p>
           </section>
         </div>
       </section>
-    </main>
+    </div>
+  </main>
 
-    <footer class="site-footer">
-      <div class="footer-brand"><span class="footer-mark" aria-hidden="true">✿</span><div><strong>Celia Kids</strong><small>موظف استقبال رقمي غير طبي · إصدار 2026</small></div></div>
-      <p class="footer-note">في الحالات الطارئة، توجهوا فورًا إلى خدمات الطوارئ المحلية.</p>
-      <div class="footer-links"><a href="#bookingForm">حجز موعد</a><a href="#trackCard">متابعة طلب</a><button type="button" class="link-button" data-view="staff">لوحة العيادة</button></div>
-    </footer>
-  </div>
+  <footer class="site-footer">
+    <div class="app-shell footer-inner">
+      <div class="footer-brand">
+        <span class="footer-mark" aria-hidden="true"><svg><use href="#i-mark"/></svg></span>
+        <div><strong>Celia Kids — عيادة أطفال</strong><small>طلب مواعيد مع تأكيد من العيادة</small></div>
+      </div>
+      <p class="footer-note">هذه الصفحة لطلب المواعيد غير العاجلة. في الحالات الطارئة اتصلوا بخدمات الطوارئ المحلية (١٢٣ — الإسعاف في مصر) فورًا.</p>
+      <div class="footer-links">
+        <a href="#bookingView">طلب موعد</a>
+        <a href="#trackCard">متابعة طلب</a>
+        <a href="#clinic">العيادة</a>
+        <a href="#faq">أسئلة شائعة</a>
+        <button type="button" class="link-button" data-view="staff">لوحة العيادة</button>
+      </div>
+    </div>
+  </footer>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>

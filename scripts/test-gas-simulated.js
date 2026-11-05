@@ -229,12 +229,26 @@ assert.equal(auditCapacityWarning.ok, true, 'appointment state write is not misr
 assert.match(auditCapacityWarning.warning, /تعذر حفظ سجل التدقيق/, 'unrecorded audit is explicitly reported');
 auditUp = true;
 
+// A closed day must disappear from the guardian's availability, not just from the dashboard.
+const closureDay = nextWorkday();
+const beforeClosure = context.getAvailableSlots(closureDay, 'متابعة');
+assert.equal(beforeClosure.ok, true);
+assert.ok(beforeClosure.slots.length > 0, 'a workday has slots before it is closed');
+assert.equal(context.closeDay(closureDay, 'إجازة اختبار', pin).ok, true);
+const afterClosure = context.getAvailableSlots(closureDay, 'متابعة');
+assert.equal(afterClosure.ok, true);
+assert.equal(afterClosure.slots.length, 0, 'a closed day offers no slots');
+const closedIntake = context.createRequest({ visitType: 'متابعة', guardianName: 'ولي أمر تجريبي', phone: '0000000000', day: closureDay, time: '09:00', consent: true });
+assert.equal(closedIntake.ok, false, 'a closed day is refused at intake instead of accepting an impossible request');
+assert.match(closedIntake.message, /لم يعد متاحاً/, 'the refusal names the reason');
+
+
 // The queue limit fails closed: never claim a request was stored after capacity is exhausted.
 for (let i = 0; i < 25; i += 1) properties.setProperty(`CKQ_TEST_${i}`, JSON.stringify({ reference: `TEST-${i}` }));
 googleUp = false;
 const fullQueue = request('09:30', 'متابعة');
 assert.equal(fullQueue.ok, false, 'full queue rejects rather than falsely accepting');
 googleUp = true;
-
-console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, and request-queue-full rejection.');
+console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, and closed days removed from availability.')
+;
 console.log('Reminder: these mocked-service tests do not establish Google quotas, permissions, live deployment behavior, or legal readiness.');
