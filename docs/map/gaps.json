@@ -105,6 +105,14 @@
       "impact": "A missing jsdom or a moved actionlint binary degrades coverage without failing loudly",
       "fix": "Pin jsdom in the step and make the actionlint absence an explicit warning with a recorded reason",
       "severity": "low"
+    },
+    {
+      "id": "G14",
+      "type": "unverified_integration",
+      "evidence": "config/google.profile.json absent; config/google.profile.example.json layout ids all null; no live run recorded",
+      "impact": "Drive/Sheets/Calendar paths of the gateway are proven only against a scripted fake; a real account may surface scope or folder-visibility issues",
+      "fix": "Run docs/google-setup.md §2 steps 7–10 on the dev account, then record the selftest output in TODO.md",
+      "severity": "med"
     }
   ],
   "questions": [
@@ -112,6 +120,7 @@
     "Should the demo PIN hint be removed from the Apps Script bundle, or is the dashboard meant to show it on first run?",
     "Do the two 2026-11-04 terminal dumps need to be archived anywhere before deletion?",
     "Is GEMINI_TIMEOUT_MS meant to be per-provider override or a leftover of the single-provider era?",
-    "Should CELIA_* mirrors become the canonical env names for a future non-GAS backend, or be dropped?"
+    "Should CELIA_* mirrors become the canonical env names for a future non-GAS backend, or be dropped?",
+    "Should the demo/dev Google profile stay attached to the developer account, or move to a dedicated system account before any real clinic data exists?"
   ]
 }

@@ -62,6 +62,11 @@ jobs:
       - name: LLM adapter + config tests
         run: node scripts/test-llm-adapter.js
 
+      - name: Google bridge (offline, local adapter)
+        run: |
+          node scripts/test-google-bridge.js
+          node scripts/google/selftest.js --local
+
       - name: UI smoke test (jsdom)
         run: |
           npm i --no-save --no-audit --no-fund jsdom@25

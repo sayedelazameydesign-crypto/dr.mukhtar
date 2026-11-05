@@ -1,14 +1,12 @@
 # Architecture — Celia Kids
 
-> `project-map.md` @ `61925ee` · twin: `docs/map/project.json` (68 nodes · 44 edges, evidence + confidence)
-
+> `project-map.md` @ 339516d · twin: `docs/map/project.json` (85 nodes · 57 edges, evidence + confidence)
 ## 1. What it is (L0)
 
 - Arabic (RTL) booking-intake site for **one** paediatric clinic. Principle: **a request is not a confirmation**.
 - Collected: guardian name, phone, preferred day/time, visit type. **No medical data, ever.**
 - Staff review is the only path to `CONFIRMED`; only then does a Calendar event exist (`Code.gs:258-289`).
 - Standalone demo (`localStorage`) and Apps Script mode share one file set; `app.js` swaps only `api()` to `google.script.run`. The assistant (one `gemini` provider) is optional, never on the booking path.
-
 ## 2. Run · test · deploy
 
 | Action | Command | Verified |
@@ -22,7 +20,7 @@
 | Build | `python3 scripts/build-gas-package.py` | ✅ 97,089 B + 475,498 B |
 | Deploy site | `.github/workflows/pages.yml` | ⚠️ workflow never observed running |
 | Deploy backend | paste `gas/` into Apps Script | ⚠️ **never executed** |
-
+| Google bridge | `test-google-bridge.js` + `google/selftest.js --local` ✅ 29 tests | live bootstrap ⚠️ owner-side |
 ## 3. Components
 
 ```mermaid
@@ -54,7 +52,6 @@ flowchart TB
   CODE -->|askGeneralQuestion| LLM --> GEM
   CFG -.validates.-> PROPS
 ```
-
 ## 4. Flow A — guardian files a request
 
 ```mermaid
@@ -74,7 +71,6 @@ sequenceDiagram
   C->>S: appendRow(PENDING_APPROVAL)
   C-->>G: reference — **not** a confirmation
 ```
-
 ## 5. Flow B — approval, the only path to CONFIRMED
 
 ```mermaid
@@ -93,7 +89,6 @@ sequenceDiagram
 ```
 
 Move / cancel / complete repeat the shape: lock → status guard → Calendar mutation → row update → best-effort audit (`Code.gs:311-390`).
-
 ## 6. Environment & secrets (names only)
 
 | Name | Kind · level | Read by |
@@ -107,7 +102,6 @@ Move / cancel / complete repeat the shape: lock → status guard → Calendar mu
 
 Enforced chain: `docs/secrets-manifest.json` → `.env.example` → workflow `secrets.X`/`vars.X` → `check-workflows.js`.
 With no `GEMINI_API_KEY` the live smoke job skips and the assistant disables; booking is unaffected.
-
 ## 7. External services (Zero-Card)
 
 | Service | Role | Card | Isolated at |
@@ -120,13 +114,15 @@ With no `GEMINI_API_KEY` the live smoke job skips and the assistant disables; bo
 | Groq | reserved fallback | no | not implemented (G9) |
 
 Avoided on purpose (card required): fly.io, Koyeb, AWS, GCP Cloud Run, Azure, Oracle Cloud, Anthropic API — `docs/free-tiers.json`.
+## 7b. Google bridge
 
+One boundary: `scripts/google/gateway.js` (`LocalAdapter` default, `GoogleAdapter` for Drive/Sheets/Calendar).
+The account is a **profile** (`config/google.profile.<name>.json`, git-ignored) chosen by `GOOGLE_PROFILE`, token name derived (`GOOGLE_REFRESH_TOKEN_<PROFILE>`); no email, raw id or account name in code. Profile now: `dev`, dev/test only. Swap: `docs/google-setup.md` §4, zero code changes.
 ## 8. Conventions found
 
 - One bridge: `api()` → `callServer()` (`app.js:110`); backend is 11 flat functions — no REST, no CORS surface.
-- Every write: `tryLock(25000)` → status guard → re-check availability → mutate → audit. Config over code: no limit, model name or work hour inline; invalid config fails loudly.
-- Dependency-free tests (`assert`, `vm` GAS stubs); jsdom installed ad hoc, never declared. Arabic UI copy, non-medical, Arabic-Indic numerals.
-
+- Every write: `tryLock(25000)` → status guard → re-check availability → mutate → audit. Config over code; invalid config fails loudly.
+- Dependency-free tests (`assert`, `vm` stubs); jsdom ad hoc, never declared. Arabic UI, non-medical, Arabic-Indic numerals.
 ## 9. Top 10 gaps
 
 | # | Sev | Gap |
@@ -141,10 +137,10 @@ Avoided on purpose (card required): fly.io, Koyeb, AWS, GCP Cloud Run, Azure, Or
 | G8 | med | Those dumps are another environment's transcript (connector inventory, a UUID); no secret value found. |
 | G9 | med | `GROQ_API_KEY` declared-but-unused, while the manifest forbids wiring it early. |
 | G10 | low | jsdom suites exit 0 when jsdom is absent → CI could silently lose UI coverage. |
+| G14 | med | Google bridge code-complete but never bootstrapped on a real account. |
 
 Full evidence, plus G11–G13 (low): `docs/map/gaps.json`.
-
 ## 10. Glossary
 
 - **Request** → `PENDING_APPROVAL`; **approval** creates the Calendar event and flips it to `CONFIRMED`.
-- **Demo mode** — no `google.script.run`: `localStorage`, PIN `2468`, never a real confirmation. **Queues** — `CKQ_*`/`CKA_*` buffer failed writes. **Bundle** — generated `gas/`.
+- **Demo mode** — no `google.script.run`: `localStorage`, PIN `2468`, never a confirmation. **Queues** — `CKQ_*`/`CKA_*` buffer failed writes. **Profile** — account selector, never in code.

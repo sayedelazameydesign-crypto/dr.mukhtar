@@ -14,8 +14,8 @@
       "css",
       "shell"
     ],
-    "generated_at": "2026-11-05T00:58:00Z",
-    "commit": "61925ee",
+    "generated_at": "2026-11-05T01:50:00Z",
+    "commit": "339516d",
     "generated_by": "agent",
     "coverage": "partial",
     "excluded": [
@@ -147,6 +147,30 @@
       "kind": "cli",
       "path": "scripts/pre-commit.sh",
       "run": "sh scripts/pre-commit.sh (or symlink into .git/hooks)"
+    },
+    {
+      "id": "cli.google-auth",
+      "kind": "cli",
+      "path": "scripts/google/auth.js",
+      "run": "node scripts/google/auth.js --profile dev"
+    },
+    {
+      "id": "cli.google-bootstrap",
+      "kind": "cli",
+      "path": "scripts/google/bootstrap.js",
+      "run": "node scripts/google/bootstrap.js --profile dev [--dry-run]"
+    },
+    {
+      "id": "cli.google-selftest",
+      "kind": "cli",
+      "path": "scripts/google/selftest.js",
+      "run": "node scripts/google/selftest.js [--local] [--profile dev]"
+    },
+    {
+      "id": "cli.google-migrate",
+      "kind": "cli",
+      "path": "scripts/google/migrate.js",
+      "run": "node scripts/google/migrate.js --from dev --to clinic [--apply]"
     }
   ],
   "nodes": [
@@ -693,6 +717,142 @@
       "lang": "css",
       "layer": "ui",
       "role": "2026 design system, local fonts, a11y states"
+    },
+    {
+      "id": "integration.google-gateway",
+      "kind": "module",
+      "path": "scripts/google/gateway.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "One gateway: local + google adapters, same interface"
+    },
+    {
+      "id": "integration.google-profile",
+      "kind": "module",
+      "path": "scripts/google/profile.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "Logical slot → profile id; never an account or email"
+    },
+    {
+      "id": "integration.google-auth",
+      "kind": "job",
+      "path": "scripts/google/auth.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "One-time OAuth flow, writes a git-ignored token file"
+    },
+    {
+      "id": "integration.google-bootstrap",
+      "kind": "job",
+      "path": "scripts/google/bootstrap.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "Idempotent layout creation, lookup before create"
+    },
+    {
+      "id": "integration.google-selftest",
+      "kind": "job",
+      "path": "scripts/google/selftest.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "whoami + quota + 5-step write/read/list/delete probe"
+    },
+    {
+      "id": "integration.google-migrate",
+      "kind": "job",
+      "path": "scripts/google/migrate.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "Profile→profile copy by logical path, sha256 verified"
+    },
+    {
+      "id": "integration.google-profile-template",
+      "kind": "asset",
+      "path": "config/google.profile.example.json",
+      "lang": "json",
+      "layer": "infra",
+      "role": "Committed template: dev profile, no ids, no account"
+    },
+    {
+      "id": "integration.external-drive",
+      "kind": "external",
+      "path": "scripts/google/gateway.js:GoogleAdapter (Drive v3)",
+      "lang": "js",
+      "layer": "data",
+      "role": "Drive = long memory, evidence, backups, app-owned files"
+    },
+    {
+      "id": "integration.external-sheets-index",
+      "kind": "external",
+      "path": "scripts/google/gateway.js:GoogleAdapter (Sheets v4)",
+      "lang": "js",
+      "layer": "data",
+      "role": "Sheets index for small tables; clinic system of record"
+    },
+    {
+      "id": "integration.external-oauth",
+      "kind": "external",
+      "path": "scripts/google/auth.js:TOKEN_ENDPOINT",
+      "lang": "js",
+      "layer": "infra",
+      "role": "Google OAuth token endpoint, refresh-token grant, zero card"
+    },
+    {
+      "id": "doc.google-setup",
+      "kind": "doc",
+      "path": "docs/google-setup.md",
+      "lang": "md",
+      "layer": "infra",
+      "role": "Console steps, profile swap runbook, failure table (names only)"
+    },
+    {
+      "id": "env.GOOGLE_PROFILE",
+      "kind": "env",
+      "path": "scripts/google/profile.js:resolveProfileName",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Active profile selector; default dev"
+    },
+    {
+      "id": "env.GOOGLE_AUTH_MODE",
+      "kind": "env",
+      "path": "config/google.profile.example.json auth_mode",
+      "lang": "env",
+      "layer": "infra",
+      "role": "local | oauth_user | apps_script_bridge | colab_mount"
+    },
+    {
+      "id": "env.GOOGLE_CLIENT_ID",
+      "kind": "env",
+      "path": "config/google.profile.example.json $comment",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Secret name: OAuth client id (Desktop app)"
+    },
+    {
+      "id": "env.GOOGLE_CLIENT_SECRET",
+      "kind": "env",
+      "path": "config/google.profile.example.json $comment",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Secret name: OAuth client secret"
+    },
+    {
+      "id": "env.GOOGLE_REFRESH_TOKEN_DEV",
+      "kind": "env",
+      "path": "scripts/google/auth.js:secretNameFor",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Secret name: per-profile refresh token (dev)"
+    },
+    {
+      "id": "test.google-bridge",
+      "kind": "job",
+      "path": "scripts/test-google-bridge.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "test: 29 offline cases over both adapters"
     }
   ],
   "edges": [
@@ -1559,6 +1719,266 @@
           "test.scan-secrets"
         ]
       ]
+    },
+    {
+      "type": "imports",
+      "evidence": "scripts/google/selftest.js:8-10 requires gateway, profile, bootstrap",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "integration.google-selftest",
+          "integration.google-gateway"
+        ],
+        [
+          "integration.google-selftest",
+          "integration.google-profile"
+        ],
+        [
+          "integration.google-selftest",
+          "integration.google-bootstrap"
+        ]
+      ]
+    },
+    {
+      "type": "imports",
+      "evidence": "scripts/google/bootstrap.js:20 requires profile.js; scripts/google/migrate.js:19-21 requires profile+gateway+bootstrap",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "integration.google-bootstrap",
+          "integration.google-profile"
+        ],
+        [
+          "integration.google-migrate",
+          "integration.google-gateway"
+        ],
+        [
+          "integration.google-migrate",
+          "integration.google-profile"
+        ]
+      ]
+    },
+    {
+      "type": "imports",
+      "evidence": "scripts/google/auth.js:21 requires profile.js (reads auth_mode + scopes)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "integration.google-auth",
+          "integration.google-profile"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "scripts/google/profile.js:readProfile reads config/google.profile.<name>.json (template at config/google.profile.example.json)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "integration.google-profile",
+          "integration.google-profile-template"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "scripts/google/gateway.js:GoogleAdapter._request → www.googleapis.com (Drive, Sheets, Calendar)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "integration.google-gateway",
+          "integration.external-drive"
+        ],
+        [
+          "integration.google-gateway",
+          "integration.external-sheets-index"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "scripts/google/auth.js: fetch TOKEN_ENDPOINT; scripts/google/bootstrap.js:refreshTokenTransport posts grant_type=refresh_token",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "integration.google-auth",
+          "integration.external-oauth"
+        ],
+        [
+          "integration.google-bootstrap",
+          "integration.external-oauth"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "scripts/google/profile.js:resolveProfileName reads GOOGLE_PROFILE (flag wins); scripts/google/auth.js:secretNameFor derives the token name",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "integration.google-profile",
+          "env.GOOGLE_PROFILE"
+        ],
+        [
+          "integration.google-auth",
+          "env.GOOGLE_REFRESH_TOKEN_DEV"
+        ],
+        [
+          "integration.google-selftest",
+          "env.GOOGLE_REFRESH_TOKEN_DEV"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "scripts/google/bootstrap.js: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET + per-profile token; scripts/google/selftest.js: same three names",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "integration.google-bootstrap",
+          "env.GOOGLE_CLIENT_ID"
+        ],
+        [
+          "integration.google-bootstrap",
+          "env.GOOGLE_CLIENT_SECRET"
+        ],
+        [
+          "integration.google-selftest",
+          "env.GOOGLE_CLIENT_ID"
+        ],
+        [
+          "integration.google-selftest",
+          "env.GOOGLE_CLIENT_SECRET"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "config/google.profile.example.json auth_mode + scripts/google/profile.js activeAdapter fall back to local when unset",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "integration.google-gateway",
+          "env.GOOGLE_AUTH_MODE"
+        ],
+        [
+          "integration.google-profile",
+          "env.GOOGLE_AUTH_MODE"
+        ]
+      ]
+    },
+    {
+      "type": "shares_contract",
+      "evidence": "docs/secrets-manifest.json declares the 5 bridge names; .env.example documents them; scripts/env.js validates them; config/google.profile.example.json carries the template",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "doc.manifest",
+          "env.GOOGLE_PROFILE"
+        ],
+        [
+          "doc.manifest",
+          "env.GOOGLE_AUTH_MODE"
+        ],
+        [
+          "doc.manifest",
+          "env.GOOGLE_CLIENT_ID"
+        ],
+        [
+          "doc.manifest",
+          "env.GOOGLE_CLIENT_SECRET"
+        ],
+        [
+          "doc.manifest",
+          "env.GOOGLE_REFRESH_TOKEN_DEV"
+        ],
+        [
+          "env.GOOGLE_PROFILE",
+          "integration.google-profile"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/test-google-bridge.js runs both adapters with a scripted fake transport (no network, no token)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "test.google-bridge",
+          "integration.google-gateway"
+        ],
+        [
+          "test.google-bridge",
+          "integration.google-profile"
+        ],
+        [
+          "test.google-bridge",
+          "integration.google-auth"
+        ],
+        [
+          "test.google-bridge",
+          "integration.google-bootstrap"
+        ],
+        [
+          "test.google-bridge",
+          "integration.google-migrate"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "docs/google-setup.md documents the console steps and the swap runbook that the scripts implement",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "doc.google-setup",
+          "integration.google-auth"
+        ],
+        [
+          "doc.google-setup",
+          "integration.google-bootstrap"
+        ],
+        [
+          "doc.google-setup",
+          "integration.google-migrate"
+        ],
+        [
+          "doc.google-setup",
+          "integration.google-selftest"
+        ]
+      ]
+    },
+    {
+      "type": "shares_contract",
+      "evidence": "docs/free-tiers.json google-* services (card_required false) vs the gateway that touches them",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "doc.free-tiers",
+          "integration.external-drive"
+        ],
+        [
+          "doc.free-tiers",
+          "integration.external-sheets-index"
+        ],
+        [
+          "doc.free-tiers",
+          "integration.external-oauth"
+        ]
+      ]
     }
   ],
   "tests": [
@@ -1682,6 +2102,26 @@
       "cmd": "scripts/bootstrap-github.sh (real run)",
       "verified": false,
       "result": "needs the owner's gh session; agent token gets 403 by design"
+    },
+    {
+      "cmd": "node scripts/google/selftest.js --local",
+      "verified": true,
+      "result": "exit 0 — write/read/list/exists/delete ok on the local adapter"
+    },
+    {
+      "cmd": "node scripts/test-google-bridge.js",
+      "verified": true,
+      "result": "exit 0 — 29 tests, no network, no credentials"
+    },
+    {
+      "cmd": "node scripts/google/bootstrap.js --dry-run",
+      "verified": false,
+      "result": "needs a live token: not executed in this sandbox (user-side step)"
+    },
+    {
+      "cmd": "node scripts/google/auth.js / bootstrap / selftest (live)",
+      "verified": false,
+      "result": "requires the system account's consent — user-side only"
     }
   ],
   "risks": [

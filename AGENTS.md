@@ -37,15 +37,20 @@ Three runtimes, one source of truth:
 5. **Provider boundaries.** `Code.gs` must never build provider URLs or name models.
    All LLM work goes through `llmAnswer_()` in `Llm.gs`. Calendar/Sheets access stays
    inside `getCalendar_*`, `*Sheet_*` helpers so a provider swap is one file.
-6. **Config, not code.** Limits, models, work hours and chain order come from Script
+6. **One Google boundary, one swappable account.** Drive/Sheets/Calendar are reached only through
+   `scripts/google/gateway.js`; the active account is a *profile* (`config/google.profile.<name>.json`,
+   git-ignored) selected by `GOOGLE_PROFILE`. No email, no raw Drive id and no account name in code.
+   Google must never be a hard dependency: the `local` adapter runs CI and every fresh clone.
+   Console steps and the A→B swap runbook: `docs/google-setup.md`.
+7. **Config, not code.** Limits, models, work hours and chain order come from Script
    Properties, validated by `validateConfig()` / `scripts/check-config.js`. Invalid
    config fails loudly — never silently substitute a "sensible" default.
-7. **Zero-Card.** Any new external service: email/GitHub/Google sign-up only, no card,
+8. **Zero-Card.** Any new external service: email/GitHub/Google sign-up only, no card,
    no card-trial. Record it in `docs/free-tiers.json` with `card_required` and fallback,
    and add a line to `docs/exit-plan.md`. If a card field appears: stop and report.
-8. **No silent failure.** Errors are typed, logged as structured JSON (no PII), and
+9. **No silent failure.** Errors are typed, logged as structured JSON (no PII), and
    surfaced to staff. `catch (_) {}` is only acceptable for cosmetic UI storage.
-9. **Evidence over claims.** "Done" requires a command + output (tests, build, `curl`).
+10. **Evidence over claims.** "Done" requires a command + output (tests, build, `curl`).
 
 ## 3. Commands
 
@@ -60,6 +65,9 @@ node scripts/scan-secrets.js                # dependency-free secret scan (alway
 node scripts/check-workflows.js [--self-test]  # secrets/variables + workflow + docs/map contract
 node scripts/env.js                         # startup env contract (names only, never values)
 node scripts/live-llm-smoke.js              # optional provider probe (env only; skips without a key)
+node scripts/test-google-bridge.js          # Google gateway + adapters, offline (no account, no token)
+node scripts/google/selftest.js --local     # five-step probe on the local adapter
+node scripts/google/bootstrap.js --dry-run  # what the Drive layout bootstrap would create (needs a live token)
 sh scripts/pre-commit.sh                    # local gate: secrets + contract (+ actionlint if installed)
 python3 scripts/build-gas-package.py        # build gas/ bundle (Index.html, Fonts.html, Code.gs, Llm.gs)
 ```
@@ -72,6 +80,7 @@ is skipped for fork PRs. **Merge only on green.**
 ## 4. Architecture map
 
 Machine-readable map lives in `docs/map/` (`project.json`, `ARCHITECTURE.md`, `gaps.json`).
+Google services are reached only through `scripts/google/gateway.js`; account/profile rules: `docs/google-setup.md`.
 
 **If `docs/map/` is missing or its `meta.commit` is behind HEAD → follow `project-map.md` before coding.**
 `node scripts/check-workflows.js` fails when the map is missing, unparseable, cites an undeclared node,

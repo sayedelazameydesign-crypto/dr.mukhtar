@@ -17,7 +17,14 @@ const ENV_SPECS = [
   { name: 'NODE_VERSION', secret: false, required: false, pattern: /^\d+(\.\d+){0,2}$/, hint: 'e.g. 20' },
   { name: 'LLM_PRIMARY', secret: false, required: false, pattern: /^[a-z][a-z0-9_]*$/, hint: 'provider id from Llm.gs' },
   { name: 'LLM_SMOKE_ENABLED', secret: false, required: false, pattern: /^(true|false)$/i, hint: 'true | false' },
-  { name: 'PYTHON_VERSION', secret: false, required: false, pattern: /^3\.\d+$/, hint: 'e.g. 3.11' }
+  { name: 'PYTHON_VERSION', secret: false, required: false, pattern: /^3\.\d+$/, hint: 'e.g. 3.11' },
+  // Google bridge (docs/google-setup.md). Optional everywhere: with none of them
+  // set, the gateway runs its local adapter and CI needs zero credentials.
+  { name: 'GOOGLE_PROFILE', secret: false, required: false, pattern: /^[a-z0-9][a-z0-9-]*$/, hint: 'profile name, e.g. dev' },
+  { name: 'GOOGLE_AUTH_MODE', secret: false, required: false, pattern: /^(local|oauth_user|apps_script_bridge|colab_mount)$/, hint: 'local | oauth_user | apps_script_bridge | colab_mount' },
+  { name: 'GOOGLE_CLIENT_ID', secret: true, required: false, pattern: /^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/, hint: 'from the Desktop OAuth client' },
+  { name: 'GOOGLE_CLIENT_SECRET', secret: true, required: false, pattern: /^GOCSPX-/, hint: 'from the Desktop OAuth client' },
+  { name: 'GOOGLE_REFRESH_TOKEN_DEV', secret: true, required: false, pattern: /^1\/\//, hint: 'per-profile token from scripts/google/auth.js' }
 ];
 
 class EnvValidationError extends Error {

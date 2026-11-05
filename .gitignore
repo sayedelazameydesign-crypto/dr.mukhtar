@@ -16,3 +16,10 @@ __pycache__/
 *properties*.json
 !config/clinic.example.json
 service-account*.json
+
+# Google bridge — real profile holds private folder/sheet ids; tokens are secrets
+config/google.profile.json
+config/google.profile.*.json
+!config/google.profile.example.json
+.secrets/
+.local-store/

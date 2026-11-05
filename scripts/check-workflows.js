@@ -99,6 +99,7 @@ jobs:
     { name: 'map missing a declared env name is rejected', map: GOOD_MAP_PROJECT.replace(/env\.APP_ENV/g, 'env.OTHER_NAME'), expect: 1 },
     { name: 'map without summary_L0 is rejected', map: JSON.stringify({ ...JSON.parse(GOOD_MAP_PROJECT), summary_L0: '' }), expect: 1 },
     { name: 'missing docs/map is rejected', map: null, expect: 1 },
+    { name: 'bridge script calling Google directly is rejected', workflow: GOOD_WORKFLOW, expect: 1, bridgeLeak: true },
     { name: 'built-in GITHUB_TOKEN needs no declaration', workflow: GOOD_WORKFLOW.replace('GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}', 'GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}'), expect: 0, expectWarning: false }
   ];
 
@@ -111,6 +112,12 @@ jobs:
     fs.writeFileSync(path.join(dir, '.env.example'), GOOD_ENV);
     fs.mkdirSync(path.join(dir, 'scripts'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'scripts', 'env.js'), GOOD_ENV_JS);
+    fs.mkdirSync(path.join(dir, 'scripts', 'google'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'scripts', 'google', 'gateway.js'),
+      "class LocalAdapter {}\nclass GoogleAdapter {}\n");
+    fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'config', 'google.profile.example.json'),
+      JSON.stringify({ profile: 'dev', account_label: 'label', auth_mode: 'oauth_user', scopes: ['drive.file'], root_folder_name: 'r', fallback: 'local', layout: { 'memory/long': null }, function_map: { 'memory.long': 'drive' } }));
     fs.writeFileSync(path.join(dir, 'scripts', 'bootstrap-github.sh'),
       '#!/usr/bin/env sh\n# --dry-run supported\ngit status >/dev/null\n');
     fs.writeFileSync(path.join(dir, '.github', 'workflows', 'test.yml'), testCase.workflow || GOOD_WORKFLOW);
@@ -130,6 +137,10 @@ jobs:
       fs.writeFileSync(path.join(dir, 'docs', 'map', 'project.json'), testCase.map || GOOD_MAP_PROJECT);
       fs.writeFileSync(path.join(dir, 'docs', 'map', 'gaps.json'), GOOD_GAPS);
       fs.writeFileSync(path.join(dir, 'docs', 'map', 'ARCHITECTURE.md'), '# fixture\n');
+    }
+    if (testCase.bridgeLeak) {
+      fs.writeFileSync(path.join(dir, 'scripts', 'google', 'selftest.js'),
+        "const url = 'https://www.googleapis.com/drive/v3/files';\n");
     }
 
     let outcome;
@@ -468,6 +479,81 @@ if (!fs.existsSync(MAP_DIR)) {
     warn(`docs/map/ is stale — meta.commit ${mapped} but HEAD is ${head.slice(0, 7)}; refresh per project-map.md §8`);
   }
 }
+
+/* --------------------------------------------------------- google bridge */
+/**
+ * The bridge's promises are testable, so they are checked here:
+ * - one gateway, adapters behind it (google-bridge.md §5);
+ * - the committed profile template is valid, carries no account, and its
+ *   layout ids stay null (ids are private → git-ignored profile only);
+ * - the active profile's secret name is derived, not hardcoded per account;
+ * - every bridge script refuses to invent credentials (names only, §10);
+ * - the site and the clinic backend stay independent of Google-only code.
+ */
+const BRIDGE_DIR = path.join(ROOT, 'scripts', 'google');
+const PROFILE_TEMPLATE = path.join(ROOT, 'config', 'google.profile.example.json');
+if (!fs.existsSync(PROFILE_TEMPLATE)) {
+  fail('config/google.profile.example.json is missing (Google bridge template)');
+} else {
+  let template = null;
+  try {
+    template = JSON.parse(fs.readFileSync(PROFILE_TEMPLATE, 'utf8'));
+  } catch (error) {
+    fail(`config/google.profile.example.json — ${error.message}`);
+  }
+  if (template) {
+    if (!template.profile) fail('config/google.profile.example.json — profile name is required');
+    if (!template.auth_mode) fail('config/google.profile.example.json — auth_mode is required');
+    if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(JSON.stringify(template))) {
+      fail('config/google.profile.example.json — must not contain an email address (accounts stay out of the repo)');
+    }
+    const layout = template.layout || {};
+    const filled = Object.keys(layout).filter((key) => layout[key]);
+    if (filled.length) fail(`config/google.profile.example.json — layout must stay null in the template (found ${filled.join(', ')})`);
+    const scopes = Array.isArray(template.scopes) ? template.scopes : [];
+    if (!scopes.length) fail('config/google.profile.example.json — list the scopes explicitly');
+    scopes.filter((scope) => /^https?:\/\//.test(String(scope)))
+      .forEach((scope) => fail(`config/google.profile.example.json — scope "${scope}" must be the short form`));
+    if (scopes.includes('https://mail.google.com/')) fail('config/google.profile.example.json — full mailbox scope is never acceptable');
+  }
+}
+
+if (fs.existsSync(BRIDGE_DIR)) {
+  const files = fs.readdirSync(BRIDGE_DIR).filter((file) => file.endsWith('.js'));
+  if (!files.includes('gateway.js')) fail('scripts/google/gateway.js is missing (the single Google boundary)');
+  files.forEach((file) => {
+    const source = fs.readFileSync(path.join(BRIDGE_DIR, file), 'utf8');
+    // 1. No client of the gateway may call Google directly.
+    if (file !== 'gateway.js' && file !== 'auth.js' && file !== 'bootstrap.js') {
+      if (/googleapis\.com/.test(source)) fail(`scripts/google/${file} — only the gateway (and the one-time auth/bootstrap) may call Google APIs`);
+    }
+    // 2. Credentials are read by NAME from the environment, never assigned.
+    if (/\bGOOGLE_(CLIENT_SECRET|REFRESH_TOKEN_[A-Z0-9_]*)\s*=\s*['"][^'"]+['"]/.test(source)) {
+      fail(`scripts/google/${file} — must not assign a credential value`);
+    }
+    // 3. Never print a credential, even in an error path.
+    if (/console\.(log|error)\([^)]*\$\{[^}]*(refresh_token|client_secret|access_token)/i.test(source)) {
+      fail(`scripts/google/${file} — logs a credential field`);
+    }
+  });
+  // 4. The gateway must ship the fallback, otherwise nothing works without Google.
+  const gateway = fs.existsSync(path.join(BRIDGE_DIR, 'gateway.js')) ? fs.readFileSync(path.join(BRIDGE_DIR, 'gateway.js'), 'utf8') : '';
+  if (gateway && !/class LocalAdapter/.test(gateway)) fail('scripts/google/gateway.js — the local adapter is required (Google must never be a hard dependency)');
+  if (gateway && !/class GoogleAdapter/.test(gateway)) fail('scripts/google/gateway.js — the google adapter is missing');
+} else {
+  warn('scripts/google/ is absent — the Google bridge is not wired in this repo');
+}
+
+// 5. The shipped site must not grow a Google dependency: no SDKs, no direct API hosts.
+const clientFiles = ['index.html', 'app.js', 'app.css'];
+clientFiles.forEach((file) => {
+  const target = path.join(ROOT, file);
+  if (!fs.existsSync(target)) return;
+  const source = fs.readFileSync(target, 'utf8');
+  if (/googleapis\.com|gstatic\.com\/drive|accounts\.google\.com/.test(source)) {
+    fail(`${file} — the static site must not call Google APIs directly (Google calls live behind the gateway)`);
+  }
+});
 
 /* ------------------------------------------------------------------ report */
 warnings.forEach((message) => console.log(`· ${message}`));

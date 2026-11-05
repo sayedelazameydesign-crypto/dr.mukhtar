@@ -6,6 +6,9 @@
 
 لا تُجمع أي بيانات طبية: الاسم ورقم التواصل ووقت مفضل فقط.
 
+كل ما يلمس Google (Drive/Sheets/Calendar) يمرّ من بوابة واحدة `scripts/google/gateway.js`، والحساب
+المستخدم **بروفايل قابل للتبديل** لا قيمة مكتوبة في الكود؛ التفاصيل في `docs/google-setup.md`.
+
 ---
 
 ## ما الجديد في إصدار 2026
@@ -33,6 +36,9 @@ assets/fonts/               خطوط woff2 مستضافة محليًا + ترا�
 brand.svg                   الهوية البصرية
 manifest.webmanifest        إضافة إلى الشاشة الرئيسية (PWA-lite)
 docs/map/                   خريطة معمّرة: project.json + ARCHITECTURE.md + gaps.json (project-map.md)
+docs/google-setup.md        جسر Google: خطوات المتصفح، البروفايل، تبديل الحساب، جدول الأعطال
+scripts/google/             gateway.js + profile/auth/bootstrap/selftest/migrate (المحوّل المحلي هو الافتراضي)
+config/google.profile.example.json  قالب البروفايل (بلا معرّفات ولا بريد) — الحقيقي مستبعَد من Git
 Code.gs                     خادم Google Apps Script
 appsscript.json             صلاحيات ونطاق زمني Africa/Cairo
 scripts/preview.py             خادم معاينة محلي بلا ملفات مولّدة أو مخفية

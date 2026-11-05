@@ -3,8 +3,17 @@
   "policy": {
     "checked": "2026-11-04",
     "reverify_by": "2026-12-04",
-    "allowed_signup": ["email", "GitHub", "Google"],
-    "forbidden": ["card at sign-up", "card-required trial", "pre-auth hold", "verification charge"],
+    "allowed_signup": [
+      "email",
+      "GitHub",
+      "Google"
+    ],
+    "forbidden": [
+      "card at sign-up",
+      "card-required trial",
+      "pre-auth hold",
+      "verification charge"
+    ],
     "rule_if_card_requested": "stop, do not enter card, pick fallback, log the incident here"
   },
   "services": [
@@ -103,15 +112,60 @@
       "quota_config": "reuses LLM_* settings; provider model name stays in Script Properties",
       "fallback": "local-ollama",
       "adapter": "Llm.gs PROVIDERS.groq (not implemented yet — secondary chain slot in LLM_CHAIN is ignored until defined)"
+    },
+    {
+      "service": "google-drive-oauth",
+      "role": "bridge long memory: evidence, backups, inbox (drive.file)",
+      "checked": "2026-11-04",
+      "card_required": false,
+      "signup": "Google account (2-Step Verification)",
+      "limits": "15 GB shared with Gmail and Photos; ~750 GB/day upload soft cap; 12k requests/min per user",
+      "terms_note": "free consumer quota; no billing required for API use within quota",
+      "quota_config": "quota() in scripts/google/selftest.js; alert at 80% in profile",
+      "fallback": "local adapter (scripts/google/gateway.js LocalAdapter)",
+      "adapter": "GoogleGateway storage + local fallback"
+    },
+    {
+      "service": "google-oauth-desktop",
+      "role": "OAuth 2.0 Desktop client for the system account's refresh token",
+      "checked": "2026-11-04",
+      "card_required": false,
+      "signup": "Google account (2-Step Verification)",
+      "limits": "no cost; 100 refresh tokens per client per account (oldest invalidated)",
+      "terms_note": "Testing status tokens die in 7 days → publish to In production",
+      "quota_config": "auth_mode in config/google.profile.example.json",
+      "fallback": "local adapter; no OAuth needed for CI",
+      "adapter": "scripts/google/auth.js → per-profile token name"
     }
   ],
   "known_card_required_avoided": [
-    { "service": "fly.io", "reason": "card required at sign-up" },
-    { "service": "koyeb", "reason": "card required" },
-    { "service": "aws", "reason": "card required" },
-    { "service": "gcp-cloud-run", "reason": "billing account + card" },
-    { "service": "azure", "reason": "card required" },
-    { "service": "oracle-cloud", "reason": "card verification" },
-    { "service": "anthropic-api", "reason": "direct API requires paid account" }
+    {
+      "service": "fly.io",
+      "reason": "card required at sign-up"
+    },
+    {
+      "service": "koyeb",
+      "reason": "card required"
+    },
+    {
+      "service": "aws",
+      "reason": "card required"
+    },
+    {
+      "service": "gcp-cloud-run",
+      "reason": "billing account + card"
+    },
+    {
+      "service": "azure",
+      "reason": "card required"
+    },
+    {
+      "service": "oracle-cloud",
+      "reason": "card verification"
+    },
+    {
+      "service": "anthropic-api",
+      "reason": "direct API requires paid account"
+    }
   ]
 }
