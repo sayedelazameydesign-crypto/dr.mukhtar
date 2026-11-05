@@ -60,28 +60,78 @@
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   };
-  // The Nth *open* day from today. It used to jump every offset to the same next
-  // open day, so the first chips all showed one date and couldn't be picked apart.
-  // `openDays` is passed in by the caller (state.workDays), so this stays a pure
-  // date function: it cannot disagree with the availability rules.
-  function nextWorkday(offset = 1, openDays = WORK_DAYS) {
-    const date = new Date();
-    date.setHours(12, 0, 0, 0);
+  /* ---------------- clinic calendar (Africa/Cairo, not the visitor's) ---------------- */
+  // A parent in Riyadh, London or New York must see the *clinic's* tomorrow. Reading the
+  // date from the browser clock meant "غدًا · الأحد" could point at the wrong day, and a
+  // time near midnight could shift the whole list by one.
+  const CLINIC_TIME_ZONE = 'Africa/Cairo';
+  const CLINIC_CLOCK = (() => {
+    try {
+      const format = new Intl.DateTimeFormat('en-CA', {
+        timeZone: CLINIC_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit'
+      });
+      // en-CA yields YYYY-MM-DD, which is exactly the shape the rest of the app uses.
+      const probe = format.format(new Date());
+      return /^\d{4}-\d{2}-\d{2}$/.test(probe) ? format : null;
+    } catch (_) { return null; }
+  })();
+  // Today at the clinic, as YYYY-MM-DD. Falls back to the browser clock only when the
+  // runtime has no time-zone support (old WebView) — and says so through the same value.
+  function clinicTodayISO() {
+    if (CLINIC_CLOCK) return CLINIC_CLOCK.format(new Date());
+    return localISO(new Date());
+  }
+  // Weekday of an ISO day, computed from the calendar date itself (no time zone maths,
+  // so it is right regardless of where the visitor is).
+  function isoWeekday(iso) {
+    const parts = String(iso || '').split('-').map(Number);
+    const probe = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    return Number.isNaN(probe.getTime()) ? new Date().getDay() : probe.getUTCDay();
+  }
+  function isoToDate(iso) {
+    const parts = String(iso || '').split('-').map(Number);
+    return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12));
+  }
+  function shiftISO(iso, days) {
+    const date = isoToDate(iso);
+    date.setUTCDate(date.getUTCDate() + days);
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+  }
+  function isoLabel(iso, options) {
+    // The label is a calendar date, so it must not be rendered in the visitor's zone.
+    try {
+      return new Intl.DateTimeFormat('ar-EG', Object.assign({ timeZone: 'UTC' }, options)).format(isoToDate(iso));
+    } catch (_) { return iso; }
+  }
+
+  // The Nth *open* day from today at the clinic. It used to jump every offset to the
+  // same next open day, so the first chips all showed one date and couldn't be picked apart.
+  // `openDays` is passed in by the caller (state.workDays), so this stays a pure function.
+  function nextWorkdayISO(offset = 1, openDays = WORK_DAYS) {
+    let iso = clinicTodayISO();
     let found = 0;
-    for (let step = 1; step <= 60; step += 1) {
-      date.setDate(date.getDate() + 1);
-      if (!openDays.includes(date.getDay())) continue;
+    for (let step = 1; step <= 90; step += 1) {
+      iso = shiftISO(iso, 1);
+      if (!openDays.includes(isoWeekday(iso))) continue;
       found += 1;
       if (found >= offset) break;
     }
+    return iso;
+  }
+  // Kept as a Date for callers that format weekdays themselves.
+  function nextWorkday(offset = 1, openDays = WORK_DAYS) {
+    const iso = nextWorkdayISO(offset, openDays);
+    const date = isoToDate(iso);
+    date.setHours(12, 0, 0, 0);
     return date;
   }
   function prettyDate(iso) {
     if (!iso) return '—';
-    const parts = iso.split('-').map(Number);
-    const d = new Date(parts[0], parts[1] - 1, parts[2]);
-    if (Number.isNaN(d.getTime())) return '—';
-    return new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+    const parts = String(iso).split('-').map(Number);
+    if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) return '—';
+    // Formatted in UTC on a date-only value: reading it as local time is what shifted the
+    // weekday for visitors west of Cairo.
+    return isoLabel(iso, { weekday: 'long', day: 'numeric', month: 'long' });
   }
   function prettyTime(time) {
     if (!time) return '';
@@ -267,8 +317,8 @@
     } catch (_) { /* damaged demo data is rebuilt below */ }
     const initial = {
       bookings: [
-        { reference: 'CK-DEMO-8K2P', createdAt: new Date().toISOString(), status: 'PENDING_APPROVAL', visitType: 'كشف جديد', guardianName: 'مريم تجريبية', phone: '0000000000', day: localISO(nextWorkday(1)), time: '10:00', eventId: '', consent: true },
-        { reference: 'CK-DEMO-4M7Q', createdAt: new Date().toISOString(), status: 'CONFIRMED', visitType: 'متابعة', guardianName: 'عمر تجريبي', phone: '0000000001', day: localISO(nextWorkday(2)), time: '11:00', eventId: '', consent: true }
+        { reference: 'CK-DEMO-8K2P', createdAt: new Date().toISOString(), status: 'PENDING_APPROVAL', visitType: 'كشف جديد', guardianName: 'مريم تجريبية', phone: '0000000000', day: nextWorkdayISO(1), time: '10:00', eventId: '', consent: true },
+        { reference: 'CK-DEMO-4M7Q', createdAt: new Date().toISOString(), status: 'CONFIRMED', visitType: 'متابعة', guardianName: 'عمر تجريبي', phone: '0000000001', day: nextWorkdayISO(2), time: '11:00', eventId: '', consent: true }
       ],
       closures: []
     };
@@ -307,7 +357,7 @@
       const visitDuration = visitMinutes(visitType);
       if (store.closures.some((item) => item.day === day)) return { ok: true, slots: [] };
       const parts = String(day).split('-').map(Number);
-      const weekday = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+      const weekday = isoWeekday(day);
       const workDays = values.WORK_DAYS.split(',').filter(Boolean).map(Number);
       if (!workDays.includes(weekday)) return { ok: true, slots: [] };
       const toMin = (t) => Number(String(t).split(':')[0]) * 60 + Number(String(t).split(':')[1]);
@@ -345,6 +395,14 @@
       if (duplicate) {
         return { ok: false, duplicate: true, reference: duplicate.reference,
           message: `لديكم طلب قائم لهذا اليوم بالرقم ${duplicate.reference}. تابعوه من «طلب سابق» أو انتظروا تأكيد العيادة.` };
+      }
+      const phoneKey = String(payload.phone || '').replace(/\D/g, '');
+      const sentToday = store.bookings.filter((item) => item.day === payload.day
+        && String(item.phone || '').replace(/\D/g, '') === phoneKey).length;
+      // Mirrors CK.MAX_REQUESTS_PER_PHONE_DAY in Code.gs.
+      if (sentToday >= 3) {
+        return { ok: false, rateLimited: true,
+          message: 'وصلتم إلى الحد الأقصى للطلبات لهذا اليوم من هذا الرقم. تواصلوا مع العيادة هاتفيًا لتعديل موعدكم.' };
       }
       const verified = state.availabilityVerified;
       const booking = { ...payload, reference: newRef(), createdAt: new Date().toISOString(),
@@ -1062,11 +1120,13 @@
   /* ---------------- date + slots ---------------- */
   function setDateDefault() {
     const input = $('#visitDate');
-    const tomorrow = localISO(nextWorkday(1, state.workDays.length ? state.workDays : WORK_DAYS));
-    input.min = localISO(new Date());
+    const openDays = state.workDays.length ? state.workDays : WORK_DAYS;
+    const tomorrow = nextWorkdayISO(1, openDays);
+    const today = clinicTodayISO();
+    input.min = today;
     input.value = tomorrow;
     state.selectedDay = tomorrow;
-    $('#closureDate').min = localISO(new Date());
+    $('#closureDate').min = today;
     $('#closureDate').value = tomorrow;
   }
   function renderDayChips() {
@@ -1075,13 +1135,13 @@
     wrap.replaceChildren();
     const labels = ['غدًا', 'بعد غد', 'اليوم الثالث', 'اليوم الرابع', 'اليوم الخامس'];
     for (let i = 1; i <= 5; i += 1) {
-      const date = nextWorkday(i, state.workDays.length ? state.workDays : WORK_DAYS);
-      const iso = localISO(date);
+      const openDays = state.workDays.length ? state.workDays : WORK_DAYS;
+      const iso = nextWorkdayISO(i, openDays);
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'day-chip';
       chip.dataset.day = iso;
-      chip.innerHTML = `${labels[i - 1]} · <b>${date.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' })}</b>`;
+      chip.innerHTML = `${labels[i - 1]} · <b>${isoLabel(iso, { weekday: 'short', day: 'numeric', month: 'short' })}</b>`;
       chip.addEventListener('click', () => {
         $('#visitDate').value = iso;
         loadAvailability(iso);
@@ -1195,6 +1255,23 @@
     if (typeof result.scrollIntoView === 'function') result.scrollIntoView({ block: 'center' });
   }
 
+  // The daily cap is a deliberate "ask a human" moment, not a failure: say what to do next.
+  function showRateLimitNotice(response) {
+    const result = $('#bookingResult');
+    if (!result) { toast(response.message); return; }
+    result.innerHTML = `
+      <div class="result-top">
+        <span class="result-check is-info" aria-hidden="true"><svg><use href="#i-alert"/></svg></span>
+        <div>
+          <h3>لم نُنشئ طلبًا جديدًا</h3>
+          <p>${escapeHTML(response.message || '')}</p>
+        </div>
+      </div>
+      <p class="result-note">هذا الحد لحماية جدول الطبيب من الطلبات المتكررة بالخطأ. موعدكم الحالي لم يتغيّر.</p>`;
+    result.hidden = false;
+    if (typeof result.scrollIntoView === 'function') result.scrollIntoView({ block: 'center' });
+  }
+
   function showBookingResult(booking, savedLocally = false, localDemo = false, warning = '') {
     const result = $('#bookingResult');
     const note = warning
@@ -1273,6 +1350,7 @@
     try {
       const response = await api('createRequest', payload);
       if (response && response.duplicate) { showDuplicateNotice(response); return; }
+      if (response && response.rateLimited) { showRateLimitNotice(response); return; }
       if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر حفظ الطلب. يرجى المحاولة مجددًا.');
       showBookingResult(response.booking, !!response.savedLocally, !IS_GAS, response.warning || '');
       form.reset();
@@ -1325,18 +1403,13 @@
     return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
   }
   function currentWeekBookings(bookings) {
-    const now = new Date();
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-    const end = new Date(start);
-    end.setDate(end.getDate() + 7);
+    // Monday-based week, anchored on the clinic's today (not the phone's).
+    const today = clinicTodayISO();
+    const startISO = shiftISO(today, -((isoWeekday(today) + 6) % 7));
+    const endISO = shiftISO(startISO, 7);
     return bookings
       .filter((item) => ['CONFIRMED', 'COMPLETED', 'RESCHEDULED'].includes(item.status))
-      .filter((item) => {
-        const day = new Date(`${item.day}T12:00:00`);
-        return day >= start && day < end;
-      })
+      .filter((item) => String(item.day) >= startISO && String(item.day) < endISO)
       .sort((a, b) => `${a.day}${a.time}`.localeCompare(`${b.day}${b.time}`));
   }
   function requestCard(booking, canAct) {

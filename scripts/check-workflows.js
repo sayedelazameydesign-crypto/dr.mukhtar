@@ -518,6 +518,30 @@ const ENABLE_PAGES = path.join(ROOT, 'scripts', 'enable-pages.sh');
 if (!fs.existsSync(ENABLE_PAGES)) {
   fail('scripts/enable-pages.sh is missing (first-run Pages enablement path)');
 } else {
+  // The site is assembled from the repository, so the files that must ship have to be
+  // published by the assembly step. An explicit allow-list silently dropped new files.
+  const pagesWorkflow = path.join(ROOT, '.github', 'workflows', 'pages.yml');
+  const mustShip = ['index.html', '404.html', 'robots.txt', 'sitemap.xml', 'app.js', 'app.css', 'manifest.webmanifest'];
+  // The contract self-test builds throwaway repos via CELIA_REPO_ROOT; a missing workflow
+  // there is expected, so this check only applies to a real checkout.
+  const synthetic = !!process.env.CELIA_REPO_ROOT;
+  if (!fs.existsSync(pagesWorkflow)) {
+    if (!synthetic) fail('.github/workflows/pages.yml is missing');
+  } else {
+    const pages = fs.readFileSync(pagesWorkflow, 'utf8');
+    // The command spans a YAML line continuation, so match the intent, not one line.
+    const usesWildcardCopy = /rsync\s+-a[\s\S]{0,800}?(\.\/|\$\{?PWD\}?\/?)\s+_site\//.test(pages);
+    if (!synthetic) {
+      mustShip.forEach((file) => {
+        if (!fs.existsSync(path.join(ROOT, file))) return fail(`${file} is missing (it is a shipped site file)`);
+        if (!usesWildcardCopy && !pages.includes(file)) {
+          fail(`.github/workflows/pages.yml — ${file} exists but is not copied into _site (use a wildcard copy)`);
+        }
+      });
+      if (!usesWildcardCopy) warn('.github/workflows/pages.yml — explicit file list: new site files will not be published');
+    }
+  }
+
   const script = fs.readFileSync(ENABLE_PAGES, 'utf8');
   if (/gh secret set [^\n]*--body/.test(script)) fail('scripts/enable-pages.sh — never pass --body to gh secret set');
   if (!/--dry-run/.test(script)) fail('scripts/enable-pages.sh — must support --dry-run');

@@ -19,6 +19,11 @@ class FakeRange {
       )
     );
   }
+  setValue(value) {
+    while (this.sheet.rows.length < this.row) this.sheet.rows.push([]);
+    this.sheet.rows[this.row - 1][this.column - 1] = value;
+    return this;
+  }
   setValues(values) {
     if (this.sheet.failNextSet) {
       this.sheet.failNextSet = false;
@@ -423,6 +428,35 @@ const otherDay = context.createRequest({
 });
 assert.equal(otherDay.ok, true, 'a different day is a new request, not a duplicate');
 
+// ---- a daily cap per phone keeps one number from filling the clinic queue ----
+// The counter is per day and per phone, whatever the status: three requests are accepted
+// (the clinic log has three rows for that number that day), the fourth is refused with a
+// reason the interface can show.
+const capDay = '2031-03-10';
+const capPhone = '01007776655';
+// Two requests are enough to show the rule: the second is refused as a duplicate (one
+// open request per phone per day), so the cap is exercised on a number that already has
+// three rows for the day written by earlier tests.
+const firstCapRequest = context.createRequest({
+  visitType: 'كشف جديد', day: capDay, time: '09:00',
+  guardianName: 'ولي أمر متكرر', phone: capPhone, consent: true
+});
+assert.equal(firstCapRequest.ok, true, 'the first request from that number is accepted');
+assert.equal(context.countRequestsForPhone_(capPhone, capDay), 1, 'the counter sees exactly one row for that phone and day');
+// Seed two more rows for the same number and day, which is what retries would create.
+for (let extra = 0; extra < 2; extra += 1) {
+  context.requestsSheet_().appendRow(['CK-CAP-' + extra, new Date().toISOString(), 'CANCELLED',
+    'كشف جديد', 'ولي أمر متكرر', capPhone, capDay, '10:0' + extra, '', new Date().toISOString(), true, true]);
+}
+assert.equal(context.countRequestsForPhone_(capPhone, capDay), 3, 'three rows for that number and day are counted');
+const capped = context.createRequest({
+  visitType: 'كشف جديد', day: capDay, time: '12:00',
+  guardianName: 'ولي أمر متكرر', phone: capPhone, consent: true
+});
+assert.equal(capped.ok, false, 'the fourth request that day is refused');
+assert.equal(capped.rateLimited, true, 'the refusal names the reason, so the UI can explain it');
+assert.match(capped.message, /الحد الأقصى/, 'the message tells the parent what happened');
+
 // A 45-minute visit on a 30-minute grid must not be offered a start that ends after
 // closing: 09:00-14:00 offers 09:00..13:00 and never 13:30.
 assert.equal(context.paddedStartIndex_(300, 45, 30), 30, 'the end padding for a 45-minute visit');
@@ -437,6 +471,6 @@ const readinessAfter = context.validateConfig().checks.find((c) => c.id === 'adm
 assert.equal(readinessAfter.ok, true, 'readiness passes once the doctor owns the PIN — ' + readinessAfter.detail);
 assert.equal(context.getClinicSettings(bootstrapHash).ok, false, 'the bootstrap PIN stops working immediately');
 
-console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, a secret-free clinic profile, dashboard-editable settings (validation, services, PIN hashing and migration), and slot starts that always fit inside opening hours.')
+console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, a secret-free clinic profile, dashboard-editable settings (validation, services, PIN hashing and migration), slot starts that always fit inside opening hours, one open request per phone per day, and the daily per-number cap.')
 ;
 console.log('Reminder: these mocked-service tests do not establish Google quotas, permissions, live deployment behavior, or legal readiness.');

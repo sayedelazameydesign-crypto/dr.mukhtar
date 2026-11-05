@@ -19,6 +19,7 @@ const CK = {
   // Never ship a literal staff credential: the first run generates a random PIN,
   // prints it once, and the dashboard insists it is replaced (see Settings.gs).
   MUST_CHANGE_FLAG: 'CK_MUST_CHANGE_PIN',
+  MAX_REQUESTS_PER_PHONE_DAY: 3,
   MAX_OUTAGE_REQUESTS: 25,
   MAX_OUTAGE_AUDITS: 100
 };
@@ -243,12 +244,45 @@ function findOpenDuplicate_(phone, day) {
   }
 }
 
+/**
+ * How many requests this phone already sent for this clinic day. Covers the case where a
+ * parent retries with a different time on purpose: the duplicate rule allows a new day but
+ * this stops one number from filling the clinic's queue.
+ */
+function countRequestsForPhone_(phone, day) {
+  const wanted = digits_(phone);
+  if (wanted.length < 8) return 0;
+  try {
+    const values = requestsSheet_().getDataRange().getValues();
+    if (values.length < 2) return 0;
+    const head = values[0].map(function (cell) { return String(cell); });
+    const iPhone = head.indexOf('phone');
+    const iDay = head.indexOf('day');
+    if (iPhone < 0 || iDay < 0) return 0;
+    let count = 0;
+    for (let row = 1; row < values.length; row += 1) {
+      if (String(values[row][iDay]) !== String(day)) continue;
+      if (digits_(values[row][iPhone]) === wanted) count += 1;
+    }
+    return count;
+  } catch (error) {
+    return 0; // never block intake because the counter failed
+  }
+}
+
 /** Public intake: creates a pending request, never a Calendar event. */
 function createRequest(payload) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return { ok: false, message: 'هناك طلب آخر قيد المعالجة. حاولوا مرة أخرى بعد لحظات.' };
   try {
     const clean = validateRequest_(payload);
+    if (countRequestsForPhone_(clean.phone, clean.day) >= CK.MAX_REQUESTS_PER_PHONE_DAY) {
+      return {
+        ok: false,
+        rateLimited: true,
+        message: 'وصلتم إلى الحد الأقصى للطلبات لهذا اليوم من هذا الرقم. تواصلوا مع العيادة هاتفيًا لتعديل موعدكم.'
+      };
+    }
     const duplicate = findOpenDuplicate_(clean.phone, clean.day);
     if (duplicate) {
       return {
