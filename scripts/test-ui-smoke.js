@@ -75,7 +75,10 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   check('no model provider named on the page', !/Gemini/i.test(pageText));
   check('medical disclaimer present', /لا يشخّص/.test(pageText));
   // ---- never invent a physician's credentials ----
-  check('licence stays a placeholder until the clinic fills it', ['—', ''].includes($('[data-config="license"]').textContent.trim()), $('[data-config="license"]').textContent.trim());
+  check('licence stays unpublished until the clinic fills it', ['غير منشور', '—', ''].includes($('[data-config="license"]').textContent.trim()), $('[data-config="license"]').textContent.trim());
+  check('unverified licence is labelled as such', /لم يُتحقق/.test($('[data-license-state]').textContent) && $('.doctor-card').dataset.licenseVerified === 'false');
+  check('opening hours are derived, not hardcoded', /الأحد – الخميس/.test($('[data-config="hours"]').textContent) && /٩:٠٠ ص/.test($('[data-config="hours"]').textContent), $('[data-config="hours"]').textContent);
+  check('structured data carries no hardcoded schedule', !/openingHoursSpecification/.test($('script[type="application/ld+json"]').textContent));
   check('phone stays a placeholder until the clinic fills it', /إعداد العيادة/.test($('[data-config="phone"]').textContent));
   check('no fabricated syndicate/licence number', !/\d{4,}/.test($('.doctor-facts').textContent.replace(/[٠-٩]/g, '')), 'a long number appeared in the doctor card');
 
