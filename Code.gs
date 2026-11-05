@@ -51,6 +51,32 @@ function putAvailableSlotsCached_(day, visitType, slots) {
   } catch (error) { /* cache is best-effort; availability is re-verified on write */ }
 }
 
+/**
+ * Drop the cached availability for a single clinic day.
+ *
+ * Every staff action that changes what is bookable (approve, move, cancel, close a day)
+ * invalidates only the days it touched. The 30-second cache exists to spare the Calendar
+ * read quota, never to keep selling a time that has just been taken: the previous code
+ * invalidated the cache on a settings change only, so a guardian could be shown, and
+ * could pick, a slot that a staff approval had consumed seconds earlier.
+ */
+function invalidateSlotCacheFor_(day) {
+  if (typeof CacheService === 'undefined') return;
+  const value = String(day || '');
+  // Only a real clinic day narrows the list; an unknown value falls back to everything.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) { invalidateSlotCache_(); return; }
+  try {
+    const cache = CacheService.getScriptCache();
+    const keys = [];
+    clinicServices_().forEach(function (service) { keys.push('CK_SLOTS_' + value + '_' + service.label); });
+    // The label a guardian actually requested may differ in whitespace from the catalog;
+    // the default service is always cached under its catalogue label, and unknown labels
+    // were never cached, so the catalog list is the complete set of keys for one day.
+    if (typeof cache.removeAll === 'function') cache.removeAll(keys);
+    else keys.forEach(function (key) { cache.remove(key); });
+  } catch (error) { /* cache is best effort; every write re-verifies availability */ }
+}
+
 /** Drop every cached availability entry (the key prefix embeds the day + service). */
 function invalidateSlotCache_() {
   if (typeof CacheService === 'undefined') return;
@@ -430,9 +456,12 @@ function approveRequest(reference, pin) {
     record.updatedAt = new Date().toISOString();
     updateRequestRow_(located.row, record);
     logEvent_('info', 'appointment_confirmed', { has_event: !!record.eventId });
-    const auditStored = auditBestEffort_(record.reference, 'staff', 'APPROVED_AND_SAVED', oldStatus, 'CONFIRMED', 'calendar event id stored');
+    const auditStored = auditBestEffort_(record.reference, staffActor_(), 'APPROVED_AND_SAVED', oldStatus, 'CONFIRMED', 'calendar event id stored');
     // Optional notice, OFF by default (WHATSAPP_MODE). Guarded twice (adapter present, and
     // adapter throwing) so it can never change the outcome of an already-saved appointment.
+    // The 30-second read cache is now wrong for this day: it still offers a time the
+    // calendar has just taken. A guardian could be shown a slot that is already sold.
+    invalidateSlotCacheFor_(record.day);
     notifyWhatsapp_('confirmation', record);
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم حفظ الموعد لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) {
@@ -455,7 +484,10 @@ function proposeAlternative(reference, day, time, pin) {
     const oldStatus = record.status;
     record.day = day; record.time = time; record.status = 'RESCHEDULED'; record.slotVerified = true; record.updatedAt = new Date().toISOString();
     updateRequestRow_(located.row, record);
-    const auditStored = auditBestEffort_(record.reference, 'staff', 'ALTERNATIVE_PROPOSED', oldStatus, 'RESCHEDULED', day + ' ' + time);
+    // A proposal reserves nothing in Calendar, but the slot list must stop advertising the
+    // time the clinic has just offered, otherwise the phone will show it as still open.
+    invalidateSlotCacheFor_(day);
+    const auditStored = auditBestEffort_(record.reference, staffActor_(), 'ALTERNATIVE_PROPOSED', oldStatus, 'RESCHEDULED', day + ' ' + time);
     return { ok: true, booking: publicBooking_(record), message: 'تم تسجيل الاقتراح فقط؛ لم يُنشأ حدث ولم يتأكد الموعد.', warning: auditStored ? '' : 'تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) { return { ok: false, message: error.message || 'تعذر تسجيل الوقت البديل.' }; }
   finally { lock.releaseLock(); }
@@ -477,9 +509,11 @@ function moveConfirmedAppointment(reference, day, time, reason, pin) {
     const oldDay = record.day; const oldTime = record.time;
     const start = makeDate_(day, time); const end = new Date(start.getTime() + visitDuration_(record.visitType) * 60000);
     event.setTime(start, end);
+    invalidateSlotCacheFor_(oldDay);
+    invalidateSlotCacheFor_(day);
     record.day = day; record.time = time; record.updatedAt = new Date().toISOString();
     updateRequestRow_(located.row, record);
-    const auditStored = auditBestEffort_(record.reference, 'staff', 'CONFIRMED_APPOINTMENT_MOVED', 'CONFIRMED', 'CONFIRMED', `${oldDay} ${oldTime} -> ${day} ${time}; ${String(reason || '').slice(0, 80)}`);
+    const auditStored = auditBestEffort_(record.reference, staffActor_(), 'CONFIRMED_APPOINTMENT_MOVED', 'CONFIRMED', 'CONFIRMED', `${oldDay} ${oldTime} -> ${day} ${time}; ${String(reason || '').slice(0, 80)}`);
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم تحديث الموعد لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) { return { ok: false, message: error.message || 'تعذر تعديل الموعد.' }; }
   finally { lock.releaseLock(); }
@@ -502,7 +536,9 @@ function cancelRequest(reference, reason, pin) {
     record.status = 'CANCELLED'; record.updatedAt = new Date().toISOString();
     updateRequestRow_(located.row, record);
     logEvent_('info', 'appointment_cancelled', { from_status: oldStatus });
-    const auditStored = auditBestEffort_(record.reference, 'staff', 'CANCELLED', oldStatus, 'CANCELLED', String(reason || '').slice(0, 100));
+    const auditStored = auditBestEffort_(record.reference, staffActor_(), 'CANCELLED', oldStatus, 'CANCELLED', String(reason || '').slice(0, 100));
+    // The freed time must be bookable now, not after the cache expires.
+    invalidateSlotCacheFor_(record.day);
     notifyWhatsapp_('cancellation', record);
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم الإلغاء لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) { return { ok: false, message: error.message || 'تعذر إلغاء الطلب.' }; }
@@ -520,7 +556,7 @@ function completeRequest(reference, pin) {
     if (record.status !== 'CONFIRMED') return { ok: false, message: 'يمكن إكمال زيارة مؤكدة فقط.' };
     record.status = 'COMPLETED'; record.updatedAt = new Date().toISOString();
     updateRequestRow_(located.row, record);
-    const auditStored = auditBestEffort_(record.reference, 'staff', 'VISIT_COMPLETED', 'CONFIRMED', 'COMPLETED', '');
+    const auditStored = auditBestEffort_(record.reference, staffActor_(), 'VISIT_COMPLETED', 'CONFIRMED', 'COMPLETED', '');
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم تحديث الحالة لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) { return { ok: false, message: error.message || 'تعذر تحديث حالة الزيارة.' }; }
   finally { lock.releaseLock(); }
@@ -535,7 +571,10 @@ function closeDay(day, label, pin) {
     const sheet = closuresSheet_();
     const existing = readClosures_().some((item) => item.day === day && item.start === '' && item.end === '');
     if (!existing) sheet.appendRow([day, '', '', String(label || 'إغلاق يوم').slice(0, 80), new Date().toISOString()]);
-    const auditStored = auditBestEffort_('', 'staff', 'DAY_CLOSED', '', '', day + ' ' + String(label || '').slice(0, 80));
+    const auditStored = auditBestEffort_('', staffActor_(), 'DAY_CLOSED', '', '', day + ' ' + String(label || '').slice(0, 80));
+    // Without this the closed day kept offering its slots for up to 30 seconds, and the
+    // guardian met an error only after choosing a time the clinic had just closed.
+    invalidateSlotCacheFor_(day);
     return { ok: true, warning: auditStored ? '' : 'تم إغلاق اليوم لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) { return { ok: false, message: error.message || 'تعذر تسجيل الإغلاق.' }; }
   finally { lock.releaseLock(); }

@@ -1,6 +1,6 @@
 # Architecture — Celia Kids
 
-> `project-map.md` @ 339516d · twin: `docs/map/project.json` (85 nodes · 57 edges, evidence + confidence)
+> `project-map.md` · twin: `docs/map/project.json` (111 nodes · 75 edges, evidence + confidence; counts are the twin's, not a typed number that drifts)
 ## 1. What it is (L0)
 
 - Arabic (RTL) booking-intake site for **one** paediatric clinic. Principle: **a request is not a confirmation**.
@@ -120,8 +120,10 @@ One boundary: `scripts/google/gateway.js` (`LocalAdapter` default, `GoogleAdapte
 The account is a **profile** (`config/google.profile.<name>.json`, git-ignored) chosen by `GOOGLE_PROFILE`, token name derived (`GOOGLE_REFRESH_TOKEN_<PROFILE>`); no email, raw id or account name in code. Profile now: `dev`, dev/test only. Swap: `docs/google-setup.md` §4, zero code changes.
 ## 8. Conventions found
 
-- One bridge: `api()` → `callServer()` (`app.js:110`); backend is 11 flat functions — no REST, no CORS surface.
-- Every write: `tryLock(25000)` → status guard → re-check availability → mutate → audit. Config over code; invalid config fails loudly.
+- One bridge: `api()` → `callServer()` → `withDeadline()` (`app.js`); every call has a 45 s deadline (`window.CELIA_CALL_TIMEOUT_MS`), and a timed-out write is ambiguous by design: the UI says so and staff screens re-read the dashboard instead of trusting the stale view.
+- Every write: `tryLock(25000)` → status guard → re-check availability → mutate → audit → `invalidateSlotCacheFor_(day)`. Config over code; invalid config fails loudly.
+- The 30 s availability cache is a quota shield only: any staff action that changes what is bookable drops that day's keys, and approval always re-reads Calendar.
+- Staff gate: constant-time PIN check behind a cache-backed attempt limit (`staffPinFailure_`); audit actor is `staff:<signed-in account>`.
 - Dependency-free tests (`assert`, `vm` stubs); jsdom ad hoc, never declared. Arabic UI, non-medical, Arabic-Indic numerals.
 ## 9. Top 10 gaps
 
@@ -130,16 +132,14 @@ The account is a **profile** (`config/google.profile.<name>.json`, git-ignored) 
 | G1 | high | Backend never ran in a real Google account; Sheets/Calendar/locks/audit only vm-simulated. |
 | G2 | high | `main` unprotected, 0 secrets, 0 variables — declared setup never applied. |
 | G3 | high | `GEMINI_TIMEOUT_MS` read at `Llm.gs:113`, absent from `config/clinic.example.json` → unprevalidated. |
-| G4 | med | 8 `CELIA_*` mirrors unused; two names for one setting. |
-| G5 | med | Availability rule duplicated: `app.js:121-145` vs `Code.gs:134-158`. |
-| G6 | med | Root `build-gas-package.py` is dead: `parents[1]` leaves the repo and it matches `./app.css` without `?v=2026`. |
-| G7 | med | Foreign files: `app.config.ts`, `manus-routes.json`, `SKILL.md`, two `2026-11-04_*.txt` dumps, a PNG. |
-| G8 | med | Those dumps are another environment's transcript (connector inventory, a UUID); no secret value found. |
-| G9 | med | `GROQ_API_KEY` declared-but-unused, while the manifest forbids wiring it early. |
-| G10 | low | jsdom suites exit 0 when jsdom is absent → CI could silently lose UI coverage. |
+| G4–G9 | med | Closed: `CELIA_*` mirrors documented, availability parity gate, dead root build script removed, foreign files gone, `GROQ_API_KEY` declared-only on purpose. |
+| G10–G13 | low | Closed: jsdom absence fails the suite, demo PIN hint is demo-only, docs drift fixed, actionlint/gitleaks are pinned and fatal now. |
 | G14 | med | Google bridge code-complete but never bootstrapped on a real account. |
+| G15 | high | Availability cache survived staff actions: an approved, moved or closed time stayed on offer for up to 30 s. Fixed (`invalidateSlotCacheFor_`). |
+| G16 | high | Staff PIN gate answered wrong PINs forever. Fixed (5 failures → 15-minute lock in the script cache). |
+| G17 | med | Audit rows said only "staff". Fixed (`staffActor_()` records the signed-in account). |
 
-Full evidence, plus G11–G13 (low): `docs/map/gaps.json`.
+Open gaps are G1, G2 and G14; the rest are closed with evidence. Full list: `docs/map/gaps.json`.
 ## 10. Glossary
 
 - **Request** → `PENDING_APPROVAL`; **approval** creates the Calendar event and flips it to `CONFIRMED`.

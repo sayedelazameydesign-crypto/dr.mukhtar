@@ -25,6 +25,11 @@
 const CK_SETTINGS_VERSION = 1;
 const CK_MAX_SERVICES = 6;
 const CK_MIN_PIN_LENGTH = 16;
+// A stolen browser that keeps guessing is the realistic threat here: the PIN is long,
+// but an unbounded endpoint turns a long PIN into a matter of patience. Locking for
+// minutes (not seconds) keeps a human owner unaffected and makes guessing useless.
+const CK_PIN_MAX_FAILURES = 5;
+const CK_PIN_LOCK_SECONDS = 900;
 
 /** The single source of truth for what an owner can edit in the UI. */
 const CK_SETTINGS_CATALOG = [
@@ -132,16 +137,87 @@ function staffPinState_() {
 function verifyStaffPin_(candidate) {
   const value = String(candidate || '');
   if (!value) return false;
+  if (staffPinLocked_()) {
+    // Logged without the candidate: a lockout must never become a way to test a PIN.
+    logEvent_('warn', 'staff_pin_locked', { window_s: CK_PIN_LOCK_SECONDS });
+    return false;
+  }
   const state = staffPinState_();
   if (!state.configured) return false;
   if (state.hashed) {
     const hash = isPinHash_(value) ? value.toLowerCase() : pinHash_(value);
-    return constantTimeEquals_(hash, String(PropertiesService.getScriptProperties().getProperty('ADMIN_PIN_HASH')).toLowerCase());
+    const stored = String(PropertiesService.getScriptProperties().getProperty('ADMIN_PIN_HASH')).toLowerCase();
+    if (!constantTimeEquals_(hash, stored)) { staffPinFailure_(); return false; }
+    staffPinSuccess_();
+    return true;
   }
-  if (!constantTimeEquals_(value, state.legacy)) return false;
+  if (!constantTimeEquals_(value, state.legacy)) { staffPinFailure_(); return false; }
+  staffPinSuccess_();
   migrateLegacyPin_(state.legacy);
   return true;
 }
+
+/* ------------------------------------------------- staff PIN attempt limit ---- */
+
+/**
+ * Is the staff gate in a cooling-off window after repeated wrong PINs?
+ *
+ * CacheService is per-script and shared by every user of the web app, which is
+ * exactly the scope the limit needs. It is deliberately best-effort: if the cache
+ * is unavailable the clinic is not locked out by a storage problem, and the
+ * decision is simply "not locked" (the PIN itself is still verified).
+ */
+function staffPinLocked_() {
+  if (typeof CacheService === 'undefined') return false;
+  try { return !!CacheService.getScriptCache().get('CK_PIN_LOCKED'); }
+  catch (error) { return false; }
+}
+
+/** Count a failure and arm the lock once the threshold is reached. */
+function staffPinFailure_() {
+  if (typeof CacheService === 'undefined') return;
+  try {
+    const cache = CacheService.getScriptCache();
+    const used = Number(cache.get('CK_PIN_FAILURES') || 0) + 1;
+    // The counter lives as long as the lock does; a slow guesser cannot outlive it.
+    cache.put('CK_PIN_FAILURES', String(used), CK_PIN_LOCK_SECONDS);
+    if (used >= CK_PIN_MAX_FAILURES) {
+      cache.put('CK_PIN_LOCKED', '1', CK_PIN_LOCK_SECONDS);
+      cache.remove('CK_PIN_FAILURES');
+      logEvent_('warn', 'staff_pin_lock_armed', { failures: used, window_s: CK_PIN_LOCK_SECONDS });
+    }
+  } catch (error) { /* best effort: a cache failure must not block a real login */ }
+}
+
+/** A successful login clears the counter so a typo never accumulates into a lock. */
+function staffPinSuccess_() {
+  if (typeof CacheService === 'undefined') return;
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove('CK_PIN_FAILURES');
+    cache.remove('CK_PIN_LOCKED');
+  } catch (error) { /* best effort */ }
+}
+
+/** Non-secret state for the dashboard and the readiness check. */
+function staffPinLockState_() {
+  return { locked: staffPinLocked_(), maxFailures: CK_PIN_MAX_FAILURES, lockSeconds: CK_PIN_LOCK_SECONDS };
+}
+
+/**
+ * The audit trail says "staff". With one shared PIN that is all it can say, so the
+ * evidence needed after a mistake ("who confirmed this?") does not exist. Apps Script
+ * exposes the signed-in account of whoever runs the web app, so the audit row records
+ * it. It is actor identity only: no email is rendered to a guardian, and a failure to
+ * read it must never block an action.
+ */
+function staffActor_() {
+  try {
+    const email = Session.getActiveUser().getEmail();
+    return email ? 'staff:' + String(email).toLowerCase().slice(0, 120) : 'staff';
+  } catch (error) { return 'staff'; }
+}
+
 
 /** Replace a legacy plain PIN with its hash (one-way; the plain value is deleted). */
 function migrateLegacyPin_(plain) {
@@ -322,7 +398,7 @@ function saveClinicSettings(payload, pin) {
     });
     if (!changed.length) return { ok: false, message: 'لا يوجد تغيير للحفظ.' };
     dropSettingsCaches_();
-    const auditStored = auditBestEffort_('', 'staff', 'SETTINGS_UPDATED', '', '',
+    const auditStored = auditBestEffort_('', staffActor_(), 'SETTINGS_UPDATED', '', '',
       String(payload && payload.reason || 'تعديل من لوحة العيادة').slice(0, 60) + ' | ' + changed.join(' ; ').slice(0, 500));
     const settings = getClinicSettings(pin);
     return {
@@ -437,7 +513,7 @@ function saveStaffPin(currentPin, newPin, pin) {
   props.deleteProperty('ADMIN_PIN');
   props.deleteProperty('CK_MUST_CHANGE_PIN');
   invalidateSlotCache_();
-  const auditStored = auditBestEffort_('', 'staff', 'STAFF_PIN_CHANGED', '', '', 'updated from the clinic dashboard');
+  const auditStored = auditBestEffort_('', staffActor_(), 'STAFF_PIN_CHANGED', '', '', 'updated from the clinic dashboard');
   return { ok: true, warning: auditStored ? '' : 'تم تغيير الرمز لكن تعذر تسجيله في سجل التدقيق.' };
 }
 
@@ -455,7 +531,7 @@ function resetClinicSettings(groupKey, pin) {
   if (!targetKeys.length) return { ok: false, message: 'لا يوجد ما يُستعاد.' };
   targetKeys.forEach(function (key) { props.deleteProperty(key); });
   dropSettingsCaches_();
-  const auditStored = auditBestEffort_('', 'staff', 'SETTINGS_RESET', '', '', groupKey || 'all');
+  const auditStored = auditBestEffort_('', staffActor_(), 'SETTINGS_RESET', '', '', groupKey || 'all');
   const settings = getClinicSettings(pin);
   return {
     ok: true,

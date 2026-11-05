@@ -338,6 +338,74 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   await wait(60);
   check('booking view restored', !$('#bookingView').hidden && $('#staffView').hidden);
 
+  // ---- the freeze guard: a server call that never answers must not end the screen ----
+  // In Apps Script mode a queued or hung call used to leave the submit button disabled and
+  // the spinner running forever: a "sudden stop" with no message and no way back. The
+  // wrapper (withDeadline in app.js) is the only thing between the browser and a dead UI,
+  // so this block reproduces a hang and observes the recovery instead of trusting a regex.
+  {
+    // One DOM instance only: `google.script.run` must exist before the page script runs,
+    // otherwise a demo instance would answer first and the GAS path would never be seen.
+    const bridge = new JSDOM(document_, {
+      url: 'https://celia.test/',
+      runScripts: 'dangerously',
+      pretendToBeVisual: true,
+      beforeParse(window) {
+        window.scrollTo = () => {};
+        window.HTMLElement.prototype.scrollIntoView = () => {};
+        window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+        // The real knob (app.js also clamps it to a 1 s floor); the shipped value is 45 s.
+        window.CELIA_CALL_TIMEOUT_MS = 1000;
+        const calls = [];
+        const hang = { calls };
+        ['withSuccessHandler', 'withFailureHandler'].forEach((name) => { hang[name] = () => hang; });
+        ['createRequest', 'getDashboard', 'getAvailableSlots', 'getClinicProfile', 'lookupBooking'].forEach((name) => {
+          hang[name] = (...args) => { calls.push(name); };
+        });
+        window.google = { script: { run: hang } };
+        window.addEventListener('error', (event) => problems.push(`bridge script error: ${event.message}`));
+      }
+    });
+    const win = bridge.window;
+    const doc = win.document;
+    const calls = win.google.script.run.calls;
+    // Past the deadine: the initial slot read must have given up by now.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    // A read that hangs must land on the documented fallback, not on a spinner.
+    check('a hung slot read falls back instead of spinning',
+      doc.querySelector('#availabilityNote').hidden === false,
+      'the availability note did not appear after the deadline');
+
+    doc.querySelector('#guardianName').value = 'ولي أمر تجريبي';
+    doc.querySelector('#phone').value = '01000000000';
+    doc.querySelector('#consent').checked = true;
+    const slot = doc.querySelector('#slotsGrid .slot-button');
+    if (slot) slot.click();
+    const submitButton = doc.querySelector('#submitBooking');
+    const submitLabel = submitButton.querySelector('span');
+    doc.querySelector('#bookingForm').dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    check('the page really called the Apps Script runner', calls.length > 0,
+      'no server method was invoked, so the freeze behaviour was never exercised');
+    check('the submit button waits while the call is in flight', submitButton.disabled === true,
+      'the button was never disabled, so the recovery below would prove nothing');
+    // ... and after the deadline it must come back, with an honest message.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    check('a hung submission releases its button', submitButton.disabled === false,
+      'the submit button stayed disabled after the deadline — the freeze is back');
+    check('the submit label is restored', submitLabel.textContent.includes('إرسال'),
+      `the label stayed on: ${submitLabel.textContent}`);
+    check('the guardian is told what happened', /لم يصل ردّ الخادم/.test(doc.querySelector('#toast').textContent),
+      `toast said: ${doc.querySelector('#toast').textContent}`);
+    check('the wait is not silent: a slot read that timed out is announced', /لم يصل ردّ الخادم/.test(doc.querySelector('#availabilityNote').textContent + doc.querySelector('#toast').textContent),
+      'no message mentions the missed server response');
+    check('staff actions reconcile after a timeout instead of trusting a stale screen',
+      /error\.code === 'TIMEOUT'\) await refreshDashboard\(\)/.test(js),
+      'staffAction no longer re-reads the dashboard after a timeout');
+    win.close();
+  }
+
   check('no runtime errors', problems.length === 0, problems.join(' | '));
   check('reveal enhancement only hides when the script opted in',
     document.documentElement.classList.contains('js-reveal-ready')

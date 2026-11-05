@@ -55,7 +55,7 @@
 
 | الإجمالي | مغلق | مفتوح |
 | --- | --- | --- |
-| **14** | **11** | **3** (G1) (G2) (G14) |
+| **18** | **15** | **3** (G1) (G2) (G14) |
 
 | Gap | Type | Severity | Status | Evidence / closure |
 | --- | --- | --- | --- | --- |
@@ -73,6 +73,10 @@
 | G12 | docs_drift | low | **resolved** | AGENTS.md now points at the ci.yml step list instead of a script count; README.md file tree lists scripts/ and the readiness matrix |
 | G13 | ci_coverage | low | **resolved** | ci.yml pins actionlint 1.7.7 via download-actionlint.bash and fails if it cannot run; browser tests exit 1 when jsdom is missing unless CELIA_ALLOW_SKIP_UI=1 |
 | G14 | unverified_integration | med | **OPEN** | config/google.profile.json absent; config/google.profile.example.json layout ids all null; no live run recorded |
+| G15 | unsafe_default_behaviour | high | **resolved** | scripts/test-gas-simulated.js primes the cache before the first approval, then asserts the approved/moved-to/closed times vanish and the freed times return; with invalidateSlotCacheFor_ stubbed out the suite fails on 'the approved time disappears from the cached slot list, not only from Calendar' |
+| G16 | missing_abuse_control | high | **resolved** | Script cache counter with a 5-failure / 15-minute lock, shared across executions; test-gas-simulated.js asserts four typos do not lock, the fifth does, the correct PIN is refused while locked, the window clears, and a good login resets the counter. Removing the lock check fails the suite. |
+| G17 | unattributable_audit | med | **resolved** | staffActor_() records the signed-in account as staff:<email> (lower-cased), degrades to 'staff' when the account cannot be resolved, and the public clinic profile is asserted to carry no email; test-gas-simulated.js checks both branches. |
+| G18 | unbounded_wait | high | **resolved** | scripts/test-ui-smoke.js drives a real Apps Script-shaped runner whose callback never fires: the slot read falls back to the documented preference list, the submit button returns to enabled with its label restored, and the toast says the response did not arrive. Removing the wrapper (mutation) fails 4 assertions. |
 
 ## نتيجة تشغيل التقرير
 
