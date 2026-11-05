@@ -97,9 +97,11 @@ jobs:
           token: ${{ secrets.PAGES_TOKEN }}
 
       # Metadata only: needs no existing site, so a PR build stays meaningful.
-      # PR-only: metadata without requiring an existing site (no pages write in a PR).
-      - name: Configure Pages (metadata)
-        if: ${{ github.event_name == 'pull_request' }}
+      # configure-pages fails outright when the repository has no Pages site —
+      # verified on a PR too — so it never runs there. A PR proves the build
+      # (assembly, simulation, adapter, bundle, artifact) and stops.
+      - name: Configure Pages
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
