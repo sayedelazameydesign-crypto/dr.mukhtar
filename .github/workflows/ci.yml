@@ -147,7 +147,7 @@ jobs:
       - name: Secret scan (built-in, always on)
         run: node scripts/scan-secrets.js
 
-      - name: Secret scan (gitleaks, pinned; skipped if the download fails)
+      - name: Secret scan (gitleaks, pinned; fails if it cannot run)
         env:
           GITLEAKS_VERSION: 8.30.1
         run: |
