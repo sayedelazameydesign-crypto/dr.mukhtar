@@ -537,3 +537,8 @@ svg{display:block}
 .onboarding-missing{margin-top:4px!important;color:#7a5c1e;font-size:12px!important}
 .onboarding-banner .secondary-button,.onboarding-banner .link-button{flex:none;align-self:center}
 @media (max-width:640px){.onboarding-banner{flex-wrap:wrap}.onboarding-banner .secondary-button,.onboarding-banner .link-button{width:100%}}
+
+/* A configured clinic phone is a tap target, never plain text on a phone-sized screen. */
+.phone-link{color:var(--teal);font-weight:600;text-decoration:none;border-bottom:1px solid rgba(14,111,97,.28);unicode-bidi:isolate}
+.phone-link:hover,.phone-link:focus-visible{color:var(--ink);border-bottom-color:currentColor}
+.phone-link::before{content:'';display:inline-block;width:4px;height:4px;margin-inline-end:6px;border-radius:50%;background:currentColor;vertical-align:middle}
