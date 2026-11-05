@@ -229,6 +229,32 @@ assert.equal(auditCapacityWarning.ok, true, 'appointment state write is not misr
 assert.match(auditCapacityWarning.warning, /تعذر حفظ سجل التدقيق/, 'unrecorded audit is explicitly reported');
 auditUp = true;
 
+// Public clinic profile: display-only, and an unset licence stays explicitly unverified.
+const defaultProfile = context.getClinicProfile();
+assert.equal(defaultProfile.ok, true);
+assert.equal(defaultProfile.licenseVerified, false, 'no licence number is invented');
+assert.equal(defaultProfile.license, '', 'an empty licence is reported as empty');
+assert.match(defaultProfile.hours, /٩:٠٠ ص/, 'hours are rendered from WORK_START, not hardcoded');
+// A non-consecutive working week must be listed by name, never claimed as a range.
+assert.equal(context.formatClinicHours_({ workDays: [6, 0, 1], weekendDays: [2, 3], start: '10:30', end: '18:00' }),
+  'الأحد، الاثنين، السبت · ١٠:٣٠ ص – ٦:٠٠ م · الثلاثاء والأربعاء مغلقان');
+assert.equal(context.formatClinicHours_({ workDays: [1], weekendDays: [], start: '09:00', end: '12:00' }),
+  'الاثنين · ٩:٠٠ ص – ١٢:٠٠ م');
+assert.equal(context.formatClinicHours_({ workDays: [0, 1, 2, 3, 4], weekendDays: [5, 6], start: '09:00', end: '14:00' }),
+  'الأحد – الخميس · ٩:٠٠ ص – ٢:٠٠ م · الجمعة والسبت مغلقان');
+assert.equal(properties.getProperty('DOCTOR_LICENSE'), null, 'the fixture never seeds a licence');
+properties.setProperty('DOCTOR_NAME', 'د. اسم تجريبي');
+properties.setProperty('DOCTOR_LICENSE', 'EG-TEST-0001');
+properties.setProperty('CLINIC_ADDRESS', 'عنوان تجريبي');
+const filledProfile = context.getClinicProfile();
+assert.equal(filledProfile.doctorName, 'د. اسم تجريبي');
+assert.equal(filledProfile.licenseVerified, true);
+assert.equal(filledProfile.address, 'عنوان تجريبي');
+assert.equal(Object.keys(filledProfile).some((key) => /pin|key|token/i.test(key)), false, 'the public profile carries no secrets');
+properties.setProperty('DOCTOR_NAME', '');
+properties.setProperty('DOCTOR_LICENSE', '');
+properties.setProperty('CLINIC_ADDRESS', '');
+
 // A closed day must disappear from the guardian's availability, not just from the dashboard.
 const closureDay = nextWorkday();
 const beforeClosure = context.getAvailableSlots(closureDay, 'متابعة');
@@ -249,6 +275,6 @@ googleUp = false;
 const fullQueue = request('09:30', 'متابعة');
 assert.equal(fullQueue.ok, false, 'full queue rejects rather than falsely accepting');
 googleUp = true;
-console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, and closed days removed from availability.')
+console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, and a secret-free clinic profile.')
 ;
 console.log('Reminder: these mocked-service tests do not establish Google quotas, permissions, live deployment behavior, or legal readiness.');

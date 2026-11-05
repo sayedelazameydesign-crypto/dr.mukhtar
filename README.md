@@ -109,6 +109,9 @@ gh api -X POST repos/sayedelazameydesign-crypto/dr.mukhtar/pages -f source.branc
   (كشف جديد ٦٠ دقيقة، متابعة ٣٠ دقيقة) وتُبنى منها كل النصوص.
 - شريط التقدم مرتبط فعليًا بالحقول الثلاثة، وملخص الطلب يتحدّث مع كل اختيار.
 - رمز العرض `2468` لا يظهر إلا داخل شاشة دخول اللوحة في النسخة التجريبية.
+- **لا توجد بيانات طبيب مُختلقة**: رقم الترخيص يبقى «غير منشور / لم يُتحقق بعد» حتى يُضبط في
+  Script Properties، وساعات الدوام تُحسب من الإعداد (وترفض عرض مدى زمني إذا كانت أيام العمل
+  غير متتالية، حتى لا يُدّعى يوم عمل غير قائم).
 
 ## إعداد نسخة Google (مجانية)
 
@@ -131,7 +134,8 @@ gh api -X POST repos/sayedelazameydesign-crypto/dr.mukhtar/pages -f source.branc
    | `SLOT_MINUTES` | مثل `30`، و`NEW_VISIT_MINUTES` / `FOLLOWUP_MINUTES` اختياريان |
    | `WORK_DAYS` | `0,1,2,3,4` (الأحد `0`) |
    | `WEEKEND_DAYS` | `5,6` — تُستخدم في حساب الأيام المغلقة؛ لا تتقاطع مع `WORK_DAYS` |
-   | `CLINIC_NAME` / `CLINIC_PHONE` / `CLINIC_TIMELINE` | اختيارية؛ حقائق العيادة التي تظهر أعلى الصفحة. **لا تُكتب سيرة أو رقم ترخيص غير حقيقي** |
+   | `CLINIC_NAME` / `CLINIC_PHONE` / `CLINIC_ADDRESS` / `CLINIC_TIMELINE` | اختيارية؛ حقائق العيادة التي تظهر أعلى الصفحة. **لا تُكتب سيرة أو رقم ترخيص غير حقيقي** |
+   | `DOCTOR_NAME` / `DOCTOR_TITLE` / `DOCTOR_SUBSPECIALTY` / `DOCTOR_LICENSE` | اختيارية؛ هوية الطبيب. ساعات العرض تُبنى تلقائيًا من `WORK_START`/`WORK_END`/`WORK_DAYS`/`WEEKEND_DAYS`، وعند ترك `DOCTOR_LICENSE` فارغًا تعرض الصفحة «غير منشور» مع وسم «لم يُتحقق بعد» |
    | `CALENDAR_ID` | اختياري؛ وإلا يُنشأ تقويم `Celia Kids — عيادة الأطفال` |
    | `GEMINI_API_KEY` | اختياري، للأسئلة الإدارية فقط |
    | `GEMINI_MODEL` | افتراضي `gemini-2.5-flash` |

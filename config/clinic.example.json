@@ -168,6 +168,36 @@
       "required": false,
       "secret": false,
       "rule": "optional short Arabic line about the practice (years, team size) — facts only"
+    },
+    "DOCTOR_NAME": {
+      "value": "",
+      "required": false,
+      "secret": false,
+      "rule": "الاسم واللقب العلمي كما هو مسجّل في ترخيص مزاولة المهنة؛ يظهر أعلى الصفحة. لا تكتب الصق بيانات لم تُتحقق منها"
+    },
+    "DOCTOR_TITLE": {
+      "value": "",
+      "required": false,
+      "secret": false,
+      "rule": "مثال: استشاري طب الأطفال وحديثي الولادة"
+    },
+    "DOCTOR_SUBSPECIALTY": {
+      "value": "",
+      "required": false,
+      "secret": false,
+      "rule": "التخصص الدقيق (مثال: أمراض الجهاز التنفسي عند الأطفال) — اتركه فارغًا إن لم يوجد"
+    },
+    "DOCTOR_LICENSE": {
+      "value": "",
+      "required": false,
+      "secret": false,
+      "rule": "رقم ترخيص/تسجيل مزاولة المهنة. اتركه فارغًا حتى يتحقق: الصفحة تعرض شرطة بدلًا منه ولا تخترع رقمًا"
+    },
+    "CLINIC_ADDRESS": {
+      "value": "",
+      "required": false,
+      "secret": false,
+      "rule": "العنوان كما يظهر لولي الأمر. لا تُضاف إحداثيات GPS إلى المستودع"
     }
   }
 }

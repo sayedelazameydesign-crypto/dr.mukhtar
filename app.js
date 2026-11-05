@@ -221,8 +221,11 @@
       return { ok: true };
     }
     if (method === 'getClinicProfile') {
-      // The demo build reports the same shape but no verified credentials.
-      return { ok: true, name: 'Celia Kids', phone: '', address: '', hours: '', license: '' };
+      // The demo build reports the same shape but no verified credential of any kind.
+      return {
+        ok: true, name: 'Celia Kids', phone: '', address: '', license: '', licenseVerified: false,
+        hours: { workDays: WORK_DAYS.slice(), weekendDays: [5, 6], start: '09:00', end: '14:00' }
+      };
     }
     if (method === 'askGeneralQuestion') {
       return { ok: true, answer: 'هذا وضع عرض تجريبي بلا مساعد حقيقي: فريق العيادة هو من يجيب عن خطوات الحجز وتعديل الطلب. لا تُقدَّم هنا معلومات طبية ولا تشخيص.' };
@@ -267,22 +270,80 @@
   /* ---------------- live clinic facts ---------------- */
   // The page ships with neutral placeholders; a live clinic fills them from its
   // own configuration (getClinicProfile) so no credential is ever invented here.
+  // Public clinic metadata (name/domain) lives with the static site — it is not a
+  // secret. The licence number is NOT in this file: it is a regulated credential
+  // and must come from the clinic's own configuration (getClinicProfile).
   const CLINIC_FALLBACK = {
     name: 'Celia Kids',
     phone: 'يُضاف من إعداد العيادة',
     address: 'يُضاف من إعداد العيادة',
-    hours: 'الأحد – الخميس · ٩:٠٠ ص – ٢:٠٠ م',
-    license: '—'
+    hours: { workDays: [0, 1, 2, 3, 4], weekendDays: [5, 6], start: '09:00', end: '14:00' },
+    license: ''
   };
+  const HOURS_DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const arabicDate = (value) => String(value).replace(/[0-9]/g, (digit) => '٠١٢٣٤٥٦٧٨٩'[Number(digit)]);
+  function formatClock(time) {
+    const parts = String(time || '09:00').split(':');
+    const hour = Number(parts[0]);
+    const minute = parts[1] || '00';
+    const suffix = hour < 12 ? 'ص' : 'م';
+    const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+    return `${arabicDate(hour12)}:${arabicDate(minute)} ${suffix}`;
+  }
+  // Mirrors formatClinicHours_ in Code.gs: a range is only claimed when the
+  // working days really are consecutive.
+  function formatHours(spec) {
+    const work = (spec.workDays || []).slice().sort((a, b) => a - b);
+    const weekend = (spec.weekendDays || []).slice().sort((a, b) => a - b);
+    const consecutive = work.every((day, index) => index === 0 || day === work[index - 1] + 1);
+    const dayLabel = !work.length ? ''
+      : consecutive && work.length > 1 ? `${HOURS_DAYS[work[0]]} – ${HOURS_DAYS[work[work.length - 1]]}`
+        : work.map((day) => HOURS_DAYS[day]).join('، ');
+    const closed = !weekend.length ? ''
+      : weekend.length === 2 && weekend[1] === weekend[0] + 1
+        ? ` · ${HOURS_DAYS[weekend[0]]} و${HOURS_DAYS[weekend[1]]} مغلقان`
+        : ` · مغلق: ${weekend.map((day) => HOURS_DAYS[day]).join('، ')}`;
+    return `${dayLabel ? `${dayLabel} · ` : ''}${formatClock(spec.start)} – ${formatClock(spec.end)}${closed}`;
+  }
+  function setFact(key, value) {
+    $$(`[data-config="${key}"]`).forEach((node) => { node.textContent = value; });
+  }
+  function setLicence(value, verified) {
+    setFact('license', value || 'غير منشور');
+    $$('[data-license-state]').forEach((node) => {
+      node.textContent = verified
+        ? 'رقم الترخيص كما سجّلته العيادة'
+        : 'يُضاف من إعداد العيادة — لم يُتحقق بعد';
+      node.classList.toggle('is-unverified', !verified);
+    });
+    const card = $('.doctor-card');
+    if (card) card.dataset.licenseVerified = verified ? 'true' : 'false';
+  }
   function applyClinicProfile(profile) {
     if (!profile || !profile.ok) return;
     state.clinicName = profile.name || '';
-    const facts = {};
-    ['phone', 'hours', 'address', 'license', 'doctorName', 'doctorRole', 'subspecialty']
-      .forEach((key) => { if (profile[key]) facts[key] = profile[key]; });
-    Object.keys(facts).forEach((key) => {
-      $$(`[data-config="${key}"]`).forEach((node) => { node.textContent = facts[key]; });
-    });
+    if (profile.phone) setFact('phone', profile.phone);
+    if (profile.address) setFact('address', profile.address);
+    if (profile.doctorName) setFact('doctorName', profile.doctorName);
+    if (profile.doctorRole) setFact('doctorRole', profile.doctorRole);
+    if (profile.subspecialty) setFact('subspecialty', profile.subspecialty);
+    if (profile.hours) setFact('hours', typeof profile.hours === 'string' ? profile.hours : formatHours(profile.hours));
+    // The licence is a regulated credential: show it only when the clinic set it,
+    // and say so plainly when it is still unverified.
+    setLicence(profile.license, !!profile.licenseVerified);
+    const schema = $('script[type="application/ld+json"]');
+    if (schema && profile.doctorName) {
+      try {
+        const data = JSON.parse(schema.textContent);
+        const physician = (data['@graph'] || []).find((node) => node['@type'] === 'Physician');
+        if (physician) {
+          physician.name = profile.doctorName;
+          if (profile.doctorRole) physician.jobTitle = profile.doctorRole;
+          if (profile.licenseVerified && profile.license) physician.identifier = { '@type': 'PropertyValue', name: 'ترخيص مزاولة المهنة', value: profile.license };
+          schema.textContent = JSON.stringify(data);
+        }
+      } catch (_) { /* structured data stays as served */ }
+    }
   }
   async function loadClinicProfile() {
     if (!IS_GAS) return; // the demo build keeps the neutral placeholders visible
@@ -784,7 +845,13 @@
       setDateDefault();
       renderDayChips();
       startClock();
+      // Honest defaults first (no credential implied), then the clinic's own facts.
+      setLicence(CLINIC_FALLBACK.license, false);
+      setFact('hours', formatHours(CLINIC_FALLBACK.hours));
+      syncSummary();
+      syncProgress();
       loadAvailability(state.selectedDay);
+      loadClinicProfile();
       requestAnimationFrame(revealOnScroll);
     } catch (error) {
       console.error('Celia Kids failed to start', error);

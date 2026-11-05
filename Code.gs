@@ -419,8 +419,23 @@ function askGeneralQuestion(question) {
 function getClinicProfile() {
   try {
     const config = getConfig_();
-    return { ok: true, name: config.clinicName, phone: config.clinicPhone, timeline: config.clinicTimeline,
-      workStart: config.start, workEnd: config.end, workDays: config.workDays, weekendDays: config.weekendDays, timezone: config.timezone };
+    const license = config.doctorLicense || '';
+    return {
+      ok: true,
+      name: config.clinicName,
+      phone: config.clinicPhone,
+      address: config.clinicAddress,
+      license: license,
+      // Tell the page whether the licence was verified by the clinic or is still a placeholder.
+      licenseVerified: !!license,
+      timeline: config.clinicTimeline,
+      doctorName: config.doctorName,
+      doctorRole: config.doctorTitle,
+      subspecialty: config.doctorSubspecialty,
+      hours: formatClinicHours_(config),
+      workStart: config.start, workEnd: config.end,
+      workDays: config.workDays, weekendDays: config.weekendDays, timezone: config.timezone
+    };
   } catch (error) {
     return { ok: false, message: 'تعذر قراءة بيانات العيادة.' };
   }
@@ -465,8 +480,42 @@ function getConfig_() {
     clinicName: String(properties.getProperty('CLINIC_NAME') || 'Celia Kids').trim(),
     clinicPhone: String(properties.getProperty('CLINIC_PHONE') || '').replace(/[^0-9+]/g, ''),
     clinicTimeline: String(properties.getProperty('CLINIC_TIMELINE') || '').trim().slice(0, 80),
+    clinicAddress: String(properties.getProperty('CLINIC_ADDRESS') || '').trim().slice(0, 120),
+    // Doctor identity is display-only and optional: an empty value never becomes
+    // an invented credential on the page (see getClinicProfile + the UI contract).
+    doctorName: String(properties.getProperty('DOCTOR_NAME') || '').trim().slice(0, 80),
+    doctorTitle: String(properties.getProperty('DOCTOR_TITLE') || '').trim().slice(0, 80),
+    doctorSubspecialty: String(properties.getProperty('DOCTOR_SUBSPECIALTY') || '').trim().slice(0, 80),
+    doctorLicense: String(properties.getProperty('DOCTOR_LICENSE') || '').trim().slice(0, 40),
     timezone: properties.getProperty('TIMEZONE') || Session.getScriptTimeZone() || 'Africa/Cairo'
   };
+}
+
+/** Human-readable opening hours built from the clinic configuration (never hardcoded). */
+function formatClinicHours_(config) {
+  const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const work = (config.workDays || []).slice().sort(function (a, b) { return a - b; });
+  const weekend = (config.weekendDays || []).slice().sort(function (a, b) { return a - b; });
+  const arabic = function (value) { return String(value).replace(/[0-9]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[Number(d)]; }); };
+  const clock = function (time) {
+    const parts = String(time || '').split(':');
+    const hour = Number(parts[0]);
+    const minute = parts[1] || '00';
+    const suffix = hour < 12 ? 'ص' : 'م';
+    const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+    return arabic(hour12) + ':' + arabic(minute) + ' ' + suffix;
+  };
+  // A range is only honest when the working days form one consecutive block;
+  // any other pattern is listed by name (a range would claim days that are closed).
+  const consecutive = work.every(function (day, index) { return index === 0 || day === work[index - 1] + 1; });
+  const dayLabel = !work.length ? ''
+    : consecutive && work.length > 1 ? days[work[0]] + ' – ' + days[work[work.length - 1]]
+      : work.map(function (day) { return days[day]; }).join('، ');
+  const closed = !weekend.length ? ''
+    : weekend.length === 2 && weekend[1] === weekend[0] + 1
+      ? ' · ' + days[weekend[0]] + ' و' + days[weekend[1]] + ' مغلقان'
+      : ' · مغلق: ' + weekend.map(function (day) { return days[day]; }).join('، ');
+  return (dayLabel ? dayLabel + ' · ' : '') + clock(config.start) + ' – ' + clock(config.end) + closed;
 }
 
 /** Explicit startup check used by initializeCeliaKids() and the staff dashboard. */
