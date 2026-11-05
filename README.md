@@ -32,6 +32,7 @@ app.js                      منطق الواجهة: عرض تجريبي + جس�
 assets/fonts/               خطوط woff2 مستضافة محليًا + تراخيصها
 brand.svg                   الهوية البصرية
 manifest.webmanifest        إضافة إلى الشاشة الرئيسية (PWA-lite)
+docs/map/                   خريطة معمّرة: project.json + ARCHITECTURE.md + gaps.json (project-map.md)
 Code.gs                     خادم Google Apps Script
 appsscript.json             صلاحيات ونطاق زمني Africa/Cairo
 scripts/preview.py             خادم معاينة محلي بلا ملفات مولّدة أو مخفية
@@ -52,7 +53,9 @@ python3 scripts/preview.py           # http://0.0.0.0:8080
 PORT=3000 python3 scripts/preview.py # منفذ آخر عند الحاجة
 ```
 
-الخادم يخدم جذر المستودع لكنه **لا يعرض** `gas/` أو `scripts/` أو أي ملف مخفي؛ استخدمه بدل
+الخادم يخدم جذر المستودع لكنه **لا يعرض** `gas/` أو `scripts/` أو `config/` أو أدلة العمليات في
+`docs/` (`secrets.md`، `secrets-manifest.json`، `exit-plan.md`) أو أي ملف مخفي — ويعرض `docs/map/`
+لأنها الخريطة المعمارية المقروءة. استخدمه بدل
 `python3 -m http.server` حتى لا تظهر الحزمة المولّدة للعامة. ثم افتح `http://localhost:8080`. الواجهة تعمل في **وضع العرض التجريبي**: البيانات تُحفظ في
 `localStorage` لهذا المتصفح فقط، ورمز الموظف التجريبي `2468` (غير صالح لأي تشغيل حقيقي).
 وضع العرض يتيح تجربة المسار كاملًا: طلب موعد → تتبع الرقم المرجعي → قبول/رفض/اقتراح وقت بديل

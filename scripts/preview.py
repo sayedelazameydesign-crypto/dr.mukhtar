@@ -22,7 +22,10 @@ PORT = int(os.environ.get("PORT", "8080"))
 HOST = os.environ.get("HOST", "0.0.0.0")
 
 # Never served: generated Apps Script bundle, git data, tests and tooling.
-BLOCKED_PREFIXES = ("gas/", "scripts/", "config/", "docs/", ".git/", ".github/", "_site/", "node_modules/")
+BLOCKED_PREFIXES = ("gas/", "scripts/", "config/", ".git/", ".github/", "_site/", "node_modules/")
+# docs/ is readable except the operations runbooks, which name the rotation path.
+BLOCKED_DOC_FILES = {"docs/secrets.md", "docs/secrets-manifest.json", "docs/exit-plan.md"}
+PUBLIC_PREFIXES = ("docs/map/",)
 BLOCKED_FILES = {"app.config.ts", "manus-routes.json", "SKILL.md"}
 BLOCKED_SUFFIXES = (".py", ".gs", ".ts")
 
@@ -47,7 +50,9 @@ class PreviewHandler(SimpleHTTPRequestHandler):
             return False
         if any(part.startswith(".") for part in Path(clean).parts):
             return True
-        if clean in BLOCKED_FILES or clean.endswith(BLOCKED_SUFFIXES):
+        if clean in BLOCKED_FILES or clean in BLOCKED_DOC_FILES or clean.endswith(BLOCKED_SUFFIXES):
+            return True
+        if clean.startswith(PUBLIC_PREFIXES) and not clean.endswith((".md", ".json")):
             return True
         return any(clean.startswith(prefix) for prefix in BLOCKED_PREFIXES)
 

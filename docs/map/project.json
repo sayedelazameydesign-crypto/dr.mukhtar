@@ -1,0 +1,1699 @@
+{
+  "meta": {
+    "name": "celia-kids",
+    "type": [
+      "website",
+      "web-app",
+      "serverless-backend"
+    ],
+    "languages": [
+      "javascript",
+      "google-apps-script",
+      "python",
+      "html",
+      "css",
+      "shell"
+    ],
+    "generated_at": "2026-11-05T00:58:00Z",
+    "commit": "61925ee",
+    "generated_by": "agent",
+    "coverage": "partial",
+    "excluded": [
+      "assets/fonts/*.woff2 (binary, counted only)",
+      "pasted_file_uBZldm_image.png (binary probe image, counted only)",
+      "gas/ (generated at build time, git-ignored)",
+      "_site/ (CI artifact, not in repo)"
+    ],
+    "tooling": [
+      "rg",
+      "node --check",
+      "manual manifest parse"
+    ],
+    "format_note": "Written to the project-map.md contract with two documented deviations: (1) nodes use an explicit `id` field instead of the dotted object key, (2) `edges` and `tests` are grouped by type with one shared `evidence` so each citation stays verifiable; every `source` value below is the `path[:line]` the claim came from. A `tests` index is included alongside the `tests`-typed edges so each suite's pass/fail status is recorded once."
+  },
+  "summary_L0": "Arabic RTL booking-intake site for one paediatric clinic; a request is never a confirmation.\nStatic site (index.html + app.css + app.js) runs standalone in demo mode on localStorage and, when hosted by Google Apps Script, swaps its single api() bridge to google.script.run.\nBackend is Code.gs in Apps Script: Sheets is the system of record (Requests/Audit/Closures), Calendar is the availability source, LockService serialises every write, staff approval is the only path to CONFIRMED.\nLlm.gs is the sole LLM boundary (one provider: gemini, chain/budget/circuit/cache in Script Properties); the assistant is optional and booking works with it off.\nRun the site with python3 scripts/preview.py on 0.0.0.0:8080; build the Apps Script bundle with python3 scripts/build-gas-package.py.\nTest offline with node scripts/test-gas-simulated.js, test-llm-adapter.js, test-ui-smoke.js, test-demo-availability.js (jsdom needed for the last two).\nDeploy the site with .github/workflows/pages.yml (main only); deploy the backend by pasting gas/ into Apps Script — never done, never verified in a real Google account.\nNo runtime npm dependencies; tooling is Node 20 / Python 3.11 stdlib only; every external service in docs/free-tiers.json is card_required:false.",
+  "layers": [
+    "ui",
+    "api",
+    "domain",
+    "data",
+    "infra"
+  ],
+  "entrypoints": [
+    {
+      "id": "ui.site",
+      "kind": "ui",
+      "path": "index.html",
+      "run": "python3 scripts/preview.py → http://0.0.0.0:8080"
+    },
+    {
+      "id": "ui.gas",
+      "kind": "ui",
+      "path": "Code.gs:22 doGet()",
+      "run": "HtmlService serves gas/Index.html (generated bundle)"
+    },
+    {
+      "id": "api.gas",
+      "kind": "http",
+      "path": "Code.gs:134-401",
+      "run": "google.script.run server functions called from app.js:110 callServer"
+    },
+    {
+      "id": "tool.ci",
+      "kind": "job",
+      "path": ".github/workflows/ci.yml",
+      "run": "push (any branch) + pull_request; 17-step gate + optional live smoke"
+    },
+    {
+      "id": "tool.pre-commit",
+      "kind": "cli",
+      "path": "scripts/pre-commit.sh",
+      "run": "sh scripts/pre-commit.sh (or symlink into .git/hooks/pre-commit)"
+    },
+    {
+      "id": "tool.preview",
+      "kind": "cli",
+      "path": "scripts/preview.py",
+      "run": "python3 scripts/preview.py (PORT=8080)"
+    },
+    {
+      "id": "tool.build",
+      "kind": "cli",
+      "path": "scripts/build-gas-package.py",
+      "run": "python3 scripts/build-gas-package.py"
+    },
+    {
+      "id": "tool.contract",
+      "kind": "cli",
+      "path": "scripts/check-workflows.js",
+      "run": "node scripts/check-workflows.js [--self-test]"
+    },
+    {
+      "id": "tool.scan",
+      "kind": "cli",
+      "path": "scripts/scan-secrets.js",
+      "run": "node scripts/scan-secrets.js [--all]"
+    },
+    {
+      "id": "tool.tests",
+      "kind": "cli",
+      "path": "scripts/test-*.js",
+      "run": "node scripts/test-<name>.js (jsdom optional via NODE_PATH)"
+    },
+    {
+      "id": "job.ci",
+      "kind": "job",
+      "path": ".github/workflows/ci.yml",
+      "run": "push to any branch + pull_request"
+    },
+    {
+      "id": "job.pages",
+      "kind": "job",
+      "path": ".github/workflows/pages.yml",
+      "run": "push to main + workflow_dispatch"
+    },
+    {
+      "id": "job.setup-status",
+      "kind": "job",
+      "path": ".github/workflows/setup-status.yml",
+      "run": "workflow_dispatch + cron 0 6 * * 1"
+    },
+    {
+      "id": "cli.preview",
+      "kind": "cli",
+      "path": "scripts/preview.py",
+      "run": "python3 scripts/preview.py [PORT=8080]"
+    },
+    {
+      "id": "cli.build",
+      "kind": "cli",
+      "path": "scripts/build-gas-package.py",
+      "run": "python3 scripts/build-gas-package.py"
+    },
+    {
+      "id": "cli.bootstrap",
+      "kind": "cli",
+      "path": "scripts/bootstrap-github.sh",
+      "run": "sh scripts/bootstrap-github.sh [--dry-run] [--no-protect]"
+    },
+    {
+      "id": "cli.setup-check",
+      "kind": "cli",
+      "path": "scripts/setup-github.js",
+      "run": "node scripts/setup-github.js (needs GH_TOKEN, names only)"
+    },
+    {
+      "id": "cli.precommit",
+      "kind": "cli",
+      "path": "scripts/pre-commit.sh",
+      "run": "sh scripts/pre-commit.sh (or symlink into .git/hooks)"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ui.index",
+      "kind": "component",
+      "path": "index.html",
+      "lang": "html",
+      "layer": "ui",
+      "role": "RTL booking + staff dashboard markup, demo pin hint"
+    },
+    {
+      "id": "ui.app-js",
+      "kind": "module",
+      "path": "app.js",
+      "lang": "js",
+      "layer": "ui",
+      "role": "Render + form logic + demo/backend bridge (api)"
+    },
+    {
+      "id": "ui.brand",
+      "kind": "asset",
+      "path": "brand.svg",
+      "lang": "svg",
+      "layer": "ui",
+      "role": "Logo referenced by index.html and app.config.ts"
+    },
+    {
+      "id": "ui.manifest",
+      "kind": "asset",
+      "path": "manifest.webmanifest",
+      "lang": "json",
+      "layer": "ui",
+      "role": "Add-to-home-screen metadata (PWA-lite)"
+    },
+    {
+      "id": "ui.fonts",
+      "kind": "asset",
+      "path": "assets/fonts/",
+      "lang": "woff2",
+      "layer": "ui",
+      "role": "Self-hosted Almarai + IBM Plex Arabic, no CDN"
+    },
+    {
+      "id": "domain.code-gs",
+      "kind": "module",
+      "path": "Code.gs",
+      "lang": "gs",
+      "layer": "domain",
+      "role": "Booking rules, state machine, locks, audit, config"
+    },
+    {
+      "id": "domain.llm-gs",
+      "kind": "module",
+      "path": "Llm.gs",
+      "lang": "gs",
+      "layer": "domain",
+      "role": "Sole LLM adapter: chain, budget, circuit, cache"
+    },
+    {
+      "id": "domain.appsscript",
+      "kind": "asset",
+      "path": "appsscript.json",
+      "lang": "json",
+      "layer": "infra",
+      "role": "V8 runtime, Africa/Cairo, 3 OAuth scopes"
+    },
+    {
+      "id": "data.sheets",
+      "kind": "table",
+      "path": "Code.gs:5-14 (CK.REQUEST_HEADERS/AUDIT_HEADERS/CLOSURE_HEADERS)",
+      "lang": "gs",
+      "layer": "data",
+      "role": "Requests, Audit, Closures sheets — system of record"
+    },
+    {
+      "id": "data.calendar",
+      "kind": "external",
+      "path": "Code.gs:502 getCalendar_",
+      "lang": "gs",
+      "layer": "data",
+      "role": "Google Calendar = doctor availability truth"
+    },
+    {
+      "id": "data.localstorage",
+      "kind": "table",
+      "path": "app.js:10 DEMO_KEY",
+      "lang": "js",
+      "layer": "data",
+      "role": "Demo-mode store 'celia-kids-demo-v1' in the browser only"
+    },
+    {
+      "id": "data.props",
+      "kind": "env",
+      "path": "config/clinic.example.json",
+      "lang": "json",
+      "layer": "data",
+      "role": "Script Properties contract (24 keys) validated at startup"
+    },
+    {
+      "id": "external.gemini",
+      "kind": "external",
+      "path": "Llm.gs:30-56",
+      "lang": "gs",
+      "layer": "infra",
+      "role": "Google AI Studio generateContent, card_required false"
+    },
+    {
+      "id": "external.groq",
+      "kind": "external",
+      "path": "docs/secrets-manifest.json GROQ_API_KEY",
+      "lang": "json",
+      "layer": "infra",
+      "role": "Reserved fallback slot, no adapter implemented"
+    },
+    {
+      "id": "external.whatsapp",
+      "kind": "external",
+      "path": "app.js:536 whatsappLink",
+      "lang": "js",
+      "layer": "ui",
+      "role": "Manual wa.me deep link only, no Cloud API"
+    },
+    {
+      "id": "tool.preview",
+      "kind": "job",
+      "path": "scripts/preview.py",
+      "lang": "python",
+      "layer": "infra",
+      "role": "Static server with blocklist for gas/, scripts/, docs/"
+    },
+    {
+      "id": "tool.build",
+      "kind": "job",
+      "path": "scripts/build-gas-package.py",
+      "lang": "python",
+      "layer": "infra",
+      "role": "Inlines CSS/JS/fonts into gas/ bundle"
+    },
+    {
+      "id": "tool.scan",
+      "kind": "job",
+      "path": "scripts/scan-secrets.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "11-rule secret scan, git walk fallback"
+    },
+    {
+      "id": "tool.contract",
+      "kind": "job",
+      "path": "scripts/check-workflows.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "Workflow/secrets contract + 10 self-tests"
+    },
+    {
+      "id": "tool.env",
+      "kind": "job",
+      "path": "scripts/env.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "Startup env contract, names only"
+    },
+    {
+      "id": "tool.config",
+      "kind": "job",
+      "path": "scripts/check-config.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "Validates a Script Properties export"
+    },
+    {
+      "id": "tool.setup",
+      "kind": "job",
+      "path": "scripts/setup-github.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "Compares manifest with GitHub settings, names only"
+    },
+    {
+      "id": "tool.bootstrap",
+      "kind": "job",
+      "path": "scripts/bootstrap-github.sh",
+      "lang": "sh",
+      "layer": "infra",
+      "role": "Owner-only bootstrap: env, vars, secrets, protection"
+    },
+    {
+      "id": "tool.smoke",
+      "kind": "job",
+      "path": "scripts/live-llm-smoke.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "Optional provider probe, skips without a key"
+    },
+    {
+      "id": "ci.workflow",
+      "kind": "job",
+      "path": ".github/workflows/ci.yml",
+      "lang": "yaml",
+      "layer": "infra",
+      "role": "17-step gate + optional live smoke job"
+    },
+    {
+      "id": "ci.pages",
+      "kind": "job",
+      "path": ".github/workflows/pages.yml",
+      "lang": "yaml",
+      "layer": "infra",
+      "role": "Builds _site, guards localhost/CDN, deploys Pages"
+    },
+    {
+      "id": "ci.setup-status",
+      "kind": "job",
+      "path": ".github/workflows/setup-status.yml",
+      "lang": "yaml",
+      "layer": "infra",
+      "role": "Weekly drift report, non-blocking"
+    },
+    {
+      "id": "doc.agents",
+      "kind": "doc",
+      "path": "AGENTS.md",
+      "lang": "md",
+      "layer": "infra",
+      "role": "Non-negotiable rules + change checklist"
+    },
+    {
+      "id": "doc.readme",
+      "kind": "doc",
+      "path": "README.md",
+      "lang": "md",
+      "layer": "infra",
+      "role": "Arabic overview, run/test/deploy commands"
+    },
+    {
+      "id": "doc.secrets",
+      "kind": "doc",
+      "path": "docs/secrets.md",
+      "lang": "md",
+      "layer": "infra",
+      "role": "Human runbook: stores, matrix, bootstrap, rotation"
+    },
+    {
+      "id": "doc.manifest",
+      "kind": "doc",
+      "path": "docs/secrets-manifest.json",
+      "lang": "json",
+      "layer": "infra",
+      "role": "Single source of truth for 3 secrets + 5 variables"
+    },
+    {
+      "id": "doc.free-tiers",
+      "kind": "doc",
+      "path": "docs/free-tiers.json",
+      "lang": "json",
+      "layer": "infra",
+      "role": "Zero-Card ledger: 8 services + 7 avoided"
+    },
+    {
+      "id": "doc.exit-plan",
+      "kind": "doc",
+      "path": "docs/exit-plan.md",
+      "lang": "md",
+      "layer": "infra",
+      "role": "Per-provider isolation point + swap time"
+    },
+    {
+      "id": "doc.todo",
+      "kind": "doc",
+      "path": "TODO.md",
+      "lang": "md",
+      "layer": "infra",
+      "role": "Done list + open items before real use"
+    },
+    {
+      "id": "env.APP_ENV",
+      "kind": "env",
+      "path": ".env.example:6",
+      "lang": "env",
+      "layer": "infra",
+      "role": "GitHub variable; CI environment label"
+    },
+    {
+      "id": "env.NODE_VERSION",
+      "kind": "env",
+      "path": ".env.example:7",
+      "lang": "env",
+      "layer": "infra",
+      "role": "GitHub variable; setup-node version (fallback 20)"
+    },
+    {
+      "id": "env.PYTHON_VERSION",
+      "kind": "env",
+      "path": ".env.example:8",
+      "lang": "env",
+      "layer": "infra",
+      "role": "GitHub variable; setup-python version (fallback 3.11)"
+    },
+    {
+      "id": "env.LLM_PRIMARY",
+      "kind": "env",
+      "path": ".env.example:9",
+      "lang": "env",
+      "layer": "infra",
+      "role": "GitHub variable; picks smoke model, no model in code"
+    },
+    {
+      "id": "env.LLM_SMOKE_ENABLED",
+      "kind": "env",
+      "path": ".env.example:10",
+      "lang": "env",
+      "layer": "infra",
+      "role": "GitHub variable; opt-in live probe flag"
+    },
+    {
+      "id": "env.LLM_MODEL",
+      "kind": "env",
+      "path": "scripts/live-llm-smoke.js:25",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Set only by ci.yml:135 for the live job"
+    },
+    {
+      "id": "env.GEMINI_API_KEY",
+      "kind": "env",
+      "path": ".env.example:13",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Secret (repo level); also Script Property for runtime"
+    },
+    {
+      "id": "env.GROQ_API_KEY",
+      "kind": "env",
+      "path": ".env.example:14",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Secret (repo level), reserved, unconsumed"
+    },
+    {
+      "id": "env.CELIA_ADMIN_PIN",
+      "kind": "env",
+      "path": ".env.example:16",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Secret (environment:production), unread by any workflow"
+    },
+    {
+      "id": "env.CELIA_TIMEZONE",
+      "kind": "env",
+      "path": ".env.example:21",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Local mirror of Script Property TIMEZONE"
+    },
+    {
+      "id": "env.CELIA_WORK_START",
+      "kind": "env",
+      "path": ".env.example:22",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Local mirror of WORK_START"
+    },
+    {
+      "id": "env.CELIA_WORK_END",
+      "kind": "env",
+      "path": ".env.example:23",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Local mirror of WORK_END"
+    },
+    {
+      "id": "env.CELIA_WORK_DAYS",
+      "kind": "env",
+      "path": ".env.example:24",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Local mirror of WORK_DAYS"
+    },
+    {
+      "id": "env.CELIA_SLOT_MINUTES",
+      "kind": "env",
+      "path": ".env.example:25",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Local mirror of SLOT_MINUTES"
+    },
+    {
+      "id": "env.CELIA_LLM_DAILY_LIMIT",
+      "kind": "env",
+      "path": ".env.example:26",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Local mirror of LLM_DAILY_LIMIT"
+    },
+    {
+      "id": "env.CELIA_LLM_HOURLY_LIMIT",
+      "kind": "env",
+      "path": ".env.example:27",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Local mirror of LLM_HOURLY_LIMIT"
+    },
+    {
+      "id": "env.CELIA_LLM_CHAIN",
+      "kind": "env",
+      "path": ".env.example:28",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Local mirror of LLM_CHAIN"
+    },
+    {
+      "id": "env.GITHUB_REPOSITORY",
+      "kind": "env",
+      "path": "scripts/setup-github.js:22",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Provided by Actions; falls back to manifest.repo locally"
+    },
+    {
+      "id": "env.GH_TOKEN",
+      "kind": "env",
+      "path": "scripts/setup-github.js:23",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Read-only API token for the setup checker; CLI only"
+    },
+    {
+      "id": "env.TZ",
+      "kind": "env",
+      "path": "scripts/test-gas-simulated.js:9",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Pins the simulation timezone"
+    },
+    {
+      "id": "env.CELIA_REPO_ROOT",
+      "kind": "env",
+      "path": "scripts/check-workflows.js:26",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Overrides the root used by contract tests"
+    },
+    {
+      "id": "env.PORT",
+      "kind": "env",
+      "path": "scripts/preview.py:21",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Preview port (default 8080)"
+    },
+    {
+      "id": "external.cache",
+      "kind": "external",
+      "path": "Code.gs:29-45 (CacheService.getScriptCache)",
+      "lang": "gs",
+      "layer": "infra",
+      "role": "30-second availability read cache, never used for approval"
+    },
+    {
+      "id": "external.github-api",
+      "kind": "external",
+      "path": "scripts/setup-github.js:30",
+      "lang": "js",
+      "layer": "infra",
+      "role": "api.github.com read-only, names only, never values"
+    },
+    {
+      "id": "test.gas-sim",
+      "kind": "job",
+      "path": "scripts/test-gas-simulated.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "test: domain.code-gs"
+    },
+    {
+      "id": "test.llm-adapter",
+      "kind": "job",
+      "path": "scripts/test-llm-adapter.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "test: domain.llm-gs + config validation"
+    },
+    {
+      "id": "test.ui-smoke",
+      "kind": "job",
+      "path": "scripts/test-ui-smoke.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "test: ui.index + ui.app-js"
+    },
+    {
+      "id": "test.demo-availability",
+      "kind": "job",
+      "path": "scripts/test-demo-availability.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "test: ui.app-js#getAvailableSlots"
+    },
+    {
+      "id": "test.setup-github",
+      "kind": "job",
+      "path": "scripts/test-setup-github.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "test: tool.setup"
+    },
+    {
+      "id": "test.scan-secrets",
+      "kind": "job",
+      "path": "scripts/scan-secrets.js",
+      "lang": "js",
+      "layer": "infra",
+      "role": "test: 11-rule secret scan over the tree"
+    },
+    {
+      "id": "test.contract-self",
+      "kind": "job",
+      "path": "scripts/check-workflows.js --self-test",
+      "lang": "js",
+      "layer": "infra",
+      "role": "test: 10 contract cases incl. bootstrap safety"
+    },
+    {
+      "id": "api.gas",
+      "kind": "endpoint",
+      "path": "Code.gs:134-401 (11 public functions)",
+      "lang": "gs",
+      "layer": "api",
+      "role": "google.script.run surface consumed by app.js api()"
+    },
+    {
+      "id": "tool.precommit",
+      "kind": "job",
+      "path": "scripts/pre-commit.sh",
+      "lang": "sh",
+      "layer": "infra",
+      "role": "local gate: secret scan + contract + env"
+    },
+    {
+      "id": "ui.app-css",
+      "kind": "asset",
+      "path": "app.css",
+      "lang": "css",
+      "layer": "ui",
+      "role": "2026 design system, local fonts, a11y states"
+    }
+  ],
+  "edges": [
+    {
+      "type": "imports",
+      "evidence": "index.html:17 -> app.js:1",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.index",
+          "ui.app-js"
+        ]
+      ]
+    },
+    {
+      "type": "imports",
+      "evidence": "index.html:16 -> app.css:1",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.index",
+          "ui.app-css"
+        ]
+      ]
+    },
+    {
+      "type": "imports",
+      "evidence": "index.html:11 manifest, index.html:14-15 font preloads -> assets/fonts",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.index",
+          "ui.manifest"
+        ],
+        [
+          "ui.index",
+          "ui.fonts"
+        ],
+        [
+          "ui.app-css",
+          "ui.fonts"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "app.js:110 callServer -> google.script.run[method]; https://developers.google.com/apps-script (transport documented in AGENTS.md §4)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.app-js",
+          "api.gas"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "app.js:121,146,155,162,166,177,186,194,202,211,217 (11 methods) matched 1:1 against Code.gs:134,159,210,224,258,290,311,335,358,375,391",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.app-js",
+          "domain.code-gs#getAvailableSlots"
+        ],
+        [
+          "ui.app-js",
+          "domain.code-gs#createRequest"
+        ],
+        [
+          "ui.app-js",
+          "domain.code-gs#lookupBooking"
+        ],
+        [
+          "ui.app-js",
+          "domain.code-gs#getDashboard"
+        ],
+        [
+          "ui.app-js",
+          "domain.code-gs#approveRequest"
+        ],
+        [
+          "ui.app-js",
+          "domain.code-gs#proposeAlternative"
+        ],
+        [
+          "ui.app-js",
+          "domain.code-gs#cancelRequest"
+        ],
+        [
+          "ui.app-js",
+          "domain.code-gs#completeRequest"
+        ],
+        [
+          "ui.app-js",
+          "domain.code-gs#moveConfirmedAppointment"
+        ],
+        [
+          "ui.app-js",
+          "domain.code-gs#closeDay"
+        ],
+        [
+          "ui.app-js",
+          "domain.code-gs#askGeneralQuestion"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "Code.gs:137 getAvailableSlotsCached_ -> CacheService (Code.gs:33)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.code-gs",
+          "external.cache"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "Code.gs:191,499,500,501,563,606 -> spreadshet sheets; headers Code.gs:7-10",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.code-gs",
+          "data.sheets"
+        ]
+      ]
+    },
+    {
+      "type": "writes",
+      "evidence": "Code.gs:191 appendRow, 619 updateRequestRow_, 381 closure append, 627 appendAudit_",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.code-gs",
+          "data.sheets"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "Code.gs:537 isSlotAvailable_ -> getEvents (calendar), Code.gs:620 findCalendarEvent_",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.code-gs",
+          "data.calendar"
+        ]
+      ]
+    },
+    {
+      "type": "writes",
+      "evidence": "Code.gs:276 calendar.createEvent; 325 event.setTime; 346/362 event.deleteEvent",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.code-gs",
+          "data.calendar"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "Code.gs:402 askGeneralQuestion -> llmAnswer_ (Llm.gs:309)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.code-gs",
+          "domain.llm-gs"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "Llm.gs:244 UrlFetchApp.fetch(request.url) with PROVIDERS.gemini url at Llm.gs:37",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.llm-gs",
+          "external.gemini"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "Llm.gs:110 props.getProperty(provider.keyProperty); keyProperty 'GEMINI_API_KEY' at Llm.gs:32",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.llm-gs",
+          "env.GEMINI_API_KEY"
+        ],
+        [
+          "data.props",
+          "env.GEMINI_API_KEY"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "Code.gs:423-450 getConfig_ reads WORK_START/WORK_END/WORK_DAYS/SLOT_MINUTES/TIMEZONE; config/clinic.example.json documents each as a property",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "domain.code-gs",
+          "env.CELIA_WORK_START"
+        ],
+        [
+          "domain.code-gs",
+          "env.CELIA_WORK_END"
+        ],
+        [
+          "domain.code-gs",
+          "env.CELIA_WORK_DAYS"
+        ],
+        [
+          "domain.code-gs",
+          "env.CELIA_SLOT_MINUTES"
+        ],
+        [
+          "domain.code-gs",
+          "env.CELIA_TIMEZONE"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": ".github/workflows/ci.yml:18-20 env block; pages.yml:26,30; setup-status.yml:30",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "ci.workflow",
+          "env.APP_ENV"
+        ],
+        [
+          "ci.workflow",
+          "env.NODE_VERSION"
+        ],
+        [
+          "ci.workflow",
+          "env.LLM_PRIMARY"
+        ],
+        [
+          "ci.pages",
+          "env.NODE_VERSION"
+        ],
+        [
+          "ci.pages",
+          "env.PYTHON_VERSION"
+        ],
+        [
+          "ci.setup-status",
+          "env.NODE_VERSION"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": ".github/workflows/ci.yml:134-136 (secrets.GEMINI_API_KEY, vars.LLM_PRIMARY-derived LLM_MODEL, vars.LLM_SMOKE_ENABLED)",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "ci.workflow",
+          "env.GEMINI_API_KEY"
+        ],
+        [
+          "ci.workflow",
+          "env.LLM_MODEL"
+        ],
+        [
+          "ci.workflow",
+          "env.LLM_SMOKE_ENABLED"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": ".github/workflows/setup-status.yml:34-36 (GH_TOKEN from secrets.GITHUB_TOKEN, GITHUB_REPOSITORY from github.repository)",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "ci.setup-status",
+          "tool.setup"
+        ],
+        [
+          "ci.setup-status",
+          "env.GH_TOKEN"
+        ],
+        [
+          "ci.setup-status",
+          "env.GITHUB_REPOSITORY"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "scripts/live-llm-smoke.js:18-26 reads GEMINI_API_KEY, LLM_MODEL, LLM_SMOKE_ENABLED",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.smoke",
+          "env.GEMINI_API_KEY"
+        ],
+        [
+          "tool.smoke",
+          "env.LLM_MODEL"
+        ],
+        [
+          "tool.smoke",
+          "env.LLM_SMOKE_ENABLED"
+        ]
+      ]
+    },
+    {
+      "type": "shares_contract",
+      "evidence": "docs/secrets-manifest.json declared names == .env.example lines 6-16 == workflow references (checked by scripts/check-workflows.js:1-40)",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "doc.manifest",
+          "env.GEMINI_API_KEY"
+        ],
+        [
+          "doc.manifest",
+          "env.GROQ_API_KEY"
+        ],
+        [
+          "doc.manifest",
+          "env.CELIA_ADMIN_PIN"
+        ],
+        [
+          "doc.manifest",
+          "env.APP_ENV"
+        ],
+        [
+          "doc.manifest",
+          "env.NODE_VERSION"
+        ],
+        [
+          "doc.manifest",
+          "env.PYTHON_VERSION"
+        ],
+        [
+          "doc.manifest",
+          "env.LLM_PRIMARY"
+        ],
+        [
+          "doc.manifest",
+          "env.LLM_SMOKE_ENABLED"
+        ]
+      ]
+    },
+    {
+      "type": "deploys_to",
+      "evidence": ".github/workflows/pages.yml:1-70 (build _site then actions/deploy-pages@v4)",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "ci.pages",
+          "ui.index"
+        ],
+        [
+          "ci.pages",
+          "ui.app-js"
+        ],
+        [
+          "ci.pages",
+          "ui.app-css"
+        ],
+        [
+          "ci.pages",
+          "ui.fonts"
+        ]
+      ]
+    },
+    {
+      "type": "deploys_to",
+      "evidence": "scripts/build-gas-package.py:5-8,134-141 writes gas/ consumed by Code.gs:23 HtmlService",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.build",
+          "ui.index"
+        ],
+        [
+          "tool.build",
+          "ui.app-js"
+        ],
+        [
+          "tool.build",
+          "ui.app-css"
+        ],
+        [
+          "tool.build",
+          "ui.fonts"
+        ],
+        [
+          "domain.code-gs",
+          "tool.build"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/test-demo-availability.js:15-17 loads index.html/app.css/app.js; test-ui-smoke.js:22-24 same",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "test.ui-smoke",
+          "ui.app-js"
+        ],
+        [
+          "test.demo-availability",
+          "ui.app-js"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/test-gas-simulated.js:149 vm.runInContext(Code.gs) with stub services",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "test.gas-sim",
+          "domain.code-gs"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/test-llm-adapter.js:96 reads Llm.gs + Code.gs source and evaluates them",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "test.llm-adapter",
+          "domain.llm-gs"
+        ],
+        [
+          "test.llm-adapter",
+          "domain.code-gs"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/test-setup-github.js:11-13 requires setup-github.js and the manifest",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "test.setup-github",
+          "tool.setup"
+        ],
+        [
+          "test.setup-github",
+          "doc.manifest"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": ".github/workflows/ci.yml:34-116 (17 steps: contract, self-test, setup tests, actionlint, syntax, gas sim, llm adapter, UI smoke + availability, build, leak guard, self-containment, config, ledger, 2 secret scans, audit)",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "ci.workflow",
+          "tool.contract"
+        ],
+        [
+          "ci.workflow",
+          "tool.scan"
+        ],
+        [
+          "ci.workflow",
+          "test.gas-sim"
+        ],
+        [
+          "ci.workflow",
+          "test.llm-adapter"
+        ],
+        [
+          "ci.workflow",
+          "test.ui-smoke"
+        ],
+        [
+          "ci.workflow",
+          "test.demo-availability"
+        ],
+        [
+          "ci.workflow",
+          "test.setup-github"
+        ],
+        [
+          "ci.workflow",
+          "tool.build"
+        ],
+        [
+          "ci.workflow",
+          "tool.config"
+        ],
+        [
+          "ci.workflow",
+          "tool.smoke"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "scripts/bootstrap-github.sh:1-60 invokes gh api / gh secret set and delegates the read-only comparison to node scripts/setup-github.js",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.bootstrap",
+          "tool.setup"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "scripts/pre-commit.sh:7-23 runs scan-secrets --all, check-workflows, env, actionlint",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.precommit",
+          "tool.scan"
+        ],
+        [
+          "tool.precommit",
+          "tool.contract"
+        ],
+        [
+          "tool.precommit",
+          "tool.env"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "app.js:102 demoStore/seedDemo, app.js:103 saveDemo writes localStorage",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.app-js",
+          "data.localstorage"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "app.js:536 whatsappLink returns https://wa.me/<digits>?text=... (opened by <a> in renderDashboard)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.app-js",
+          "external.whatsapp"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "scripts/setup-github.js:30 fetch https://api.github.com/repos/${repo}",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.setup",
+          "external.github-api"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "index.html:13 <img src=\"./brand.svg\"> and app.config.ts:1 logoUrl",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.index",
+          "ui.brand"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "scripts/preview.py:25-52 blocklist then serves ROOT files; live probe 200/404 matches",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.preview",
+          "ui.index"
+        ],
+        [
+          "tool.preview",
+          "ui.app-css"
+        ],
+        [
+          "tool.preview",
+          "ui.app-js"
+        ],
+        [
+          "tool.preview",
+          "ui.fonts"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "scripts/env.js:1-40 startup contract over the declared names",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.env",
+          "env.APP_ENV"
+        ],
+        [
+          "tool.env",
+          "env.GEMINI_API_KEY"
+        ],
+        [
+          "tool.env",
+          "env.CELIA_ADMIN_PIN"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "scripts/test-gas-simulated.js:9 and scripts/test-llm-adapter.js:14 force TZ before loading the backend",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "test.gas-sim",
+          "env.TZ"
+        ],
+        [
+          "test.llm-adapter",
+          "env.TZ"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "scripts/check-workflows.js:26 CELIA_REPO_ROOT overrides the fixture root; scripts/preview.py:21 PORT",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.contract",
+          "env.CELIA_REPO_ROOT"
+        ],
+        [
+          "tool.preview",
+          "env.PORT"
+        ]
+      ]
+    },
+    {
+      "type": "shares_contract",
+      "evidence": "config/clinic.example.json properties TIMEZONE/WORK_START/WORK_END/WORK_DAYS/SLOT_MINUTES/LLM_DAILY_LIMIT/LLM_HOURLY_LIMIT/LLM_CHAIN mirrored as CELIA_* names in .env.example:21-28, validated by scripts/check-config.js:1-97",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "data.props",
+          "env.CELIA_TIMEZONE"
+        ],
+        [
+          "data.props",
+          "env.CELIA_WORK_START"
+        ],
+        [
+          "data.props",
+          "env.CELIA_WORK_END"
+        ],
+        [
+          "data.props",
+          "env.CELIA_WORK_DAYS"
+        ],
+        [
+          "data.props",
+          "env.CELIA_SLOT_MINUTES"
+        ],
+        [
+          "data.props",
+          "env.CELIA_LLM_DAILY_LIMIT"
+        ],
+        [
+          "data.props",
+          "env.CELIA_LLM_HOURLY_LIMIT"
+        ],
+        [
+          "data.props",
+          "env.CELIA_LLM_CHAIN"
+        ],
+        [
+          "tool.config",
+          "data.props"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "Code.gs:251 counts CKA_* audit-queue keys in Script Properties; Llm.gs:151 budget keys",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.code-gs",
+          "data.props"
+        ],
+        [
+          "domain.llm-gs",
+          "data.props"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "AGENTS.md §4 architecture map lines 60-72; README.md command block; docs/exit-plan.md isolation table",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "doc.agents",
+          "domain.code-gs"
+        ],
+        [
+          "doc.agents",
+          "domain.llm-gs"
+        ],
+        [
+          "doc.readme",
+          "tool.preview"
+        ],
+        [
+          "doc.exit-plan",
+          "domain.llm-gs"
+        ],
+        [
+          "doc.secrets",
+          "doc.manifest"
+        ],
+        [
+          "doc.todo",
+          "domain.code-gs"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "docs/free-tiers.json services list (github-pages, google-apps-script, gemini-api...) vs the code that touches them",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "doc.free-tiers",
+          "ci.pages"
+        ],
+        [
+          "doc.free-tiers",
+          "domain.code-gs"
+        ],
+        [
+          "doc.free-tiers",
+          "external.gemini"
+        ],
+        [
+          "doc.free-tiers",
+          "external.groq"
+        ]
+      ]
+    },
+    {
+      "type": "shares_contract",
+      "evidence": "docs/secrets-manifest.json GROQ_API_KEY notes: 'do NOT add a PROVIDERS entry until a live smoke test exists'; Llm.gs PROVIDERS has only gemini (Llm.gs:29-56)",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "env.GROQ_API_KEY",
+          "external.groq"
+        ],
+        [
+          "domain.llm-gs",
+          "external.groq"
+        ]
+      ]
+    },
+    {
+      "type": "deploys_to",
+      "evidence": "scripts/build-gas-package.py:5-8,139 copies Code.gs/Llm.gs/appsscript.json into gas/",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.build",
+          "domain.code-gs"
+        ],
+        [
+          "tool.build",
+          "domain.llm-gs"
+        ],
+        [
+          "tool.build",
+          "domain.appsscript"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "AGENTS.md §3 command block lists sh scripts/pre-commit.sh",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "doc.agents",
+          "tool.precommit"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": ".github/workflows/ci.yml:37-42 self-test step and :96-98 built-in secret scan",
+      "confidence": "high",
+      "source": "config",
+      "pairs": [
+        [
+          "ci.workflow",
+          "test.contract-self"
+        ],
+        [
+          "ci.workflow",
+          "test.scan-secrets"
+        ]
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "id": "test.gas-sim",
+      "path": "scripts/test-gas-simulated.js",
+      "covers": "domain.code-gs",
+      "evidence": "scripts/test-gas-simulated.js:149",
+      "status": "pass"
+    },
+    {
+      "id": "test.llm-adapter",
+      "path": "scripts/test-llm-adapter.js",
+      "covers": "domain.llm-gs + config validation",
+      "evidence": "scripts/test-llm-adapter.js:96",
+      "status": "pass (15 tests)"
+    },
+    {
+      "id": "test.ui-smoke",
+      "path": "scripts/test-ui-smoke.js",
+      "covers": "ui.index + ui.app-js",
+      "evidence": "scripts/test-ui-smoke.js:22-24",
+      "status": "pass (needs jsdom)"
+    },
+    {
+      "id": "test.demo-availability",
+      "path": "scripts/test-demo-availability.js",
+      "covers": "ui.app-js#getAvailableSlots",
+      "evidence": "scripts/test-demo-availability.js:15-17",
+      "status": "pass (needs jsdom)"
+    },
+    {
+      "id": "test.setup-github",
+      "path": "scripts/test-setup-github.js",
+      "covers": "tool.setup",
+      "evidence": "scripts/test-setup-github.js:11",
+      "status": "pass (4 cases)"
+    },
+    {
+      "id": "test.contract-self",
+      "path": "scripts/check-workflows.js --self-test",
+      "covers": "tool.contract",
+      "evidence": "scripts/check-workflows.js:45+",
+      "status": "pass (10 cases)"
+    },
+    {
+      "id": "test.scan-secrets",
+      "path": "scripts/scan-secrets.js",
+      "covers": "whole tree",
+      "evidence": "CI step 'Secret scan (built-in, always on)'",
+      "status": "pass (46 files, 0 findings)"
+    }
+  ],
+  "commands": [
+    {
+      "cmd": "python3 scripts/preview.py",
+      "verified": true,
+      "result": "HTTP 200 on /, 404 on /gas/, /scripts/, /.git/ (live check)"
+    },
+    {
+      "cmd": "node scripts/test-gas-simulated.js",
+      "verified": true,
+      "result": "exit 0"
+    },
+    {
+      "cmd": "node scripts/test-llm-adapter.js",
+      "verified": true,
+      "result": "exit 0 — 15 tests"
+    },
+    {
+      "cmd": "node scripts/test-ui-smoke.js",
+      "verified": true,
+      "result": "exit 0 with NODE_PATH jsdom"
+    },
+    {
+      "cmd": "node scripts/test-demo-availability.js",
+      "verified": true,
+      "result": "exit 0 with NODE_PATH jsdom"
+    },
+    {
+      "cmd": "python3 scripts/build-gas-package.py",
+      "verified": true,
+      "result": "gas/Index.html 97,089 B, gas/Fonts.html 475,498 B"
+    },
+    {
+      "cmd": "node scripts/check-workflows.js",
+      "verified": true,
+      "result": "exit 0 — 3 secrets, 5 variables, 3 workflows"
+    },
+    {
+      "cmd": "node scripts/scan-secrets.js",
+      "verified": true,
+      "result": "exit 0 — 46 files, 0 findings"
+    },
+    {
+      "cmd": "node scripts/check-config.js",
+      "verified": true,
+      "result": "exit 0 on the template"
+    },
+    {
+      "cmd": "sh scripts/bootstrap-github.sh --dry-run",
+      "verified": true,
+      "result": "exit 0 — prints 9 commands, changes nothing"
+    },
+    {
+      "cmd": "sh scripts/pre-commit.sh",
+      "verified": true,
+      "result": "exit 0 (actionlint absent locally, skipped)"
+    },
+    {
+      "cmd": "actionlint",
+      "verified": false,
+      "result": "not installed in this sandbox; CI runs it on every push"
+    },
+    {
+      "cmd": "Apps Script deployment (paste gas/ into a Google account)",
+      "verified": false,
+      "result": "never executed — see gaps G1"
+    },
+    {
+      "cmd": "scripts/bootstrap-github.sh (real run)",
+      "verified": false,
+      "result": "needs the owner's gh session; agent token gets 403 by design"
+    }
+  ],
+  "risks": [
+    "The whole backend (approval, locks, sheets, calendar) has never run inside a real Google account; only a vm-simulated harness covers it.",
+    "main is unprotected and the repo has 0 secrets / 0 variables, so the setup contract is declared but not configured.",
+    "Demo-mode availability duplicates the duration rule from Code.gs instead of sharing it; the two can drift.",
+    "Client-side demo PIN '2468' is rendered in index.html:219 and enforced in app.js; safe only because demo mode never claims a real confirmation."
+  ],
+  "unknowns": [
+    "Whether the Pages site has ever been published (workflow exists; environment github-pages is not configured).",
+    "Which GitHub account owns the live Apps Script project, if any.",
+    "Whether the 11 self-hosted woff2 files are the current upstream releases (licenses are stored, versions are not).",
+    "app.config.ts (logoUrl) and manus-routes.json are host/tooling leftovers with no consumer in this repo — see gaps G6."
+  ]
+}

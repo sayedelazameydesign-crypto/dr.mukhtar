@@ -52,6 +52,21 @@ if (process.argv.includes('--self-test')) {
   });
   const GOOD_ENV = 'APP_ENV=ci\nGEMINI_API_KEY=\n';
   const GOOD_ENV_JS = `const ENV_SPECS = [\n  { name: 'GEMINI_API_KEY', secret: true, required: false, pattern: null, hint: '' },\n  { name: 'APP_ENV', secret: false, required: false, pattern: /^(ci)$/, hint: '' }\n];\n`;
+  const GOOD_MAP_PROJECT = JSON.stringify({
+    meta: { name: 'fixture', commit: '0000000', generated_at: '2026-01-01T00:00:00Z', coverage: 'partial' },
+    summary_L0: 'one line',
+    nodes: [
+      { id: 'ui.index', kind: 'component', path: 'index.html', layer: 'ui', role: 'markup' },
+      { id: 'domain.code', kind: 'module', path: 'Code.gs', layer: 'domain', role: 'rules' },
+      { id: 'env.GEMINI_API_KEY', kind: 'env', path: '.env.example:1', layer: 'infra', role: 'secret name' },
+      { id: 'env.APP_ENV', kind: 'env', path: '.env.example:2', layer: 'infra', role: 'variable name' }
+    ],
+    edges: [
+      { type: 'calls', evidence: 'index.html:1', confidence: 'high', source: 'static', pairs: [['ui.index', 'domain.code']] },
+      { type: 'uses_env', evidence: 'Code.gs:1', confidence: 'high', source: 'static', pairs: [['domain.code', 'env.GEMINI_API_KEY'], ['domain.code', 'env.APP_ENV']] }
+    ]
+  });
+  const GOOD_GAPS = JSON.stringify({ gaps: [{ id: 'G1', type: 'docs_drift', evidence: 'README.md:1', fix: 'update it', severity: 'low' }], questions: [] });
   const GOOD_WORKFLOW = `name: ok
 on: [push]
 permissions:
@@ -78,7 +93,12 @@ jobs:
     { name: 'missing permissions block is rejected', workflow: GOOD_WORKFLOW.replace('permissions:\n  contents: read\n', ''), expect: 1 },
     { name: 'self-hosted runner is rejected', workflow: GOOD_WORKFLOW.replace('runs-on: ubuntu-latest', 'runs-on: [self-hosted, linux]'), expect: 1 },
     { name: 'pull_request_target with head checkout is rejected', workflow: GOOD_WORKFLOW.replace('on: [push]', 'on: [pull_request_target]') + '      - uses: actions/checkout@v5\n        with:\n          ref: \${{ github.event.pull_request.head.sha }}\n', expect: 1 },
+    { name: 'stale project map is rejected under --strict', map: GOOD_MAP_PROJECT, expect: 1, strict: true, mapCommit: 'deadbee' },
     { name: 'env dump is flagged', workflow: GOOD_WORKFLOW.replace('run: echo "using $APP_ENV"', 'run: printenv'), expect: 0, expectWarning: true },
+    { name: 'map edge pointing at an undeclared node is rejected', map: GOOD_MAP_PROJECT.replace(JSON.stringify('domain.code'), JSON.stringify('domain.ghost')), expect: 1 },
+    { name: 'map missing a declared env name is rejected', map: GOOD_MAP_PROJECT.replace(/env\.APP_ENV/g, 'env.OTHER_NAME'), expect: 1 },
+    { name: 'map without summary_L0 is rejected', map: JSON.stringify({ ...JSON.parse(GOOD_MAP_PROJECT), summary_L0: '' }), expect: 1 },
+    { name: 'missing docs/map is rejected', map: null, expect: 1 },
     { name: 'built-in GITHUB_TOKEN needs no declaration', workflow: GOOD_WORKFLOW.replace('GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}', 'GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}'), expect: 0, expectWarning: false }
   ];
 
@@ -93,11 +113,28 @@ jobs:
     fs.writeFileSync(path.join(dir, 'scripts', 'env.js'), GOOD_ENV_JS);
     fs.writeFileSync(path.join(dir, 'scripts', 'bootstrap-github.sh'),
       '#!/usr/bin/env sh\n# --dry-run supported\ngit status >/dev/null\n');
-    fs.writeFileSync(path.join(dir, '.github', 'workflows', 'test.yml'), testCase.workflow);
+    fs.writeFileSync(path.join(dir, '.github', 'workflows', 'test.yml'), testCase.workflow || GOOD_WORKFLOW);
+    if (testCase.map !== null) {
+      fs.mkdirSync(path.join(dir, 'docs', 'map'), { recursive: true });
+      // A local git repo makes the map's commit comparable with HEAD, so the
+      // staleness rule can be exercised (git is present wherever CI runs).
+      const git = (...args) => require('node:child_process').execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+      if (!testCase.noGit) {
+        git('init', '-q');
+        git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'head');
+        if (testCase.mapCommit) {
+          fs.writeFileSync(path.join(dir, 'docs', 'map', 'project.json'),
+            testCase.map.replace(/\"commit\":\"[^\"]*\"/, `\"commit\":\"${testCase.mapCommit}\"`));
+        }
+      }
+      fs.writeFileSync(path.join(dir, 'docs', 'map', 'project.json'), testCase.map || GOOD_MAP_PROJECT);
+      fs.writeFileSync(path.join(dir, 'docs', 'map', 'gaps.json'), GOOD_GAPS);
+      fs.writeFileSync(path.join(dir, 'docs', 'map', 'ARCHITECTURE.md'), '# fixture\n');
+    }
 
     let outcome;
     try {
-      const output = execFileSync(process.execPath, [__filename], {
+      const output = execFileSync(process.execPath, [__filename].concat(testCase.strict ? ['--strict'] : []), {
         cwd: dir, encoding: 'utf8', env: { ...process.env, CELIA_REPO_ROOT: dir }
       });
       outcome = { code: 0, output };
@@ -326,6 +363,110 @@ if (!fs.existsSync(ENV_EXAMPLE)) {
     const entry = (manifest.secrets || []).find((item) => item.name === name);
     if (entry && value.trim() !== '') fail(`.env.example:${index + 1} — ${name} must be empty (never commit secret values)`);
   });
+}
+
+/* ------------------------------------------------------------ project map */
+/**
+ * `docs/map/` is what a human or agent reads before touching code, so it is a
+ * contract like the secrets manifest: present, parseable, every edge cited and
+ * resolvable. Staleness (map commit behind HEAD) is a warning here and fails
+ * under --strict, because a code-only commit must not be blocked by a doc bump.
+ */
+const MAP_DIR = path.join(ROOT, 'docs', 'map');
+const EDGE_TYPES = new Set(['imports', 'calls', 'reads', 'writes', 'uses_env', 'deploys_to', 'tests', 'shares_contract', 'emits', 'handles']);
+
+function gitHead() {
+  try {
+    const { execFileSync } = require('node:child_process');
+    return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch (error) {
+    return null; // exported copies have no git metadata; that is not an error
+  }
+}
+
+if (!fs.existsSync(MAP_DIR)) {
+  fail('docs/map/ is missing — follow project-map.md before coding');
+} else {
+  const readMap = (file) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(MAP_DIR, file), 'utf8'));
+    } catch (error) {
+      fail(`docs/map/${file} — ${error.message}`);
+      return null;
+    }
+  };
+  const project = readMap('project.json');
+  const gaps = readMap('gaps.json');
+  const architecture = path.join(MAP_DIR, 'ARCHITECTURE.md');
+  if (!fs.existsSync(architecture)) fail('docs/map/ARCHITECTURE.md is missing');
+  else if (fs.readFileSync(architecture, 'utf8').replace(/\n+$/, '').split('\n').length > 150) warn('docs/map/ARCHITECTURE.md is longer than 150 lines (project-map.md §11)');
+
+  if (project) {
+    const meta = project.meta || {};
+    if (!meta.commit) fail('docs/map/project.json — meta.commit is required');
+    if (!meta.generated_at) fail('docs/map/project.json — meta.generated_at is required');
+    const l0 = String(project.summary_L0 || '');
+    if (!l0.trim()) fail('docs/map/project.json — summary_L0 is required');
+    else if (l0.split('\n').length > 15) fail(`docs/map/project.json — summary_L0 is ${l0.split('\n').length} lines, max 15`);
+
+    const nodes = Array.isArray(project.nodes) ? project.nodes : [];
+    if (!nodes.length) fail('docs/map/project.json — nodes is empty');
+    const ids = new Set();
+    nodes.forEach((node) => {
+      if (!node.id) return fail('docs/map/project.json — a node has no id');
+      if (ids.has(node.id)) fail(`docs/map/project.json — duplicate node id ${node.id}`);
+      ids.add(node.id);
+      ['kind', 'path', 'layer', 'role'].forEach((field) => {
+        if (!node[field]) fail(`docs/map/project.json — node ${node.id} is missing ${field}`);
+      });
+      if (node.role && String(node.role).trim().split(/\s+/).length > 12) warn(`docs/map/project.json — node ${node.id} role exceeds 12 words`);
+    });
+
+    const edges = Array.isArray(project.edges) ? project.edges : [];
+    if (!edges.length) fail('docs/map/project.json — edges is empty');
+    edges.forEach((edge, index) => {
+      const label = `docs/map/project.json — edge #${index + 1}`;
+      if (!EDGE_TYPES.has(edge.type)) fail(`${label}: type "${edge.type}" is not one of ${[...EDGE_TYPES].join('|')}`);
+      if (!edge.evidence) fail(`${label}: evidence (path:line) is required`);
+      if (!['high', 'med', 'low'].includes(edge.confidence)) fail(`${label}: confidence must be high|med|low`);
+      if (!edge.source) fail(`${label}: source is required`);
+      if (!Array.isArray(edge.pairs) || !edge.pairs.length) return fail(`${label}: pairs is required`);
+      edge.pairs.forEach((pair) => {
+        if (!Array.isArray(pair) || pair.length !== 2) return fail(`${label}: each pair must be [from, to]`);
+        pair.forEach((endpoint) => {
+          const base = String(endpoint).split('#')[0];
+          if (!ids.has(base)) fail(`${label}: "${base}" is not a declared node id`);
+        });
+      });
+    });
+
+    // Environment names are the contract shared with the manifest — the map must mention each one.
+    const haystack = JSON.stringify({ nodes, edges, entrypoints: project.entrypoints || [] });
+    [...(manifest.secrets || []), ...(manifest.variables || [])].forEach((entry) => {
+      if (!haystack.includes(entry.name)) fail(`docs/map/project.json — declared name ${entry.name} is absent from the map`);
+    });
+  }
+
+  if (gaps) {
+    const list = Array.isArray(gaps.gaps) ? gaps.gaps : [];
+    if (!list.length) warn('docs/map/gaps.json — no gaps recorded (unusual for any real repo)');
+    const seen = new Set();
+    list.forEach((gap) => {
+      if (!gap.id) return fail('docs/map/gaps.json — a gap has no id');
+      if (seen.has(gap.id)) fail(`docs/map/gaps.json — duplicate gap id ${gap.id}`);
+      seen.add(gap.id);
+      ['type', 'evidence', 'fix'].forEach((field) => {
+        if (!gap[field]) fail(`docs/map/gaps.json — ${gap.id} is missing ${field}`);
+      });
+      if (!['high', 'med', 'low'].includes(gap.severity)) fail(`docs/map/gaps.json — ${gap.id} severity must be high|med|low`);
+    });
+  }
+
+  const head = gitHead();
+  const mapped = project && project.meta && project.meta.commit;
+  if (head && mapped && !head.startsWith(mapped) && !mapped.startsWith(head.slice(0, 7))) {
+    warn(`docs/map/ is stale — meta.commit ${mapped} but HEAD is ${head.slice(0, 7)}; refresh per project-map.md §8`);
+  }
 }
 
 /* ------------------------------------------------------------------ report */

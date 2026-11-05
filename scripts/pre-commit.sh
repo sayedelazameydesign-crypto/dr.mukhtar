@@ -7,7 +7,7 @@ set -eu
 echo "→ secret scan"
 node scripts/scan-secrets.js --all
 
-echo "→ workflow/secrets contract"
+echo "→ workflow/secrets contract + project map"
 node scripts/check-workflows.js
 
 echo "→ startup env contract"

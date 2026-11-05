@@ -57,7 +57,7 @@ node scripts/test-ui-smoke.js               # DOM journey (needs: npm i --no-sav
 node scripts/test-demo-availability.js      # demo slots respect visit duration + work hours (jsdom)
 node scripts/check-config.js [props.json]   # config contract
 node scripts/scan-secrets.js                # dependency-free secret scan (always on in CI)
-node scripts/check-workflows.js [--self-test]  # secrets/variables + workflow policy contract
+node scripts/check-workflows.js [--self-test]  # secrets/variables + workflow + docs/map contract
 node scripts/env.js                         # startup env contract (names only, never values)
 node scripts/live-llm-smoke.js              # optional provider probe (env only; skips without a key)
 sh scripts/pre-commit.sh                    # local gate: secrets + contract (+ actionlint if installed)
@@ -70,6 +70,14 @@ free-tier ledger → secret scan (built-in + gitleaks) → audit, and an optiona
 is skipped for fork PRs. **Merge only on green.**
 
 ## 4. Architecture map
+
+Machine-readable map lives in `docs/map/` (`project.json`, `ARCHITECTURE.md`, `gaps.json`).
+
+**If `docs/map/` is missing or its `meta.commit` is behind HEAD → follow `project-map.md` before coding.**
+`node scripts/check-workflows.js` fails when the map is missing, unparseable, cites an undeclared node,
+or drops a declared secret/variable name; a stale `meta.commit` is a warning (fails under `--strict`).
+New module, route, env name, table or provider → update the map in the same PR.
+
 
 - `app.js`: `api()` is the only backend bridge (demo `localStorage` vs `google.script.run`).
   `callServer()` is the single place where the GAS transport lives.

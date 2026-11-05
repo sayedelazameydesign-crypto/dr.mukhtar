@@ -1,0 +1,117 @@
+{
+  "generated_at": "2026-11-05T01:05:00Z",
+  "commit": "61925ee",
+  "gaps": [
+    {
+      "id": "G1",
+      "type": "untested_critical_path",
+      "evidence": "TODO.md:35-45 'مفتوح قبل التشغيل الحقيقي'; scripts/test-gas-simulated.js:143 stubs UrlFetchApp; no real account run recorded",
+      "impact": "Approval, locking, Sheets schema, Calendar conflict handling and audit queue are unproven in production conditions; a first real day could fail loudly at the worst moment",
+      "fix": "Publish gas/ to a throwaway Google account, run the 5-step smoke from docs/exit-plan.md §خطوات الانتقال الآمنة, record the result in TODO.md",
+      "severity": "high"
+    },
+    {
+      "id": "G2",
+      "type": "unconfigured_contract",
+      "evidence": "gh api: variables 0, secrets 0, branches/main.protected=false (2026-11-05)",
+      "impact": "The secrets manifest is declared policy, not enforced state; rotation and fork-PR protection rely on settings that do not exist yet",
+      "fix": "Run sh scripts/bootstrap-github.sh on the owner's gh session (docs/secrets.md §7a-2)",
+      "severity": "high"
+    },
+    {
+      "id": "G3",
+      "type": "config_drift",
+      "evidence": "Llm.gs:113 props.getProperty(provider.timeoutProperty) with timeoutProperty 'GEMINI_TIMEOUT_MS' (Llm.gs:35); the 24 keys in config/clinic.example.json do not include it",
+      "impact": "A per-provider timeout can be set to anything outside 2000..60000 ms and check-config.js will not warn; validateConfig() only sees what the template declares",
+      "fix": "Either add GEMINI_TIMEOUT_MS to config/clinic.example.json (rules 2000..60000) or drop timeoutProperty and rely on LLM_TIMEOUT_MS",
+      "severity": "high"
+    },
+    {
+      "id": "G4",
+      "type": "defined_but_unused",
+      "evidence": ".env.example:21-28 declares CELIA_TIMEZONE/WORK_START/WORK_END/WORK_DAYS/SLOT_MINUTES/LLM_DAILY_LIMIT/LLM_HOURLY_LIMIT/LLM_CHAIN; rg finds no reader in scripts/ or app.js",
+      "impact": "Two naming schemes for the same setting invite a wrong guess during an incident",
+      "fix": "Document them as docs-only mirrors (they are) or wire scripts/check-config.js to accept the CELIA_ prefixed export",
+      "severity": "med"
+    },
+    {
+      "id": "G5",
+      "type": "duplicated_rule",
+      "evidence": "app.js:121-145 recomputes duration and busy spans; Code.gs:134-158 does the same against Calendar",
+      "impact": "A change to visit durations or work hours in one place silently diverges in the other; demo mode could promise a slot the backend refuses",
+      "fix": "Keep the demo model generated from the backend defaults in config/clinic.example.json, or add a shared JSON fixture both sides read",
+      "severity": "med"
+    },
+    {
+      "id": "G6",
+      "type": "dead_duplicate",
+      "evidence": "build-gas-package.py:5 ROOT = Path(__file__).resolve().parents[1] (resolves outside the repo); its regex expects ./app.css without the ?v=2026 query now in index.html:16",
+      "impact": "Anyone following the root copy gets a SystemExit or a wrong output path; only scripts/build-gas-package.py is maintained and referenced",
+      "fix": "Delete the root copy (and add a contract check for the single build entry point)",
+      "severity": "med"
+    },
+    {
+      "id": "G7",
+      "type": "foreign_artifacts",
+      "evidence": "SKILL.md:1 (platform skill doc), app.config.ts:1, manus-routes.json:1, pasted_file_uBZldm_image.png, 2026-11-04_09-24-14_779047_1152.txt, 2026-11-04_09-37-39_753588_1152.txt",
+      "impact": "~165 KB of non-project content shipped in the repo; two files are named by timestamp only",
+      "fix": "Remove or move them under docs/archive/ after confirming nothing links to them; scripts/preview.py already blocks SKILL.md and manus-routes.json",
+      "severity": "med"
+    },
+    {
+      "id": "G8",
+      "type": "unbounded_log_artifact",
+      "evidence": "2026-11-04_09-37-39_753588_1152.txt:52-77 — connector inventory and a UUID-shaped identifier; no key/token value found by scan-secrets.js",
+      "impact": "Terminal dumps can capture anything later; this one already contains environment names from a different toolchain",
+      "fix": "Delete both dumps; if a transcript must be kept, redact and store it outside the repo",
+      "severity": "med"
+    },
+    {
+      "id": "G9",
+      "type": "defined_but_unused",
+      "evidence": "docs/secrets-manifest.json GROQ_API_KEY used_by 'live-llm-smoke (fallback provider, not implemented yet)'; Llm.gs PROVIDERS has only gemini (Llm.gs:29-56)",
+      "impact": "A secret name exists that nothing consumes, which weakens the '1 key per purpose' invariant and invites premature rotation",
+      "fix": "Keep it declared but mark it as name-reservation only in docs/secrets.md, or remove it until the provider exists",
+      "severity": "med"
+    },
+    {
+      "id": "G10",
+      "type": "untested_critical_path",
+      "evidence": "scripts/test-ui-smoke.js and scripts/test-demo-availability.js exit 0 when jsdom is missing (skip path); renderSlots/renderDashboard have no direct unit tests",
+      "impact": "CI could pass while UI coverage silently disappears if the jsdom install step changes",
+      "fix": "Fail (exit 1) when CI=true and jsdom is absent, so the skip is local-only",
+      "severity": "low"
+    },
+    {
+      "id": "G11",
+      "type": "hardcoded_value",
+      "evidence": "app.js:28 DEMO_PIN = '2468' and index.html:219 render it",
+      "impact": "Acceptable only in demo mode; if the demo bundle is ever served with a real backend, the PIN hint invites a locked-out support call",
+      "fix": "Hide #demoPinHint when IS_GAS is true (or strip it in build-gas-package.py)",
+      "severity": "low"
+    },
+    {
+      "id": "G12",
+      "type": "docs_drift",
+      "evidence": "AGENTS.md:73-74 says 'All five scripts above exit 0' while the command block now lists 11 scripts; README.md:30-41 file tree omits scripts/check-workflows.js, scan-secrets.js, setup-github.js, bootstrap-github.sh, preview blocklist",
+      "impact": "A contributor follows an incomplete checklist",
+      "fix": "Point the checklist at CI steps instead of a count, and regenerate the README tree",
+      "severity": "low"
+    },
+    {
+      "id": "G13",
+      "type": "ci_coverage",
+      "evidence": ".github/workflows/ci.yml:65-70 runs both jsdom suites in one step; actionlint step (:43) depends on the runner image providing it",
+      "impact": "A missing jsdom or a moved actionlint binary degrades coverage without failing loudly",
+      "fix": "Pin jsdom in the step and make the actionlint absence an explicit warning with a recorded reason",
+      "severity": "low"
+    }
+  ],
+  "questions": [
+    "Where is the live Apps Script project (which Google account owns it), and is it still on the seed deployment?",
+    "Should the demo PIN hint be removed from the Apps Script bundle, or is the dashboard meant to show it on first run?",
+    "Do the two 2026-11-04 terminal dumps need to be archived anywhere before deletion?",
+    "Is GEMINI_TIMEOUT_MS meant to be per-provider override or a leftover of the single-provider era?",
+    "Should CELIA_* mirrors become the canonical env names for a future non-GAS backend, or be dropped?"
+  ]
+}
