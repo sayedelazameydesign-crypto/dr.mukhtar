@@ -44,13 +44,43 @@ jobs:
       - name: Setup checker tests
         run: node scripts/test-setup-github.js
 
-      - name: actionlint (preinstalled on the runner images)
+      - name: Publish contract (what reaches the public site)
+        run: node scripts/test-publish-contract.js
+
+      - name: actionlint (pinned; the runner image does not ship it)
+        env:
+          ACTIONLINT_VERSION: 1.7.7
         run: |
-          if command -v actionlint >/dev/null 2>&1; then
-            actionlint -color
-          else
-            echo "::warning::actionlint is not preinstalled on this runner image; scripts/check-workflows.js already covered the local rules."
+          # The image has shellcheck but no actionlint, so this step used to warn and skip —
+          # a gate that never ran (gap G13). Fetch the pinned release and lint; a download
+          # that cannot be verified fails the job rather than passing silently.
+          set -uo pipefail
+          if ! command -v actionlint >/dev/null 2>&1; then
+            base="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+            asset="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+            if curl -sSfL --retry 3 --retry-all-errors --max-time 120 -o /tmp/actionlint.tgz "${base}/${asset}" \
+               && tar -xzf /tmp/actionlint.tgz -C /tmp actionlint \
+               && /tmp/actionlint --version; then
+              install -m 0755 /tmp/actionlint /usr/local/bin/actionlint
+            else
+              echo "::error title=actionlint unavailable::Could not fetch actionlint ${ACTIONLINT_VERSION}. The workflow lint did not run; fix the download instead of accepting a green build without it."
+              exit 1
+            fi
           fi
+          # The image already ships the shell linter that actionlint delegates to.
+          echo "::notice title=linters::actionlint=$(actionlint --version) shellcheck=$(shellcheck --version 2>/dev/null | sed -n 's/^version: //p')"
+          # Capture the report: the raw job log is not always reachable, and a gate whose
+          # reason is invisible is a gate people learn to ignore.
+          status=0
+          actionlint -color 2>&1 | tee /tmp/actionlint.txt || status=1
+          if [ "$status" != '0' ]; then
+            # Always attach the reason: an unreadable failure is an ignored failure.
+            reason=$(tr '\n' ' ' < /tmp/actionlint.txt | cut -c1-800)
+            echo "::error title=actionlint failed::${reason:-no output}"""
+          else
+            echo "::notice title=actionlint::clean"
+          fi
+          exit "$status"
 
       - name: Syntax gate (JS)
         run: |
@@ -79,8 +109,12 @@ jobs:
 
       - name: UI smoke test (jsdom)
         timeout-minutes: 10
+        # The browser tests now fail (not skip) when jsdom is missing; this step makes the
+        # install itself a hard prerequisite so coverage cannot vanish silently.
         run: |
+          set -euo pipefail
           npm i --no-save --no-audit --no-fund jsdom@25
+          node -e "require.resolve('jsdom'); console.log('jsdom present')"
           node scripts/test-ui-smoke.js
           node scripts/test-published-clinic.js
           node scripts/test-demo-availability.js
@@ -113,7 +147,7 @@ jobs:
       - name: Secret scan (built-in, always on)
         run: node scripts/scan-secrets.js
 
-      - name: Secret scan (gitleaks, pinned; skipped if the download fails)
+      - name: Secret scan (gitleaks, pinned; fails if it cannot run)
         env:
           GITLEAKS_VERSION: 8.30.1
         run: |
@@ -127,29 +161,32 @@ jobs:
             binary_ok=1
           fi
           if [ "$binary_ok" != '1' ]; then
-            echo "::warning::gitleaks binary unavailable (release host unreachable); the built-in scanner already ran on the same tree."
-            exit 0
+            # Same rule as actionlint: a gate that cannot run is reported, not passed.
+            echo "::error title=gitleaks unavailable::The second secret scanner did not run (release host unreachable). The built-in scanner passed, but coverage shrank silently."
+            exit 1
           fi
           # Exit 0 here: the decision is made from the JSON report below, so a finding
           # becomes a visible annotation instead of a silent "exit code 1".
           /tmp/gitleaks dir . --config .gitleaks.toml --no-banner --redact \
             --report-format json --report-path /tmp/leaks.json --exit-code 0 || true
-          node -e '
-            const fs = require("node:fs");
-            let findings = [];
-            try { findings = JSON.parse(fs.readFileSync("/tmp/leaks.json", "utf8")) || []; }
-            catch (error) { console.log(`::error::gitleaks produced no readable report: ${error.message}`); process.exit(1); }
-            for (const finding of findings.slice(0, 20)) {
-              const file = finding.File || "?";
-              const line = finding.StartLine || 0;
-              console.log(`::error file=${file},line=${line}::${finding.RuleID} — ${finding.Description || "secret detected"}`);
-            }
-            if (findings.length) {
-              console.log(`gitleaks: ${findings.length} finding(s) in the shipped tree.`);
-              process.exit(1);
-            }
-            console.log("gitleaks: 0 findings in the shipped tree.");
-          '
+          # A here-doc keeps the JavaScript readable and out of shell quoting entirely;
+          # the single-quoted variant tripped SC2016 (template literals in single quotes).
+          node --input-type=commonjs - <<'JS'
+          const fs = require("node:fs");
+          let findings = [];
+          try { findings = JSON.parse(fs.readFileSync("/tmp/leaks.json", "utf8")) || []; }
+          catch (error) { console.log(`::error::gitleaks produced no readable report: ${error.message}`); process.exit(1); }
+          for (const finding of findings.slice(0, 20)) {
+            const file = finding.File || "?";
+            const line = finding.StartLine || 0;
+            console.log(`::error file=${file},line=${line}::${finding.RuleID} — ${finding.Description || "secret detected"}`);
+          }
+          if (findings.length) {
+            console.log(`gitleaks: ${findings.length} finding(s) in the shipped tree.`);
+            process.exit(1);
+          }
+          console.log("gitleaks: 0 findings in the shipped tree.");
+          JS
 
 
       - name: Dependency audit

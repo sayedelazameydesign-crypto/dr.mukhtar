@@ -76,7 +76,8 @@ python3 scripts/build-gas-package.py        # build gas/ bundle (Index.html, Fon
 CI (`.github/workflows/ci.yml`) runs: workflow/secrets contract (+actionlint) → JS/Python syntax →
 backend tests → adapter tests → UI smoke → bundle build → self-containment guard → config contract →
 free-tier ledger → secret scan (built-in + gitleaks) → audit, and an optional live LLM smoke job that
-is skipped for fork PRs. **Merge only on green.**
+is skipped for fork PRs. **Merge only on green.** The list above is illustrative, not exhaustive — **the source of truth
+is the `ci.yml` step list**, so never claim "N scripts all exit 0": read the workflow.
 
 ## 4. Architecture map
 

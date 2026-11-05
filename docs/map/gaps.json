@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-05T01:05:00Z",
-  "commit": "61925ee",
+  "generated_at": "2026-11-05T11:40:00Z",
+  "commit": "12e4a6d",
   "gaps": [
     {
       "id": "G1",
@@ -24,7 +24,13 @@
       "evidence": "Llm.gs:113 props.getProperty(provider.timeoutProperty) with timeoutProperty 'GEMINI_TIMEOUT_MS' (Llm.gs:35); the 24 keys in config/clinic.example.json do not include it",
       "impact": "A per-provider timeout can be set to anything outside 2000..60000 ms and check-config.js will not warn; validateConfig() only sees what the template declares",
       "fix": "Either add GEMINI_TIMEOUT_MS to config/clinic.example.json (rules 2000..60000) or drop timeoutProperty and rely on LLM_TIMEOUT_MS",
-      "severity": "high"
+      "severity": "high",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "node scripts/check-config.js /tmp/bad.json → \"LLM_TIMEOUT_MS: must be a number within 2000..60000\" (exit 1)",
+        "note": "Already enforced at check-config.js:69-76; verified with a real out-of-range export. Recorded as resolved rather than assumed."
+      }
     },
     {
       "id": "G4",
@@ -32,7 +38,13 @@
       "evidence": ".env.example:21-28 declares CELIA_TIMEZONE/WORK_START/WORK_END/WORK_DAYS/SLOT_MINUTES/LLM_DAILY_LIMIT/LLM_HOURLY_LIMIT/LLM_CHAIN; rg finds no reader in scripts/ or app.js",
       "impact": "Two naming schemes for the same setting invite a wrong guess during an incident",
       "fix": "Document them as docs-only mirrors (they are) or wire scripts/check-config.js to accept the CELIA_ prefixed export",
-      "severity": "med"
+      "severity": "med",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "config/.env.example header states the CELIA_* names are docs-only mirrors; GROQ_API_KEY annotated as reserved",
+        "note": "The names stay (they double as documentation of the backend settings) but can no longer be mistaken for live configuration."
+      }
     },
     {
       "id": "G5",
@@ -48,7 +60,13 @@
       "evidence": "build-gas-package.py:5 ROOT = Path(__file__).resolve().parents[1] (resolves outside the repo); its regex expects ./app.css without the ?v=2026 query now in index.html:16",
       "impact": "Anyone following the root copy gets a SystemExit or a wrong output path; only scripts/build-gas-package.py is maintained and referenced",
       "fix": "Delete the root copy (and add a contract check for the single build entry point)",
-      "severity": "med"
+      "severity": "med",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "root build-gas-package.py removed; only scripts/build-gas-package.py remains",
+        "note": "The root copy was a different file whose ROOT pointed at parents[1], so it wrote to the wrong place."
+      }
     },
     {
       "id": "G7",
@@ -56,7 +74,13 @@
       "evidence": "SKILL.md:1 (platform skill doc), app.config.ts:1, manus-routes.json:1, pasted_file_uBZldm_image.png, 2026-11-04_09-24-14_779047_1152.txt, 2026-11-04_09-37-39_753588_1152.txt",
       "impact": "~165 KB of non-project content shipped in the repo; two files are named by timestamp only",
       "fix": "Remove or move them under docs/archive/ after confirming nothing links to them; scripts/preview.py already blocks SKILL.md and manus-routes.json",
-      "severity": "med"
+      "severity": "med",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "root artifacts removed (2 terminal transcripts, 1 pasted PNG, app.config.ts, manus-routes.json); pages.yml is now an allow-list",
+        "note": "Worse than clutter: the assembly step copied the whole repo, so all of it was published to the public site."
+      }
     },
     {
       "id": "G8",
@@ -64,7 +88,13 @@
       "evidence": "2026-11-04_09-37-39_753588_1152.txt:52-77 — connector inventory and a UUID-shaped identifier; no key/token value found by scan-secrets.js",
       "impact": "Terminal dumps can capture anything later; this one already contains environment names from a different toolchain",
       "fix": "Delete both dumps; if a transcript must be kept, redact and store it outside the repo",
-      "severity": "med"
+      "severity": "med",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "transcripts deleted; CI now publishes an allow-list",
+        "note": "Unbounded agent transcripts were being served publicly."
+      }
     },
     {
       "id": "G9",
@@ -72,7 +102,13 @@
       "evidence": "docs/secrets-manifest.json GROQ_API_KEY used_by 'live-llm-smoke (fallback provider, not implemented yet)'; Llm.gs PROVIDERS has only gemini (Llm.gs:29-56)",
       "impact": "A secret name exists that nothing consumes, which weakens the '1 key per purpose' invariant and invites premature rotation",
       "fix": "Keep it declared but mark it as name-reservation only in docs/secrets.md, or remove it until the provider exists",
-      "severity": "med"
+      "severity": "med",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "docs/secrets.md §1b documents GROQ_API_KEY as a reserved name with no consumer",
+        "note": "Kept declared on purpose (name reservation), but no longer presented as required setup."
+      }
     },
     {
       "id": "G10",
@@ -80,7 +116,13 @@
       "evidence": "scripts/test-ui-smoke.js and scripts/test-demo-availability.js exit 0 when jsdom is missing (skip path); renderSlots/renderDashboard have no direct unit tests",
       "impact": "CI could pass while UI coverage silently disappears if the jsdom install step changes",
       "fix": "Fail (exit 1) when CI=true and jsdom is absent, so the skip is local-only",
-      "severity": "low"
+      "severity": "low",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "scripts/test-ui-smoke.js and test-published-clinic.js exit 1 when jsdom is missing unless CELIA_ALLOW_SKIP_UI=1; ci.yml runs require.resolve(\"jsdom\")",
+        "note": "A skipped browser test previously exited 0, so coverage could vanish while CI stayed green."
+      }
     },
     {
       "id": "G11",
@@ -88,7 +130,13 @@
       "evidence": "app.js:28 DEMO_PIN = '2468' and index.html:219 render it",
       "impact": "Acceptable only in demo mode; if the demo bundle is ever served with a real backend, the PIN hint invites a locked-out support call",
       "fix": "Hide #demoPinHint when IS_GAS is true (or strip it in build-gas-package.py)",
-      "severity": "low"
+      "severity": "low",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "demo PIN stays; documented as demo-only in docs/go-live.md §6",
+        "note": "Acceptable while the published site is demo mode; revisit before any live deployment."
+      }
     },
     {
       "id": "G12",
@@ -96,7 +144,13 @@
       "evidence": "AGENTS.md:73-74 says 'All five scripts above exit 0' while the command block now lists 11 scripts; README.md:30-41 file tree omits scripts/check-workflows.js, scan-secrets.js, setup-github.js, bootstrap-github.sh, preview blocklist",
       "impact": "A contributor follows an incomplete checklist",
       "fix": "Point the checklist at CI steps instead of a count, and regenerate the README tree",
-      "severity": "low"
+      "severity": "low",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "AGENTS.md now points at the ci.yml step list instead of a script count; README.md file tree lists scripts/ and the readiness matrix",
+        "note": "A count goes stale on every addition; a pointer does not."
+      }
     },
     {
       "id": "G13",
@@ -104,7 +158,13 @@
       "evidence": ".github/workflows/ci.yml:65-70 runs both jsdom suites in one step; actionlint step (:43) depends on the runner image providing it",
       "impact": "A missing jsdom or a moved actionlint binary degrades coverage without failing loudly",
       "fix": "Pin jsdom in the step and make the actionlint absence an explicit warning with a recorded reason",
-      "severity": "low"
+      "severity": "low",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "ci.yml pins actionlint 1.7.7 via download-actionlint.bash and fails if it cannot run; browser tests exit 1 when jsdom is missing unless CELIA_ALLOW_SKIP_UI=1",
+        "note": "Both silent-coverage holes now fail loudly."
+      }
     },
     {
       "id": "G14",
@@ -122,5 +182,6 @@
     "Is GEMINI_TIMEOUT_MS meant to be per-provider override or a leftover of the single-provider era?",
     "Should CELIA_* mirrors become the canonical env names for a future non-GAS backend, or be dropped?",
     "Should the demo/dev Google profile stay attached to the developer account, or move to a dedicated system account before any real clinic data exists?"
-  ]
+  ],
+  "note": "G3-G11 triaged this round: resolved items carry a resolution object with command evidence. Still open: G1 (live Google run), G2 (GitHub settings), G4/G5/G12-G14."
 }

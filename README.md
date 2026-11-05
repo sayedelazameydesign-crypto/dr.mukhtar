@@ -42,6 +42,9 @@ manifest.webmanifest        إضافة إلى الشاشة الرئيسية (PWA
 docs/map/                   خريطة معمّرة: project.json + ARCHITECTURE.md + gaps.json (project-map.md)
 docs/google-setup.md        جسر Google: خطوات المتصفح، البروفايل، تبديل الحساب، جدول الأعطال
 docs/publish.md             النشر على GitHub Pages: المساران، التحقق، ما لا يُنشر
+scripts/                    بوابات محلية: check-workflows · scan-secrets · check-config ·
+                            check-settings-parity · go-live-check · build-gas-package + اختباراتها
+docs/production-readiness.md مصفوفة أدلة الجهوزية G1–G10 وحالة كل بوابة
 scripts/google/             gateway.js + profile/auth/bootstrap/selftest/migrate (المحوّل المحلي هو الافتراضي)
 config/google.profile.example.json  قالب البروفايل (بلا معرّفات ولا بريد) — الحقيقي مستبعَد من Git
 Code.gs                     خادم Google Apps Script

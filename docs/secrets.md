@@ -25,6 +25,14 @@ The clinic's own settings (clinic/doctor identity, hours, visit types, staff PIN
 **no** secret here: they are non-sensitive data edited from the dashboard and stored in the clinic
 sheet. See [`settings.md`](./settings.md).
 
+## 1b. `GROQ_API_KEY` is a reserved name with no consumer
+
+`GROQ_API_KEY` is declared in the manifest but **nothing consumes it**: `Llm.gs` never reads it
+and no workflow passes it. Its presence in `.env.example` and in this table can read as
+"required", so treat it as a **reserved slot, not a setup step**: do not set it, and do not
+treat its absence as missing configuration. Adding the provider to `Llm.gs` comes first; the
+secret follows.
+
 ## 2. What is declared (names only — never values)
 
 | Name | Kind | Level | Used by | Card |

@@ -10,7 +10,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 let JSDOM;
 try { ({ JSDOM } = require('jsdom')); }
-catch (error) { console.log('SKIPPED: jsdom is not installed. Run `npm i --no-save jsdom@25`.'); process.exit(0); }
+catch (error) {
+  // Same rule as the other browser tests: a test that did not run is not a pass.
+  if (!process.env.CELIA_ALLOW_SKIP_UI) {
+    console.error('SKIPPED-WITH-FAILURE: jsdom is not installed, so this test did not run.');
+    console.error('Install it (npm i --no-save jsdom@25) or set CELIA_ALLOW_SKIP_UI=1 to accept the gap explicitly.');
+    process.exit(1);
+  }
+  console.log('SKIPPED (explicit): jsdom is not installed and CELIA_ALLOW_SKIP_UI=1 was set.');
+  process.exit(0);
+}
 const ROOT = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(ROOT, 'app.css'), 'utf8');

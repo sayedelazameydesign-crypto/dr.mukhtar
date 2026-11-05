@@ -165,9 +165,12 @@ function runGate(label, command, cmdArgs, id) {
       || lines.find((item) => /SKIPPED/i.test(item))
       || lines.pop()
       || '';
+    // A skipped browser test is a gap that looks green: report it as an action, because
+    // the gate is expected to run. The only accepted skip is an explicit opt-out.
     const skipped = /SKIPPED/i.test(line);
-    add(id, label, skipped ? 'unverified' : 'ready', line.slice(0, 120),
-      skipped ? 'ثبّت الاعتماد لتشغيله: npm i --no-save --prefix /tmp jsdom' : '');
+    const explicitSkip = skipped && process.env.CELIA_ALLOW_SKIP_UI;
+    add(id, label, explicitSkip ? 'unverified' : (skipped ? 'action' : 'ready'), line.slice(0, 120),
+      skipped && !explicitSkip ? 'ثبّت الاعتماد: npm i --no-save --prefix /tmp jsdom (أو اعتمد التخطي صراحةً بـ CELIA_ALLOW_SKIP_UI=1)' : '');
   } catch (error) {
     const detail = String(error.stdout || error.stderr || error.message).trim().split('\n').slice(-3).join(' ').slice(0, 160);
     add(id, label, 'action', detail || 'فشل', 'أصلح البوابة قبل أي نشر — راجع المخرج أعلاه');

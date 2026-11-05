@@ -353,10 +353,14 @@ if (!fs.existsSync(BOOTSTRAP)) {
 }
 
 /* --------------------------------------------------------- .env.example */
-if (!fs.existsSync(ENV_EXAMPLE)) {
-  fail('.env.example is missing');
+// The template lives in config/ (not at the root) because everything at the repository
+// root is a candidate for publishing; the checker accepts either location and insists the
+// file is tracked as a template only — never a real .env.
+const ENV_EXAMPLE_ALT = path.join(ROOT, 'config', '.env.example');
+if (!fs.existsSync(ENV_EXAMPLE) && !fs.existsSync(ENV_EXAMPLE_ALT)) {
+  fail('.env.example is missing (expected at the root or under config/)');
 } else {
-  const envText = fs.readFileSync(ENV_EXAMPLE, 'utf8');
+  const envText = fs.readFileSync(fs.existsSync(ENV_EXAMPLE) ? ENV_EXAMPLE : ENV_EXAMPLE_ALT, 'utf8');
   const envNames = new Set(
     envText.split('\n')
       .filter((line) => /^[A-Z][A-Z0-9_]*=/.test(line.trim()))
@@ -529,16 +533,36 @@ if (!fs.existsSync(ENABLE_PAGES)) {
     if (!synthetic) fail('.github/workflows/pages.yml is missing');
   } else {
     const pages = fs.readFileSync(pagesWorkflow, 'utf8');
-    // The command spans a YAML line continuation, so match the intent, not one line.
-    const usesWildcardCopy = /rsync\s+-a[\s\S]{0,800}?(\.\/|\$\{?PWD\}?\/?)\s+_site\//.test(pages);
+    // Publishing is an allow-list: every shipped file must be named in the assembly step,
+    // and nothing else may be copied. A deny-list previously shipped terminal transcripts,
+    // backend sources and build scripts to the public site because they merely existed.
+    const assembly = /Assemble static site[\s\S]*?find _site[^\n]*/.exec(pages);
+    const assemblyText = assembly ? assembly[0] : '';
+    // Files that are internal by design and must never appear in the public bundle.
+    const neverShip = [
+      'Code.gs', 'Llm.gs', 'Settings.gs', 'appsscript.json',
+      'build-gas-package.py', 'app.config.ts', 'manus-routes.json',
+      '.env.example', '.gitignore', 'clinic.json'
+    ].filter((file) => file !== 'clinic.json'); // clinic.json is public by design
     if (!synthetic) {
-      mustShip.forEach((file) => {
-        if (!fs.existsSync(path.join(ROOT, file))) return fail(`${file} is missing (it is a shipped site file)`);
-        if (!usesWildcardCopy && !pages.includes(file)) {
-          fail(`.github/workflows/pages.yml — ${file} exists but is not copied into _site (use a wildcard copy)`);
+      if (!assemblyText) {
+        fail('.github/workflows/pages.yml — no assembly step found (the site would not be built)');
+      } else {
+        mustShip.forEach((file) => {
+          if (!fs.existsSync(path.join(ROOT, file))) return fail(`${file} is missing (it is a shipped site file)`);
+          if (!assemblyText.includes(file)) {
+            fail(`.github/workflows/pages.yml — ${file} exists but is not named in the assembly step (allow-list)`);
+          }
+        });
+        if (/rsync\s+-a[\s\S]{0,800}?\.\/\s+_site\//.test(assemblyText)) {
+          fail('.github/workflows/pages.yml — the assembly copies the whole repository; use an explicit allow-list');
         }
-      });
-      if (!usesWildcardCopy) warn('.github/workflows/pages.yml — explicit file list: new site files will not be published');
+        neverShip.forEach((file) => {
+          if (new RegExp(`(^|[\\s/])${file.replace('.', '\\.')}([\\s\\\\]|$)`).test(assemblyText)) {
+            fail(`.github/workflows/pages.yml — ${file} is internal but appears in the publish list`);
+          }
+        });
+      }
     }
   }
 

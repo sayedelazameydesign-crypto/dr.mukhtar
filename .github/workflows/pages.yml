@@ -46,16 +46,16 @@ jobs:
 
       - name: Assemble static site
         run: |
-          # Copy every shipped file, then delete what must not be published. An explicit
-          # allow-list silently drops new assets (the 404 page, robots.txt, sitemap.xml),
-          # which is how a file can exist in the repo and never reach the live site.
-          mkdir -p _site
-          rsync -a --exclude '.git' --exclude '.github' --exclude 'gas' --exclude '_site' \
-                --exclude 'node_modules' --exclude 'scripts' --exclude 'docs' \
-                --exclude 'config' --exclude '*.md' --exclude '.gitleaks.toml' \
-                ./ _site/
+          # Allow-list, not a deny-list: everything in the repository is internal by
+          # default, and only files named here reach the public site. A deny-list silently
+          # publishes whatever is added later — terminal transcripts, backend sources,
+          # build scripts — which is exactly what had been happening.
+          mkdir -p _site assets
+          cp index.html app.css app.js brand.svg manifest.webmanifest \
+             robots.txt sitemap.xml 404.html clinic.json _site/
+          cp -r assets/. _site/assets/ 2>/dev/null || true
           echo "--- published files:"
-          find _site -maxdepth 1 -type f | sort
+          find _site -type f | sort
 
       - name: Verify backend simulation
         run: node scripts/test-gas-simulated.js
