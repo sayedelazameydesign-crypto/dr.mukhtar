@@ -144,7 +144,9 @@ const context = {
 };
 
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('gas/Code.gs', 'utf8'), context, { filename: 'gas/Code.gs' });
+const backendPath = ['gas/Code.gs', 'Code.gs'].find((candidate) => fs.existsSync(candidate));
+if (!backendPath) throw new Error('Apps Script backend not found (gas/Code.gs or Code.gs)');
+vm.runInContext(fs.readFileSync(backendPath, 'utf8'), context, { filename: backendPath });
 
 function nextWorkday() {
   const date = new Date(); date.setHours(12, 0, 0, 0);

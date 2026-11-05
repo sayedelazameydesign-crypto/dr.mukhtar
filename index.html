@@ -3,46 +3,115 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f8f4">
-  <meta name="description" content="Celia Kids — طلب مواعيد عيادة الأطفال، مع تأكيد الموعد بعد موافقة العيادة.">
+  <meta name="theme-color" content="#f6f7f2">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Celia Kids — طلب مواعيد عيادة الأطفال: اختاروا اليوم والوقت، ويراجع فريق العيادة كل طلب ويؤكده قبل إضافته إلى جدول الطبيب.">
   <title>Celia Kids | حجز مواعيد الأطفال</title>
   <link rel="icon" href="./brand.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./app.css">
-  <script src="./app.js" defer></script>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Celia Kids">
+  <link rel="preload" href="./assets/fonts/almarai-700-arabic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="./assets/fonts/plex-arabic-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./app.css?v=2026">
+  <script src="./app.js?v=2026" defer></script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"MedicalClinic","name":"Celia Kids","description":"عيادة أطفال — استقبال طلبات المواعيد إلكترونياً مع تأكيد بشري من العيادة.","medicalSpecialty":"Pediatric","areaServed":"EG","availableLanguage":"ar"}
+  </script>
 </head>
 <body>
+  <a class="skip-link" href="#bookingView">تجاوز إلى نموذج الحجز</a>
+  <div class="ambient" aria-hidden="true"><span class="orb orb-a"></span><span class="orb orb-b"></span><span class="grain"></span></div>
+
   <div class="app-shell">
     <header class="topbar">
-      <a class="brand" href="#" aria-label="Celia Kids الصفحة الرئيسية">
+      <a class="brand" href="#" aria-label="Celia Kids — الصفحة الرئيسية">
         <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 48 48" fill="none"><rect x="5" y="8" width="38" height="35" rx="12" fill="currentColor" opacity=".13"/><path d="M14 5v8M34 5v8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><rect x="10" y="13" width="28" height="24" rx="7" stroke="currentColor" stroke-width="2.6"/><path d="M17 25h5l2.3-4.5 3.4 9 2.1-4.5H33" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="7" width="40" height="37" rx="13" fill="url(#ckg)"/><path d="M15 4.5v8M33 4.5v8" stroke="#0f5d55" stroke-width="3" stroke-linecap="round"/><path d="M16 26h5l2.4-5 3.4 9.6 2.4-4.6H32" stroke="#083c37" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="ckg" x1="4" y1="7" x2="44" y2="44" gradientUnits="userSpaceOnUse"><stop stop-color="#d9f2e6"/><stop offset="1" stop-color="#b7e3d5"/></linearGradient></defs></svg>
         </span>
-        <span><strong>Celia Kids</strong><small>رعاية تبدأ بموعد</small></span>
+        <span class="brand-text"><strong>Celia&nbsp;Kids</strong><small>عيادة أطفال · القاهرة</small></span>
       </a>
-      <nav class="top-nav" aria-label="التنقل">
+
+      <nav class="top-nav" aria-label="التنقل الرئيسي">
         <button class="nav-button active" type="button" data-view="booking">حجز موعد</button>
         <button class="nav-button" type="button" data-view="staff">لوحة العيادة</button>
+        <span class="nav-indicator" aria-hidden="true"></span>
       </nav>
-      <div class="mode-pill" id="modePill"><span class="mode-dot"></span><span id="modeLabel">وضع تجريبي</span></div>
+
+      <div class="status-cluster">
+        <div class="live-pill" id="modePill" role="status">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="modeLabel">وضع تجريبي</span>
+        </div>
+      </div>
     </header>
 
-    <main>
+    <main id="main">
       <section class="hero-row">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="eyebrow-line"></span> مواعيد أوضح، ومكالمات أقل</p>
-          <h1>طلب موعد طفلك،<br><em>بخطوات بسيطة.</em></h1>
-          <p class="hero-description">أرسل طلبك في دقائق. يراجع فريق العيادة الموعد ويؤكده قبل إضافته إلى جدول الطبيب.</p>
+          <p class="eyebrow"><span class="eyebrow-line"></span> استقبال رقمي · بلا مكالمات معلّقة</p>
+          <h1>موعد طفلك،<br><em>بهدوء ومن أول محاولة.</em></h1>
+          <p class="hero-description">اختاروا اليوم والوقت المناسبين وأرسلوا الطلب في أقل من دقيقة. فريق العيادة يراجع كل طلب بشرياً ويؤكده قبل إضافته إلى جدول الطبيب.</p>
+          <div class="hero-actions">
+            <a class="primary-button hero-cta" href="#bookingForm"><span>ابدأوا طلب الموعد</span><span class="button-arrow" aria-hidden="true">←</span></a>
+            <a class="ghost-button" href="#trackCard">تابعوا طلباً سابقاً</a>
+          </div>
+          <ul class="trust-strip">
+            <li><span aria-hidden="true">✓</span> تأكيد بشري دائمًا</li>
+            <li><span aria-hidden="true">▦</span> متزامن مع Google Calendar</li>
+            <li><span aria-hidden="true">⌁</span> بلا بيانات طبية</li>
+            <li><span aria-hidden="true">✦</span> إصدار 2026</li>
+          </ul>
         </div>
-        <aside class="hero-note" aria-label="معلومة مهمة">
-          <span class="note-icon" aria-hidden="true">✓</span>
-          <div><strong>التأكيد بيد العيادة</strong><p>إرسال الطلب لا يعني أن الموعد تأكد.</p></div>
-        </aside>
+
+        <div class="hero-visual" aria-hidden="true">
+          <div class="visual-glow"></div>
+          <article class="visual-card calendar-card">
+            <div class="vcal-head">
+              <div>
+                <p class="vcal-kicker">جدول العيادة</p>
+                <strong id="heroMonth">هذا الشهر</strong>
+              </div>
+              <span class="vcal-badge">مفتوح</span>
+            </div>
+            <div class="vcal-grid" id="heroCalendar">
+              <span class="dow">أحد</span><span class="dow">اثن</span><span class="dow">ثلا</span><span class="dow">أرب</span><span class="dow">خمي</span><span class="dow">جمع</span><span class="dow">سبت</span>
+            </div>
+            <div class="vcal-foot">
+              <span class="dot-legend"><i class="dot dot-open"></i> أوقات متاحة</span>
+              <span class="dot-legend"><i class="dot dot-booked"></i> محجوز</span>
+            </div>
+          </article>
+
+          <div class="float-chip chip-status">
+            <span class="chip-icon" aria-hidden="true">✓</span>
+            <div><strong>مراجعة بشرية</strong><small>لكل طلب قبل التأكيد</small></div>
+          </div>
+
+          <div class="float-chip chip-time">
+            <span class="pulse-ring"><i></i></span>
+            <div><strong id="heroClock">—</strong><small>بتوقيت القاهرة</small></div>
+          </div>
+
+          <div class="float-chip chip-slots">
+            <span class="chip-kicker">أقرب أوقات</span>
+            <div class="mini-slots"><b>٠٩:٣٠</b><b>١٠:٠٠</b><b>١١:٣٠</b></div>
+          </div>
+        </div>
       </section>
 
       <div class="environment-banner" id="environmentBanner" role="status">
         <span class="banner-symbol" aria-hidden="true">i</span>
-        <p><strong>نسخة عرض ببيانات وهمية.</strong> الطلبات في هذا العرض تُحفظ على هذا المتصفح فقط. لتشغيل العيادة، انشر حزمة Google Apps Script الموضحة في دليل المشروع.</p>
+        <p><strong>نسخة عرض ببيانات وهمية.</strong> الطلبات في هذا العرض تُحفظ على هذا المتصفح فقط ولا تصل إلى أي عيادة. للاستخدام الحقيقي، انشروا حزمة Google Apps Script الموضحة في دليل المشروع.</p>
       </div>
+
+      <section class="steps-strip" aria-label="كيف يعمل الطلب">
+        <div class="step-item"><span class="step-num">١</span><div><strong>اختاروا الوقت</strong><small>أيام وأوقات متاحة فعليًا</small></div></div>
+        <div class="step-sep" aria-hidden="true"></div>
+        <div class="step-item"><span class="step-num">٢</span><div><strong>نراجع الطلب</strong><small>فريق العيادة يتحقق من الجدول</small></div></div>
+        <div class="step-sep" aria-hidden="true"></div>
+        <div class="step-item"><span class="step-num">٣</span><div><strong>نؤكد الموعد</strong><small>رسالة تأكيد من العيادة فقط</small></div></div>
+      </section>
 
       <section id="bookingView" class="view-panel">
         <div class="booking-layout">
@@ -51,20 +120,21 @@
               <div><p class="section-kicker">طلب جديد</p><h2>احجزوا زيارة</h2></div>
               <span class="step-badge"><span>١</span> من ٣</span>
             </div>
-            <form id="bookingForm">
+
+            <form id="bookingForm" novalidate>
               <fieldset class="form-section">
                 <legend><span class="legend-number">١</span><span>نوع الزيارة</span></legend>
                 <div class="choice-grid">
                   <label class="choice-card selected" data-choice="new">
                     <input type="radio" name="visitType" value="كشف جديد" checked>
                     <span class="choice-icon icon-sun" aria-hidden="true">✳</span>
-                    <span><strong>كشف جديد</strong><small>الزيارة الأولى</small></span>
+                    <span class="choice-text"><strong>كشف جديد</strong><small>الزيارة الأولى · ٦٠ دقيقة</small></span>
                     <span class="radio-indicator" aria-hidden="true"></span>
                   </label>
                   <label class="choice-card" data-choice="followup">
                     <input type="radio" name="visitType" value="متابعة">
                     <span class="choice-icon icon-leaf" aria-hidden="true">↗</span>
-                    <span><strong>متابعة</strong><small>زيارة متابعة</small></span>
+                    <span class="choice-text"><strong>متابعة</strong><small>مراجعة سريعة · ٣٠ دقيقة</small></span>
                     <span class="radio-indicator" aria-hidden="true"></span>
                   </label>
                 </div>
@@ -73,7 +143,8 @@
               <fieldset class="form-section">
                 <legend><span class="legend-number">٢</span><span>اليوم والوقت المفضل</span></legend>
                 <label class="field-label" for="visitDate">اختاروا اليوم</label>
-                <div class="date-field"><span aria-hidden="true">▦</span><input id="visitDate" type="date" required></div>
+                <div class="date-field"><span class="date-icon" aria-hidden="true">▦</span><input id="visitDate" type="date" required></div>
+                <div id="dayChips" class="day-chips" aria-label="اقتراحات سريعة"></div>
                 <div class="slots-heading"><span>الأوقات المتاحة</span><span id="slotStatus" class="soft-caption">جارٍ التحقق...</span></div>
                 <div id="slotsGrid" class="slots-grid" aria-live="polite"></div>
                 <p id="availabilityNote" class="availability-note" hidden></p>
@@ -86,11 +157,12 @@
                   <label class="input-wrap"><span class="field-label">اسم ولي الأمر</span><input id="guardianName" name="guardianName" type="text" autocomplete="name" maxlength="80" placeholder="الاسم" required></label>
                   <label class="input-wrap"><span class="field-label">رقم الهاتف</span><input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="22" placeholder="01xxxxxxxxx" required></label>
                 </div>
-                <label class="consent-row"><input id="consent" type="checkbox" required><span>أوافق على استخدام بيانات التواصل هذه لإدارة طلب الموعد فقط.</span></label>
+                <label class="consent-row"><input id="consent" type="checkbox" required><span class="consent-box" aria-hidden="true"></span><span>أوافق على استخدام بيانات التواصل هذه لإدارة طلب الموعد فقط.</span></label>
                 <p class="no-medical-data">لا تكتبوا أعراضاً أو تشخيصاً أو معلومات طبية في هذا النموذج.</p>
               </fieldset>
+
               <button id="submitBooking" class="primary-button submit-button" type="submit"><span>إرسال طلب الموعد</span><span class="button-arrow" aria-hidden="true">←</span></button>
-              <p class="submit-footnote">سيظهر رقم الطلب فور الإرسال. الموعد بانتظار مراجعة العيادة.</p>
+              <p class="submit-footnote">سيظهر رقم الطلب فور الإرسال. الموعد بانتظار مراجعة العيادة — الإرسال لا يُعد تأكيداً.</p>
             </form>
           </div>
 
@@ -103,51 +175,84 @@
                 <span class="sparkle sparkle-a">✦</span><span class="sparkle sparkle-b">✧</span>
               </div>
               <div class="doctor-details"><div><p class="section-kicker">Celia Kids</p><h3>زيارة بهدوء واهتمام</h3><p>اختاروا الوقت الأنسب لكم، وسنتابع الطلب معكم.</p></div><span class="flower-mark" aria-hidden="true">✿</span></div>
-              <div class="doctor-facts"><span><b>٣٠</b><small>دقيقة للزيارة</small></span><span><b>يدوياً</b><small>تأكيد من العيادة</small></span></div>
+              <div class="doctor-facts"><span><b>٣٠</b><small>دقيقة للزيارة</small></span><span><b>يدويًا</b><small>تأكيد من العيادة</small></span></div>
             </div>
-            <div class="side-card reassurance-card"><span class="reassurance-icon" aria-hidden="true">⌁</span><div><strong>خصوصية الأسرة أولاً</strong><p>نجمع الاسم ورقم التواصل فقط لإدارة الطلب.</p></div></div>
+
+            <div class="side-card reassurance-card"><span class="reassurance-icon" aria-hidden="true">⌁</span><div><strong>خصوصية الأسرة أولًا</strong><p>نجمع الاسم ورقم التواصل فقط لإدارة الطلب.</p></div></div>
+
+            <div class="side-card assistant-card">
+              <div class="assistant-head"><span class="assistant-mark" aria-hidden="true">✦</span><div><strong>Celia Assistant</strong><small>إداري فقط · غير طبي</small></div></div>
+              <p>أسئلة عن خطوات الحجز وتعديل الطلب؟ استخدموا صندوق «سؤال سريع» أسفل الصفحة.</p>
+              <div class="assistant-tags"><span>لا يشخّص</span><span>لا يصف علاجاً</span></div>
+            </div>
           </aside>
         </div>
 
         <div id="bookingResult" class="result-card" hidden aria-live="polite"></div>
 
         <section class="lower-tools">
-          <div class="tool-card tracking-card">
-            <div><p class="section-kicker">لديكم طلب سابق؟</p><h3>تابعوا حالة الطلب</h3><p>استخدموا الرقم المرجعي الذي ظهر بعد الإرسال.</p></div>
-            <form id="trackForm" class="track-form"><input id="trackReference" type="text" maxlength="40" placeholder="مثال: CK-ABC123" aria-label="الرقم المرجعي"><button class="secondary-button" type="submit">عرض الحالة</button></form>
+          <div id="trackCard" class="tool-card tracking-card">
+            <div class="tool-head"><p class="section-kicker">لديكم طلب سابق؟</p><h3>تابعوا حالة الطلب</h3><p>استخدموا الرقم المرجعي الذي ظهر بعد الإرسال.</p></div>
+            <form id="trackForm" class="track-form"><input id="trackReference" type="text" maxlength="40" placeholder="مثال: CK-ABC123" aria-label="الرقم المرجعي" autocomplete="off" spellcheck="false"><button class="secondary-button" type="submit">عرض الحالة</button></form>
             <div id="trackResult" class="track-result" hidden aria-live="polite"></div>
           </div>
+
           <div class="tool-card faq-card">
             <div class="faq-heading"><span class="faq-spark" aria-hidden="true">✦</span><div><p class="section-kicker">مساعدة إدارية</p><h3>سؤال سريع؟</h3></div><span id="geminiStatus" class="optional-tag">Gemini اختياري</span></div>
-            <form id="faqForm"><label class="sr-only" for="faqQuestion">سؤال إداري</label><div class="faq-input-row"><input id="faqQuestion" type="text" maxlength="500" placeholder="مثال: كيف أغيّر الموعد؟"><button type="submit" aria-label="إرسال السؤال">←</button></div></form>
-            <p class="faq-warning">للأسئلة الإدارية العامة فقط. لا تشاركوا بيانات شخصية أو صحية؛ Celia لا تشخّص ولا تصف علاجاً.</p>
+            <form id="faqForm"><label class="sr-only" for="faqQuestion">سؤال إداري</label><div class="faq-input-row"><input id="faqQuestion" type="text" maxlength="500" placeholder="مثال: كيف أغيّر الموعد؟" autocomplete="off"><button type="submit" aria-label="إرسال السؤال">←</button></div></form>
+            <p class="faq-warning">للأسئلة الإدارية العامة فقط. لا تشاركوا بيانات شخصية أو صحية؛ Celia لا تشخّص ولا تصف علاجًا.</p>
             <div id="faqAnswer" class="faq-answer" hidden aria-live="polite"></div>
           </div>
         </section>
       </section>
 
       <section id="staffView" class="view-panel staff-view" hidden>
-        <div class="staff-header"><div><p class="section-kicker">للاستخدام الداخلي</p><h2>لوحة العيادة</h2><p>مراجعة بشرية لكل طلب قبل تأكيد الموعد.</p></div><span class="staff-lock">⌑ <span>دخول الموظف</span></span></div>
+        <div class="staff-header">
+          <div><p class="section-kicker">للاستخدام الداخلي</p><h2>لوحة العيادة</h2><p>مراجعة بشرية لكل طلب قبل تأكيد الموعد.</p></div>
+          <span class="staff-lock">⌑ <span>دخول الموظف</span></span>
+        </div>
+
         <div id="staffLogin" class="staff-login card">
-          <div class="login-mark" aria-hidden="true">⌑</div><div><h3>دخول فريق العيادة</h3><p>أدخلوا رمز الموظف لمراجعة الطلبات.</p></div>
+          <div class="login-mark" aria-hidden="true">⌑</div>
+          <div class="login-copy"><h3>دخول فريق العيادة</h3><p>أدخلوا رمز الموظف لمراجعة الطلبات.</p></div>
           <form id="staffLoginForm"><label class="sr-only" for="staffPin">رمز الموظف</label><input id="staffPin" type="password" inputmode="text" autocomplete="current-password" placeholder="رمز الموظف" required><button class="primary-button" type="submit">دخول اللوحة</button></form>
           <p id="demoPinHint" class="demo-pin-hint">رمز العرض التجريبي: <b>2468</b> — لا تستخدموه في التشغيل الحقيقي.</p>
           <p id="staffLoginError" class="inline-error" hidden></p>
         </div>
+
         <div id="staffDashboard" hidden>
           <div id="staffAlerts" class="staff-alerts" hidden></div>
           <div id="dashboardStats" class="stats-grid"></div>
           <div class="dashboard-columns">
-            <section class="dashboard-card"><div class="dashboard-title"><div><p class="section-kicker">بحاجة لمراجعة</p><h3>الطلبات المعلقة</h3></div><span id="pendingCount" class="count-chip">٠</span></div><div id="pendingList" class="request-list"></div></section>
-            <section class="dashboard-card"><div class="dashboard-title"><div><p class="section-kicker">جدول الطبيب</p><h3>هذا الأسبوع</h3></div><span class="calendar-mark" aria-hidden="true">▦</span></div><div id="weekList" class="request-list"></div></section>
+            <section class="dashboard-card">
+              <div class="dashboard-title"><div><p class="section-kicker">بحاجة لمراجعة</p><h3>الطلبات المعلقة</h3></div><span id="pendingCount" class="count-chip">٠</span></div>
+              <div id="pendingList" class="request-list"></div>
+            </section>
+            <section class="dashboard-card">
+              <div class="dashboard-title"><div><p class="section-kicker">جدول الطبيب</p><h3>هذا الأسبوع</h3></div><span class="calendar-mark" aria-hidden="true">▦</span></div>
+              <div id="weekList" class="request-list"></div>
+            </section>
           </div>
-          <section class="dashboard-card closures-card"><div class="dashboard-title"><div><p class="section-kicker">إدارة الدوام</p><h3>إغلاق يوم أو إجازة</h3></div></div><form id="closureForm" class="closure-form"><label><span>التاريخ</span><input id="closureDate" type="date" required></label><label><span>ملاحظة قصيرة</span><input id="closureLabel" type="text" maxlength="80" placeholder="إجازة / دوام مغلق"></label><button class="secondary-button" type="submit">إغلاق اليوم</button></form><p class="privacy-reminder">تذكير: استخدموا بيانات وهمية أثناء التطوير. لا تؤكدوا موعداً قبل إعادة التحقق وحفظه في التقويم.</p></section>
+          <section class="dashboard-card closures-card">
+            <div class="dashboard-title"><div><p class="section-kicker">إدارة الدوام</p><h3>إغلاق يوم أو إجازة</h3></div></div>
+            <form id="closureForm" class="closure-form">
+              <label><span>التاريخ</span><input id="closureDate" type="date" required></label>
+              <label><span>ملاحظة قصيرة</span><input id="closureLabel" type="text" maxlength="80" placeholder="إجازة / دوام مغلق"></label>
+              <button class="secondary-button" type="submit">إغلاق اليوم</button>
+            </form>
+            <p class="privacy-reminder">تذكير: استخدموا بيانات وهمية أثناء التطوير. لا تؤكدوا موعدًا قبل إعادة التحقق وحفظه في التقويم.</p>
+          </section>
         </div>
       </section>
     </main>
 
-    <footer class="site-footer"><span>© Celia Kids · موظف استقبال رقمي غير طبي</span><span>في الحالات الطارئة، توجهوا إلى خدمات الطوارئ المحلية.</span></footer>
+    <footer class="site-footer">
+      <div class="footer-brand"><span class="footer-mark" aria-hidden="true">✿</span><div><strong>Celia Kids</strong><small>موظف استقبال رقمي غير طبي · إصدار 2026</small></div></div>
+      <p class="footer-note">في الحالات الطارئة، توجهوا فورًا إلى خدمات الطوارئ المحلية.</p>
+      <div class="footer-links"><a href="#bookingForm">حجز موعد</a><a href="#trackCard">متابعة طلب</a><button type="button" class="link-button" data-view="staff">لوحة العيادة</button></div>
+    </footer>
   </div>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

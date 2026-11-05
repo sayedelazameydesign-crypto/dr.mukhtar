@@ -1,45 +1,118 @@
 (() => {
   'use strict';
+
+  /* ============================================================
+     Celia Kids — 2026 front-end
+     Demo mode writes to this browser only. Live mode talks to the
+     Google Apps Script backend through google.script.run.
+     ============================================================ */
+
   const DEMO_KEY = 'celia-kids-demo-v1';
   const IS_GAS = typeof google !== 'undefined' && !!(google.script && google.script.run);
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-  const state = { view: 'booking', staffPin: '', selectedTime: '', selectedDay: '', slots: [], availabilityVerified: false, bookings: [], closures: [], busy: false };
+  const reduceMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const state = {
+    view: 'booking',
+    staffPin: '',
+    selectedTime: '',
+    selectedDay: '',
+    slots: [],
+    availabilityVerified: false,
+    bookings: [],
+    closures: [],
+    busy: false
+  };
+
   const DEMO_PIN = '2468';
   const FALLBACK_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00'];
-  const statusText = { REQUESTED: 'طلب مستلم', PENDING_APPROVAL: 'بانتظار موافقة العيادة', CONFIRMED: 'مؤكد من العيادة', RESCHEDULED: 'وقت بديل مقترح', CANCELLED: 'ملغي', COMPLETED: 'مكتمل' };
+  const WORK_DAYS = [0, 1, 2, 3, 4];
+  const statusText = {
+    REQUESTED: 'طلب مستلم',
+    PENDING_APPROVAL: 'بانتظار موافقة العيادة',
+    CONFIRMED: 'مؤكد من العيادة',
+    RESCHEDULED: 'وقت بديل مقترح',
+    CANCELLED: 'ملغي',
+    COMPLETED: 'مكتمل'
+  };
 
-  function localISO(date) { const y = date.getFullYear(); const m = String(date.getMonth() + 1).padStart(2, '0'); const d = String(date.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; }
-  function nextWorkday(offset = 1) { const date = new Date(); date.setHours(12, 0, 0, 0); date.setDate(date.getDate() + offset); while ([5, 6].includes(date.getDay())) date.setDate(date.getDate() + 1); return date; }
-  function prettyDate(iso) { if (!iso) return '—'; const parts = iso.split('-').map(Number); const d = new Date(parts[0], parts[1] - 1, parts[2]); return new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' }).format(d); }
-  function prettyTime(time) { if (!time) return ''; const [h, m] = time.split(':').map(Number); return new Intl.DateTimeFormat('ar-EG', { hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(2020, 0, 1, h, m)); }
+  /* ---------------- helpers ---------------- */
+  const localISO = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+  function nextWorkday(offset = 1) {
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() + offset);
+    while (!WORK_DAYS.includes(date.getDay())) date.setDate(date.getDate() + 1);
+    return date;
+  }
+  function prettyDate(iso) {
+    if (!iso) return '—';
+    const parts = iso.split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (Number.isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+  }
+  function prettyTime(time) {
+    if (!time) return '';
+    const [h, m] = time.split(':').map(Number);
+    return new Intl.DateTimeFormat('ar-EG', { hour: 'numeric', minute: '2-digit', hour12: true })
+      .format(new Date(2020, 0, 1, h, m));
+  }
   function digits(value) { return String(value || '').replace(/\D/g, ''); }
-  function newRef() { return `CK-${Math.random().toString(36).slice(2, 12).toUpperCase()}${Math.random().toString(36).slice(2, 10).toUpperCase()}`; }
-  function escapeHTML(value) { return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
-  function toast(message) { const node = $('#toast'); node.textContent = message; node.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => node.classList.remove('show'), 3300); }
+  function newRef() {
+    const chunk = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+    return `CK-${chunk()}${chunk()}`;
+  }
+  function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  }
+  function arabicNumber(value) {
+    return Number(value || 0).toLocaleString('ar-EG');
+  }
+  function toast(message) {
+    const node = $('#toast');
+    node.textContent = message;
+    node.classList.add('show');
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => node.classList.remove('show'), 3600);
+  }
 
+  /* ---------------- demo store ---------------- */
   function seedDemo() {
     try {
       const current = JSON.parse(localStorage.getItem(DEMO_KEY));
       if (current && Array.isArray(current.bookings)) return current;
-    } catch (_) { /* reset damaged local demo data */ }
-    const tomorrow = localISO(nextWorkday(1));
-    const later = localISO(nextWorkday(2));
+    } catch (_) { /* damaged demo data is rebuilt below */ }
     const initial = {
       bookings: [
-        { reference: 'CK-DEMO-8K2P', createdAt: new Date().toISOString(), status: 'PENDING_APPROVAL', visitType: 'كشف جديد', guardianName: 'مريم تجريبية', phone: '0000000000', day: tomorrow, time: '10:00', eventId: '', consent: true },
-        { reference: 'CK-DEMO-4M7Q', createdAt: new Date().toISOString(), status: 'CONFIRMED', visitType: 'متابعة', guardianName: 'عمر تجريبي', phone: '0000000001', day: later, time: '11:00', eventId: '', consent: true }
-      ], closures: []
+        { reference: 'CK-DEMO-8K2P', createdAt: new Date().toISOString(), status: 'PENDING_APPROVAL', visitType: 'كشف جديد', guardianName: 'مريم تجريبية', phone: '0000000000', day: localISO(nextWorkday(1)), time: '10:00', eventId: '', consent: true },
+        { reference: 'CK-DEMO-4M7Q', createdAt: new Date().toISOString(), status: 'CONFIRMED', visitType: 'متابعة', guardianName: 'عمر تجريبي', phone: '0000000001', day: localISO(nextWorkday(2)), time: '11:00', eventId: '', consent: true }
+      ],
+      closures: []
     };
-    localStorage.setItem(DEMO_KEY, JSON.stringify(initial));
+    try { localStorage.setItem(DEMO_KEY, JSON.stringify(initial)); } catch (_) { /* private mode */ }
     return initial;
   }
-  function demoStore() { const stored = seedDemo(); return stored; }
-  function saveDemo(store) { localStorage.setItem(DEMO_KEY, JSON.stringify(store)); }
+  const demoStore = () => seedDemo();
+  function saveDemo(store) {
+    try { localStorage.setItem(DEMO_KEY, JSON.stringify(store)); } catch (_) { toast('تعذر حفظ العرض محليًا في هذا المتصفح.'); }
+  }
+
+  /* ---------------- backend bridge ---------------- */
   function callServer(method, ...args) {
     return new Promise((resolve, reject) => {
-      try { google.script.run.withSuccessHandler(resolve).withFailureHandler((error) => reject(new Error(error && error.message ? error.message : 'تعذر الاتصال بخدمة العيادة.')))[method](...args); }
-      catch (error) { reject(error); }
+      try {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler((error) => reject(new Error(error && error.message ? error.message : 'تعذر الاتصال بخدمة العيادة.')))
+          [method](...args);
+      } catch (error) { reject(error); }
     });
   }
   async function api(method, ...args) {
@@ -47,23 +120,44 @@
     const store = demoStore();
     if (method === 'getAvailableSlots') {
       const day = args[0];
-      const closed = store.closures.some((item) => item.day === day);
-      if (closed) return { ok: true, slots: [] };
-      const taken = new Set(store.bookings.filter((item) => item.day === day && item.status === 'CONFIRMED').map((item) => item.time));
-      return { ok: true, slots: FALLBACK_SLOTS.filter((time) => !taken.has(time)) };
+      // Work in whole minutes: `visitType` here is the *service* visit type.
+      const visitType = args[1] || 'كشف جديد';
+      const visitDuration = visitType === 'متابعة' ? 30 : 60;
+      if (store.closures.some((item) => item.day === day)) return { ok: true, slots: [] };
+      const parts = String(day).split('-').map(Number);
+      const weekday = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+      if (!WORK_DAYS.includes(weekday)) return { ok: true, slots: [] };
+      const start = 9 * 60;
+      const end = 14 * 60;
+      const step = 30;
+      const duration = visitDuration;
+      const toTime = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+      const toMinutes = (time) => { const [h, m] = String(time).split(':').map(Number); return h * 60 + m; };
+      const busy = store.bookings
+        .filter((item) => item.day === day && ['CONFIRMED', 'COMPLETED'].includes(item.status))
+        .map((item) => ({ start: toMinutes(item.time), end: toMinutes(item.time) + (item.visitType === 'متابعة' ? 30 : 60) }));
+      const slots = [];
+      for (let minute = start; minute + duration <= end; minute += step) {
+        const clash = busy.some((span) => minute < span.end && span.start < minute + duration);
+        if (!clash) slots.push(toTime(minute));
+      }
+      return { ok: true, slots };
     }
     if (method === 'createRequest') {
       const payload = args[0];
       const booked = store.bookings.some((item) => item.day === payload.day && item.time === payload.time && item.status === 'CONFIRMED');
       if (booked) return { ok: false, message: 'اختير هذا الوقت للتو. يرجى اختيار وقت آخر.' };
       const booking = { ...payload, reference: newRef(), createdAt: new Date().toISOString(), status: 'PENDING_APPROVAL', eventId: '', consent: true };
-      store.bookings.unshift(booking); saveDemo(store);
+      store.bookings.unshift(booking);
+      saveDemo(store);
       return { ok: true, booking, savedLocally: true };
     }
     if (method === 'lookupBooking') {
       const ref = String(args[0] || '').trim().toUpperCase();
       const booking = store.bookings.find((item) => item.reference.toUpperCase() === ref);
-      return booking ? { ok: true, booking: { reference: booking.reference, day: booking.day, time: booking.time, status: booking.status } } : { ok: false, message: 'لم نعثر على طلب بهذا الرقم.' };
+      return booking
+        ? { ok: true, booking: { reference: booking.reference, day: booking.day, time: booking.time, status: booking.status } }
+        : { ok: false, message: 'لم نعثر على طلب بهذا الرقم.' };
     }
     if (method === 'getDashboard') {
       if (args[0] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
@@ -74,8 +168,10 @@
       const booking = store.bookings.find((item) => item.reference === args[0]);
       if (!booking || !['REQUESTED', 'PENDING_APPROVAL', 'RESCHEDULED'].includes(booking.status)) return { ok: false, message: 'تعذر اعتماد هذا الطلب.' };
       const collision = store.bookings.some((item) => item.reference !== booking.reference && item.day === booking.day && item.time === booking.time && item.status === 'CONFIRMED');
-      if (collision) return { ok: false, message: 'هذا الوقت لم يعد متاحاً.' };
-      booking.status = 'CONFIRMED'; booking.updatedAt = new Date().toISOString(); saveDemo(store);
+      if (collision) return { ok: false, message: 'هذا الوقت لم يعد متاحًا.' };
+      booking.status = 'CONFIRMED';
+      booking.updatedAt = new Date().toISOString();
+      saveDemo(store);
       return { ok: true, booking };
     }
     if (method === 'proposeAlternative') {
@@ -83,21 +179,24 @@
       const booking = store.bookings.find((item) => item.reference === args[0]);
       const conflict = store.bookings.some((item) => item.reference !== args[0] && item.day === args[1] && item.time === args[2] && item.status === 'CONFIRMED');
       if (!booking || conflict) return { ok: false, message: conflict ? 'الوقت البديل مشغول.' : 'الطلب غير موجود.' };
-      booking.day = args[1]; booking.time = args[2]; booking.status = 'RESCHEDULED'; booking.updatedAt = new Date().toISOString(); saveDemo(store);
+      booking.day = args[1]; booking.time = args[2]; booking.status = 'RESCHEDULED'; booking.updatedAt = new Date().toISOString();
+      saveDemo(store);
       return { ok: true, booking };
     }
     if (method === 'cancelRequest') {
       if (args[2] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       const booking = store.bookings.find((item) => item.reference === args[0]);
       if (!booking) return { ok: false, message: 'الطلب غير موجود.' };
-      booking.status = 'CANCELLED'; booking.updatedAt = new Date().toISOString(); saveDemo(store);
+      booking.status = 'CANCELLED'; booking.updatedAt = new Date().toISOString();
+      saveDemo(store);
       return { ok: true, booking };
     }
     if (method === 'completeRequest') {
       if (args[1] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       const booking = store.bookings.find((item) => item.reference === args[0]);
       if (!booking) return { ok: false, message: 'الطلب غير موجود.' };
-      booking.status = 'COMPLETED'; booking.updatedAt = new Date().toISOString(); saveDemo(store);
+      booking.status = 'COMPLETED'; booking.updatedAt = new Date().toISOString();
+      saveDemo(store);
       return { ok: true, booking };
     }
     if (method === 'moveConfirmedAppointment') {
@@ -105,23 +204,44 @@
       const booking = store.bookings.find((item) => item.reference === args[0]);
       const conflict = store.bookings.some((item) => item.reference !== args[0] && item.day === args[1] && item.time === args[2] && item.status === 'CONFIRMED');
       if (!booking || conflict) return { ok: false, message: conflict ? 'الوقت البديل مشغول.' : 'الطلب غير موجود.' };
-      booking.day = args[1]; booking.time = args[2]; booking.updatedAt = new Date().toISOString(); saveDemo(store);
+      booking.day = args[1]; booking.time = args[2]; booking.updatedAt = new Date().toISOString();
+      saveDemo(store);
       return { ok: true, booking };
     }
     if (method === 'closeDay') {
       if (args[2] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       if (!store.closures.some((item) => item.day === args[0])) store.closures.push({ day: args[0], label: args[1] || 'إغلاق يوم' });
-      saveDemo(store); return { ok: true };
+      saveDemo(store);
+      return { ok: true };
     }
-    if (method === 'askGeneralQuestion') return { ok: true, answer: 'هذا وضع عرض تجريبي. يمكن لفريق العيادة مساعدتكم في خطوات الحجز وتعديل الطلب. لا أقدم معلومات طبية أو تشخيصاً.' };
+    if (method === 'askGeneralQuestion') {
+      return { ok: true, answer: 'هذا وضع عرض تجريبي. يمكن لفريق العيادة مساعدتكم في خطوات الحجز وتعديل الطلب. لا أقدم معلومات طبية أو تشخيصًا.' };
+    }
     return { ok: false, message: 'هذه الوظيفة غير متاحة في العرض.' };
   }
 
+  /* ---------------- shell chrome ---------------- */
   function setView(view) {
     state.view = view;
-    $('#bookingView').hidden = view !== 'booking'; $('#staffView').hidden = view !== 'staff';
-    $$('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
+    $('#bookingView').hidden = view !== 'booking';
+    $('#staffView').hidden = view !== 'staff';
+    $$('[data-view]').forEach((button) => {
+      const active = button.dataset.view === view;
+      button.classList.toggle('active', active);
+      if (button.classList.contains('nav-button')) button.setAttribute('aria-current', active ? 'page' : 'false');
+    });
+    moveNavIndicator();
     if (view === 'staff' && state.staffPin) refreshDashboard();
+    if (typeof window.scrollTo === 'function') window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+  function moveNavIndicator() {
+    const indicator = $('.nav-indicator');
+    if (!indicator) return;
+    const active = $('.nav-button.active');
+    if (!active) { indicator.style.opacity = '0'; return; }
+    indicator.style.opacity = '1';
+    indicator.style.width = `${active.offsetWidth}px`;
+    indicator.style.left = `${active.offsetLeft}px`;
   }
   function setMode() {
     $('#modeLabel').textContent = IS_GAS ? 'مرتبط بـ Google' : 'وضع تجريبي';
@@ -131,23 +251,144 @@
     $('#geminiStatus').textContent = IS_GAS ? 'Gemini عند التفعيل' : 'أسئلة تجريبية';
     if (IS_GAS) $('#availabilityNote').textContent = '';
   }
+
+  /* ---------------- hero clock + mini calendar ---------------- */
+  function startClock() {
+    const node = $('#heroClock');
+    if (!node) return;
+    const format = new Intl.DateTimeFormat('ar-EG', {
+      timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hour12: true
+    });
+    const tick = () => { node.textContent = format.format(new Date()); };
+    tick();
+    setInterval(tick, 15000);
+  }
+
+  function renderHeroCalendar() {
+    const grid = $('#heroCalendar');
+    if (!grid) return;
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    $('#heroMonth').textContent = new Intl.DateTimeFormat('ar-EG', { month: 'long', year: 'numeric' }).format(new Date(year, month, 1));
+
+    const monthStart = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const lead = monthStart.getDay(); // Sunday-first grid
+    const store = IS_GAS ? { bookings: [], closures: [] } : demoStore();
+    const todayISO = localISO(today);
+
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < lead; i += 1) {
+      const pad = document.createElement('span');
+      pad.className = 'vday is-empty';
+      frag.appendChild(pad);
+    }
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const weekday = new Date(year, month, day).getDay();
+      const cell = document.createElement('span');
+      cell.className = 'vday';
+      cell.textContent = day.toLocaleString('ar-EG');
+      if (iso === todayISO) cell.classList.add('is-today');
+      else if (!WORK_DAYS.includes(weekday)) cell.classList.add('is-full');
+      else if (!IS_GAS && (store.closures || []).some((item) => item.day === iso)) cell.classList.add('is-full');
+      else if (!IS_GAS && store.bookings.filter((item) => item.day === iso && item.status === 'CONFIRMED').length >= 6) cell.classList.add('is-full');
+      else if (new Date(year, month, day) >= new Date(today.getFullYear(), today.getMonth(), today.getDate())) cell.classList.add('has-slot');
+      frag.appendChild(cell);
+    }
+    grid.replaceChildren(...Array.from(grid.children).filter((node) => node.classList.contains('dow')), frag);
+  }
+
+  /* ---------------- date + slots ---------------- */
   function setDateDefault() {
-    const input = $('#visitDate'); const tomorrow = localISO(nextWorkday(1)); input.min = localISO(new Date()); input.value = tomorrow; state.selectedDay = tomorrow;
-    $('#closureDate').min = localISO(new Date()); $('#closureDate').value = tomorrow;
+    const input = $('#visitDate');
+    const tomorrow = localISO(nextWorkday(1));
+    input.min = localISO(new Date());
+    input.value = tomorrow;
+    state.selectedDay = tomorrow;
+    $('#closureDate').min = localISO(new Date());
+    $('#closureDate').value = tomorrow;
   }
+  function renderDayChips() {
+    const wrap = $('#dayChips');
+    if (!wrap) return;
+    wrap.replaceChildren();
+    const labels = ['غدًا', 'بعد غد', 'اليوم الثالث', 'اليوم الرابع', 'اليوم الخامس'];
+    for (let i = 1; i <= 5; i += 1) {
+      const date = nextWorkday(i);
+      const iso = localISO(date);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'day-chip';
+      chip.dataset.day = iso;
+      chip.innerHTML = `${labels[i - 1]} · <b>${date.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' })}</b>`;
+      chip.addEventListener('click', () => {
+        $('#visitDate').value = iso;
+        loadAvailability(iso);
+      });
+      wrap.appendChild(chip);
+    }
+    syncDayChips();
+  }
+  function syncDayChips() {
+    $$('#dayChips .day-chip').forEach((chip) => chip.classList.toggle('active', chip.dataset.day === state.selectedDay));
+  }
+
   function selectTime(time) {
-    state.selectedTime = time; $('#visitTime').value = time;
-    $$('#slotsGrid .slot-button').forEach((button) => { const selected = button.dataset.time === time; button.classList.toggle('selected', selected); button.setAttribute('aria-pressed', String(selected)); });
+    state.selectedTime = time;
+    $('#visitTime').value = time;
+    $$('#slotsGrid .slot-button').forEach((button) => {
+      const selected = button.dataset.time === time;
+      button.classList.toggle('selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
   }
+
   function renderSlots(slots, unverified = false) {
-    const grid = $('#slotsGrid'); grid.replaceChildren(); state.slots = slots || []; state.availabilityVerified = !unverified;
-    if (!slots || !slots.length) { grid.innerHTML = '<span class="empty-slots">لا توجد أوقات متاحة في هذا اليوم. اختاروا يوماً آخر.</span>'; $('#slotStatus').textContent = 'لا توجد أوقات'; state.selectedTime = ''; $('#visitTime').value = ''; return; }
-    $('#slotStatus').textContent = unverified ? 'أوقات مفضلة فقط' : `${slots.length.toLocaleString('ar-EG')} أوقات`;
-    slots.forEach((slot) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'slot-button'; button.dataset.time = slot; button.textContent = prettyTime(slot); button.setAttribute('aria-pressed', 'false'); button.addEventListener('click', () => selectTime(slot)); grid.appendChild(button); });
-    if (state.selectedTime && slots.includes(state.selectedTime)) selectTime(state.selectedTime); else { state.selectedTime = ''; $('#visitTime').value = ''; }
+    const grid = $('#slotsGrid');
+    grid.replaceChildren();
+    state.slots = slots || [];
+    state.availabilityVerified = !unverified;
+    if (!slots || !slots.length) {
+      const empty = document.createElement('span');
+      empty.className = 'empty-slots';
+      empty.textContent = 'لا توجد أوقات متاحة في هذا اليوم. اختاروا يومًا آخر.';
+      grid.appendChild(empty);
+      $('#slotStatus').textContent = 'لا توجد أوقات';
+      selectTime('');
+      return;
+    }
+    $('#slotStatus').textContent = unverified ? 'أوقات مفضلة فقط' : `${arabicNumber(slots.length)} أوقات`;
+    slots.forEach((slot) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'slot-button';
+      button.dataset.time = slot;
+      button.textContent = prettyTime(slot);
+      button.setAttribute('aria-pressed', 'false');
+      button.addEventListener('click', () => selectTime(slot));
+      if (!reduceMotion) {
+        button.addEventListener('pointermove', (event) => {
+          const box = button.getBoundingClientRect();
+          button.style.setProperty('--mx', `${event.clientX - box.left}px`);
+          button.style.setProperty('--my', `${event.clientY - box.top}px`);
+        });
+      }
+      grid.appendChild(button);
+    });
+    if (state.selectedTime && slots.includes(state.selectedTime)) selectTime(state.selectedTime);
+    else selectTime('');
   }
+
   async function loadAvailability(day) {
-    state.selectedDay = day; state.selectedTime = ''; $('#visitTime').value = ''; $('#slotStatus').textContent = 'جارٍ التحقق...'; $('#slotsGrid').innerHTML = '<span class="empty-slots">لحظة من فضلكم…</span>'; $('#availabilityNote').hidden = true;
+    state.selectedDay = day;
+    selectTime('');
+    $('#slotStatus').textContent = 'جارٍ التحقق...';
+    $('#slotsGrid').innerHTML = '<span class="empty-slots">لحظة من فضلكم…</span>';
+    $('#availabilityNote').hidden = true;
+    syncDayChips();
+    $('#slotsGrid').setAttribute('aria-busy', 'true');
     try {
       const visitType = $('#bookingForm').elements.visitType.value;
       const result = await api('getAvailableSlots', day, visitType);
@@ -156,120 +397,363 @@
     } catch (error) {
       renderSlots(FALLBACK_SLOTS, true);
       $('#availabilityNote').textContent = 'تعذر الاتصال بالتقويم الآن. يمكن إرسال الوقت كتفضيل فقط؛ سيبقى الطلب غير مؤكد ويحتاج مراجعة العيادة.';
-      $('#availabilityNote').hidden = false; $('#slotStatus').textContent = 'تعذر التحقق';
+      $('#availabilityNote').hidden = false;
+      $('#slotStatus').textContent = 'تعذر التحقق';
+    } finally {
+      $('#slotsGrid').setAttribute('aria-busy', 'false');
     }
   }
+
+  /* ---------------- booking flow ---------------- */
   function formatStatus(status) { return statusText[status] || status || 'قيد المراجعة'; }
+
   function showBookingResult(booking, savedLocally = false, localDemo = false, warning = '') {
     const result = $('#bookingResult');
-    const note = warning || (localDemo ? 'هذا سجل محلي تجريبي على هذا المتصفح ولا يصل إلى العيادة.' : savedLocally ? 'تم حفظ الطلب مؤقتاً في نظام العيادة أثناء تعطل Sheets. لن يتأكد الموعد حتى عودة السجل ومراجعته.' : booking.slotVerified === false ? 'حُفظ الوقت كتفضيل فقط لأن التقويم لم يكن متاحاً للتحقق. يلزم مراجعة العيادة قبل الموافقة.' : 'سيراجع فريق العيادة الطلب، وسيؤكد الموعد أو يتواصل معكم بشأن وقت بديل.');
-    result.innerHTML = `<div class="result-top"><span class="result-check" aria-hidden="true">✓</span><div><h3>وصل طلبكم إلى العيادة</h3><p>حالة الطلب: <strong>${escapeHTML(formatStatus(booking.status))}</strong>. لم يتأكد الموعد بعد.</p></div></div><span class="reference-chip">${escapeHTML(booking.reference)}</span><div class="result-meta"><span>اليوم: ${escapeHTML(prettyDate(booking.day))}</span><span>الوقت المفضل: ${escapeHTML(prettyTime(booking.time))}</span></div><p class="result-note">${note}</p>`;
-    result.hidden = false; result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const note = warning
+      || (localDemo ? 'هذا سجل محلي تجريبي على هذا المتصفح ولا يصل إلى العيادة.'
+        : savedLocally ? 'تم حفظ الطلب مؤقتًا في نظام العيادة أثناء تعطل Sheets. لن يتأكد الموعد حتى عودة السجل ومراجعته.'
+          : booking.slotVerified === false ? 'حُفظ الوقت كتفضيل فقط لأن التقويم لم يكن متاحًا للتحقق. يلزم مراجعة العيادة قبل الموافقة.'
+            : 'سيراجع فريق العيادة الطلب، وسيؤكد الموعد أو يتواصل معكم بشأن وقت بديل.');
+    result.innerHTML = `
+      <div class="result-top">
+        <span class="result-check" aria-hidden="true">✓</span>
+        <div><h3>وصل طلبكم إلى العيادة</h3><p>حالة الطلب: <strong>${escapeHTML(formatStatus(booking.status))}</strong>. لم يتأكد الموعد بعد.</p></div>
+      </div>
+      <div class="result-meta">
+        <span>${escapeHTML(prettyDate(booking.day))}</span>
+        <span>${escapeHTML(prettyTime(booking.time))}</span>
+        <span>${escapeHTML(booking.visitType || 'زيارة')}</span>
+      </div>
+      <span class="reference-chip">${escapeHTML(booking.reference)}</span>
+      <div class="result-actions">
+        <button type="button" class="secondary-button" data-copy="${escapeHTML(booking.reference)}">نسخ الرقم المرجعي</button>
+        <a class="secondary-button" href="${IS_GAS ? '#' : '#trackCard'}" data-track-ref="${escapeHTML(booking.reference)}">متابعة الحالة</a>
+      </div>
+      <p class="result-note">${escapeHTML(note)}</p>`;
+    result.hidden = false;
+    if (typeof result.scrollIntoView === 'function') result.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+
+    const copyButton = result.querySelector('[data-copy]');
+    if (copyButton) {
+      copyButton.addEventListener('click', async () => {
+        const value = copyButton.dataset.copy;
+        try {
+          await navigator.clipboard.writeText(value);
+          copyButton.textContent = 'تم النسخ ✓';
+        } catch (_) {
+          window.prompt('انسخوا الرقم المرجعي:', value);
+        }
+        setTimeout(() => { copyButton.textContent = 'نسخ الرقم المرجعي'; }, 2200);
+      });
+    }
+    const trackLink = result.querySelector('[data-track-ref]');
+    if (trackLink) {
+      trackLink.addEventListener('click', (event) => {
+        event.preventDefault();
+        $('#trackReference').value = trackLink.dataset.trackRef;
+        if (IS_GAS) { $('#trackForm').requestSubmit(); return; }
+        if (typeof $('#trackCard').scrollIntoView === 'function') $('#trackCard').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+        $('#trackForm').requestSubmit();
+      });
+    }
   }
+
   async function submitBooking(event) {
-    event.preventDefault(); if (state.busy) return;
+    event.preventDefault();
+    if (state.busy) return;
     const form = event.currentTarget;
     if (!form.reportValidity()) return;
-    if (!state.selectedTime) { toast('اختاروا وقتاً مفضلاً أولاً.'); return; }
+    if (!state.selectedTime) { toast('اختاروا وقتًا مفضلًا أولًا.'); return; }
     if (!$('#consent').checked) { toast('يرجى الموافقة على استخدام بيانات التواصل لإدارة الطلب.'); return; }
-    const phone = $('#phone').value.trim(); if (digits(phone).length < 8) { toast('تحققوا من رقم الهاتف.'); $('#phone').focus(); return; }
-    const payload = { visitType: form.elements.visitType.value, day: state.selectedDay, time: state.selectedTime, guardianName: $('#guardianName').value.trim(), phone, consent: true };
-    state.busy = true; const submit = $('#submitBooking'); submit.disabled = true; submit.querySelector('span').textContent = 'جارٍ إرسال الطلب…';
+    const phone = $('#phone').value.trim();
+    if (digits(phone).length < 8) { toast('تحققوا من رقم الهاتف.'); $('#phone').focus(); return; }
+
+    const payload = {
+      visitType: form.elements.visitType.value,
+      day: state.selectedDay,
+      time: state.selectedTime,
+      guardianName: $('#guardianName').value.trim(),
+      phone,
+      consent: true
+    };
+
+    state.busy = true;
+    const submit = $('#submitBooking');
+    const label = submit.querySelector('span');
+    submit.disabled = true;
+    label.textContent = 'جارٍ إرسال الطلب…';
     try {
       const response = await api('createRequest', payload);
-      if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر حفظ الطلب. يرجى المحاولة مجدداً.');
+      if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر حفظ الطلب. يرجى المحاولة مجددًا.');
       showBookingResult(response.booking, !!response.savedLocally, !IS_GAS, response.warning || '');
-      form.reset(); $$('.choice-card').forEach((card, index) => card.classList.toggle('selected', index === 0));
-      selectTime(''); await loadAvailability(state.selectedDay);
-    } catch (error) { toast(error.message || 'تعذر حفظ الطلب. لم نعرض تأكيداً.'); }
-    finally { state.busy = false; submit.disabled = false; submit.querySelector('span').textContent = 'إرسال طلب الموعد'; }
+      form.reset();
+      $$('.choice-card').forEach((card, index) => card.classList.toggle('selected', index === 0));
+      $('#visitDate').value = state.selectedDay;
+      renderHeroCalendar();
+      loadAvailability(state.selectedDay);
+    } catch (error) {
+      toast(error.message || 'تعذر حفظ الطلب. لم نعرض تأكيدًا.');
+    } finally {
+      state.busy = false;
+      submit.disabled = false;
+      label.textContent = 'إرسال طلب الموعد';
+    }
   }
+
   async function trackRequest(event) {
-    event.preventDefault(); const ref = $('#trackReference').value.trim(); const target = $('#trackResult'); target.hidden = false; target.className = 'track-result'; target.textContent = 'جارٍ البحث…';
-    try { const response = await api('lookupBooking', ref); if (!response || !response.ok) throw new Error(response && response.message || 'لم نعثر على طلب بهذا الرقم.'); target.innerHTML = `<strong>${escapeHTML(formatStatus(response.booking.status))}</strong><br>${escapeHTML(prettyDate(response.booking.day))} · ${escapeHTML(prettyTime(response.booking.time))} · ${escapeHTML(response.booking.reference)}`; }
-    catch (error) { target.classList.add('error'); target.textContent = error.message; }
+    event.preventDefault();
+    const ref = $('#trackReference').value.trim();
+    const target = $('#trackResult');
+    target.hidden = false;
+    target.className = 'track-result';
+    target.textContent = 'جارٍ البحث…';
+    if (!ref) { target.classList.add('error'); target.textContent = 'أدخلوا الرقم المرجعي أولًا.'; return; }
+    try {
+      const response = await api('lookupBooking', ref);
+      if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'لم نعثر على طلب بهذا الرقم.');
+      const booking = response.booking;
+      target.innerHTML = `<strong>${escapeHTML(formatStatus(booking.status))}</strong><br>${escapeHTML(prettyDate(booking.day))} · ${escapeHTML(prettyTime(booking.time))}<br><span class="request-ref">${escapeHTML(booking.reference)}</span>`;
+    } catch (error) {
+      target.classList.add('error');
+      target.textContent = error.message;
+    }
   }
-  function statusClass(status) { return status === 'CONFIRMED' || status === 'COMPLETED' ? 'confirmed' : status === 'CANCELLED' ? 'cancelled' : status === 'RESCHEDULED' ? 'rescheduled' : ''; }
+
+  /* ---------------- staff dashboard ---------------- */
+  function statusClass(status) {
+    return status === 'CONFIRMED' || status === 'COMPLETED' ? 'confirmed'
+      : status === 'CANCELLED' ? 'cancelled'
+        : status === 'RESCHEDULED' ? 'rescheduled' : '';
+  }
   function bookingDateTime(booking) { return `${prettyDate(booking.day)} · ${prettyTime(booking.time)}`; }
   function whatsappLink(booking, proposal = false) {
-    let number = digits(booking.phone); if (number.startsWith('0')) number = `20${number.slice(1)}`; else if (number.length === 10 && number.startsWith('1')) number = `20${number}`;
+    let number = digits(booking.phone);
+    if (number.startsWith('0')) number = `20${number.slice(1)}`;
+    else if (number.length === 10 && number.startsWith('1')) number = `20${number}`;
     const clinic = IS_GAS ? 'عيادة الأطفال' : 'عيادة Celia Kids التجريبية';
-    const prefix = proposal ? 'نقترح عليكم وقتاً بديلاً لطلب الموعد' : 'تم تأكيد موعدكم في';
+    const prefix = proposal ? 'نقترح عليكم وقتًا بديلًا لطلب الموعد' : 'تم تأكيد موعدكم في';
     const message = `${prefix} لدى ${clinic}: ${prettyDate(booking.day)} الساعة ${prettyTime(booking.time)}. رقم الطلب: ${booking.reference}. للرد أو الاستفسار، تواصلوا مع العيادة.`;
     return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
   }
   function currentWeekBookings(bookings) {
-    const now = new Date(); const start = new Date(now); start.setHours(0,0,0,0); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-    const end = new Date(start); end.setDate(end.getDate() + 7);
-    return bookings.filter((item) => ['CONFIRMED','COMPLETED','RESCHEDULED'].includes(item.status)).filter((item) => { const day = new Date(`${item.day}T12:00:00`); return day >= start && day < end; }).sort((a,b) => `${a.day}${a.time}`.localeCompare(`${b.day}${b.time}`));
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return bookings
+      .filter((item) => ['CONFIRMED', 'COMPLETED', 'RESCHEDULED'].includes(item.status))
+      .filter((item) => {
+        const day = new Date(`${item.day}T12:00:00`);
+        return day >= start && day < end;
+      })
+      .sort((a, b) => `${a.day}${a.time}`.localeCompare(`${b.day}${b.time}`));
   }
   function requestCard(booking, canAct) {
-    const isPending = ['REQUESTED','PENDING_APPROVAL','RESCHEDULED'].includes(booking.status);
+    const isPending = ['REQUESTED', 'PENDING_APPROVAL', 'RESCHEDULED'].includes(booking.status);
     const isConfirmed = booking.status === 'CONFIRMED';
-    const actions = canAct ? `<div class="request-actions">${isPending ? `<button class="action-approve" data-action="approve" data-ref="${escapeHTML(booking.reference)}">${booking.status === 'RESCHEDULED' ? 'اعتماد الوقت المقترح' : 'قبول وحجز'}</button><button data-action="reschedule" data-ref="${escapeHTML(booking.reference)}">اقتراح وقت بديل</button><button class="action-danger" data-action="cancel" data-ref="${escapeHTML(booking.reference)}">رفض / إلغاء</button>` : ''}${isConfirmed ? `<button data-action="move" data-ref="${escapeHTML(booking.reference)}">تعديل الموعد</button><button data-action="complete" data-ref="${escapeHTML(booking.reference)}">إكمال الزيارة</button><button data-action="cancel" data-ref="${escapeHTML(booking.reference)}" class="action-danger">إلغاء</button><a class="text-button" href="${whatsappLink(booking)}" target="_blank" rel="noopener noreferrer">رسالة WhatsApp</a>` : ''}${booking.status === 'RESCHEDULED' ? `<a class="text-button" href="${whatsappLink(booking,true)}" target="_blank" rel="noopener noreferrer">إرسال الاقتراح يدوياً</a>` : ''}</div>` : '';
-    return `<article class="request-item"><div class="request-item-top"><div><h4>${escapeHTML(booking.guardianName)} <span class="request-ref">${escapeHTML(booking.reference)}</span></h4><div class="request-meta">${escapeHTML(booking.visitType)} · ${escapeHTML(bookingDateTime(booking))}<br>${escapeHTML(booking.phone)}</div></div><span class="status-pill ${statusClass(booking.status)}">${escapeHTML(formatStatus(booking.status))}</span></div>${actions}</article>`;
+    const ref = escapeHTML(booking.reference);
+    const actions = canAct ? `
+      <div class="request-actions">
+        ${isPending ? `<button class="action-approve" data-action="approve" data-ref="${ref}">${booking.status === 'RESCHEDULED' ? 'اعتماد الوقت المقترح' : 'قبول وحجز'}</button><button data-action="reschedule" data-ref="${ref}">اقتراح وقت بديل</button><button class="action-danger" data-action="cancel" data-ref="${ref}">رفض / إلغاء</button>` : ''}
+        ${isConfirmed ? `<button data-action="move" data-ref="${ref}">تعديل الموعد</button><button data-action="complete" data-ref="${ref}">إكمال الزيارة</button><button data-action="cancel" data-ref="${ref}" class="action-danger">إلغاء</button><a class="text-button" href="${whatsappLink(booking)}" target="_blank" rel="noopener noreferrer">رسالة WhatsApp</a>` : ''}
+        ${booking.status === 'RESCHEDULED' ? `<a class="text-button" href="${whatsappLink(booking, true)}" target="_blank" rel="noopener noreferrer">إرسال الاقتراح يدويًا</a>` : ''}
+      </div>` : '';
+    return `<article class="request-item">
+      <div class="request-item-top">
+        <div>
+          <h4>${escapeHTML(booking.guardianName)} <span class="request-ref">${ref}</span></h4>
+          <div class="request-meta">${escapeHTML(booking.visitType)} · ${escapeHTML(bookingDateTime(booking))}<br>${escapeHTML(booking.phone)}</div>
+        </div>
+        <span class="status-pill ${statusClass(booking.status)}">${escapeHTML(formatStatus(booking.status))}</span>
+      </div>${actions}
+    </article>`;
   }
+
   async function loginStaff(event) {
-    event.preventDefault(); const pin = $('#staffPin').value.trim(); $('#staffLoginError').hidden = true;
-    try { const response = await api('getDashboard', pin); if (!response || !response.ok) throw new Error(response && response.message || 'تعذر فتح لوحة الموظف.'); state.staffPin = pin; $('#staffLogin').hidden = true; $('#staffDashboard').hidden = false; renderDashboard(response); }
-    catch (error) { $('#staffLoginError').textContent = error.message; $('#staffLoginError').hidden = false; }
+    event.preventDefault();
+    const pin = $('#staffPin').value.trim();
+    $('#staffLoginError').hidden = true;
+    try {
+      const response = await api('getDashboard', pin);
+      if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر فتح لوحة الموظف.');
+      state.staffPin = pin;
+      $('#staffLogin').hidden = true;
+      $('#staffDashboard').hidden = false;
+      renderDashboard(response);
+      renderHeroCalendar();
+    } catch (error) {
+      $('#staffLoginError').textContent = error.message;
+      $('#staffLoginError').hidden = false;
+    }
   }
   async function refreshDashboard() {
-    try { const response = await api('getDashboard', state.staffPin); if (!response || !response.ok) throw new Error(response && response.message || 'تعذر تحميل لوحة الموظف.'); renderDashboard(response); }
-    catch (error) { $('#staffAlerts').hidden = false; $('#staffAlerts').textContent = error.message; }
+    try {
+      const response = await api('getDashboard', state.staffPin);
+      if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر تحميل لوحة الموظف.');
+      renderDashboard(response);
+    } catch (error) {
+      $('#staffAlerts').hidden = false;
+      $('#staffAlerts').textContent = error.message;
+    }
   }
   function renderDashboard(response) {
-    const bookings = response.bookings || []; state.bookings = bookings; state.closures = response.closures || [];
-    const pending = bookings.filter((item) => ['REQUESTED','PENDING_APPROVAL','RESCHEDULED'].includes(item.status));
-    const today = localISO(new Date()); const todayConfirmed = bookings.filter((item) => item.day === today && ['CONFIRMED','COMPLETED'].includes(item.status)); const week = currentWeekBookings(bookings);
-    $('#dashboardStats').innerHTML = `<div class="stat-card"><span>بانتظار القرار</span><strong>${pending.length.toLocaleString('ar-EG')}</strong><small>الطلب لا يحجز الوقت حتى اعتماده</small></div><div class="stat-card"><span>زيارات اليوم</span><strong>${todayConfirmed.length.toLocaleString('ar-EG')}</strong><small>${prettyDate(today)}</small></div><div class="stat-card"><span>مواعيد هذا الأسبوع</span><strong>${week.length.toLocaleString('ar-EG')}</strong><small>مؤكدة أو مكتملة</small></div>`;
-    $('#pendingCount').textContent = pending.length.toLocaleString('ar-EG');
-    $('#pendingList').innerHTML = pending.length ? pending.map((item) => requestCard(item, true)).join('') : '<div class="empty-list">لا توجد طلبات بانتظار المراجعة.</div>';
-    $('#weekList').innerHTML = week.length ? week.map((item) => requestCard(item, true)).join('') : '<div class="empty-list">لا توجد مواعيد مؤكدة هذا الأسبوع.</div>';
-    const alertBox = $('#staffAlerts'); const warnings = response.warnings || [];
-    if (warnings.length) { alertBox.hidden = false; alertBox.textContent = warnings.join(' — '); } else alertBox.hidden = true;
+    const bookings = response.bookings || [];
+    state.bookings = bookings;
+    state.closures = response.closures || [];
+    const pending = bookings.filter((item) => ['REQUESTED', 'PENDING_APPROVAL', 'RESCHEDULED'].includes(item.status));
+    const today = localISO(new Date());
+    const todayConfirmed = bookings.filter((item) => item.day === today && ['CONFIRMED', 'COMPLETED'].includes(item.status));
+    const week = currentWeekBookings(bookings);
+    $('#dashboardStats').innerHTML = `
+      <div class="stat-card"><span>بانتظار القرار</span><strong>${arabicNumber(pending.length)}</strong><small>الطلب لا يحجز الوقت حتى اعتماده</small></div>
+      <div class="stat-card"><span>زيارات اليوم</span><strong>${arabicNumber(todayConfirmed.length)}</strong><small>${escapeHTML(prettyDate(today))}</small></div>
+      <div class="stat-card"><span>مواعيد هذا الأسبوع</span><strong>${arabicNumber(week.length)}</strong><small>مؤكدة أو مكتملة</small></div>`;
+    $('#pendingCount').textContent = arabicNumber(pending.length);
+    $('#pendingList').innerHTML = pending.length
+      ? pending.map((item) => requestCard(item, true)).join('')
+      : '<div class="empty-list">لا توجد طلبات بانتظار المراجعة.</div>';
+    $('#weekList').innerHTML = week.length
+      ? week.map((item) => requestCard(item, true)).join('')
+      : '<div class="empty-list">لا توجد مواعيد مؤكدة هذا الأسبوع.</div>';
+    const alertBox = $('#staffAlerts');
+    const warnings = response.warnings || [];
+    if (warnings.length) { alertBox.hidden = false; alertBox.textContent = warnings.join(' — '); }
+    else alertBox.hidden = true;
   }
+
   async function staffAction(button) {
-    const ref = button.dataset.ref; const action = button.dataset.action; const booking = state.bookings.find((item) => item.reference === ref); if (!booking) return;
-    let method; let args;
+    const ref = button.dataset.ref;
+    const action = button.dataset.action;
+    const booking = state.bookings.find((item) => item.reference === ref);
+    if (!booking) return;
+    let method;
+    let args;
     if (action === 'approve') { method = 'approveRequest'; args = [ref, state.staffPin]; }
-    else if (action === 'cancel') { if (!confirm(`هل تريد إلغاء/رفض الطلب ${ref}؟`)) return; method = 'cancelRequest'; args = [ref, 'تم الإلغاء من العيادة', state.staffPin]; }
-    else if (action === 'complete') { method = 'completeRequest'; args = [ref, state.staffPin]; }
+    else if (action === 'cancel') {
+      if (!confirm(`هل تريد إلغاء/رفض الطلب ${ref}؟`)) return;
+      method = 'cancelRequest'; args = [ref, 'تم الإلغاء من العيادة', state.staffPin];
+    } else if (action === 'complete') { method = 'completeRequest'; args = [ref, state.staffPin]; }
     else if (action === 'reschedule' || action === 'move') {
-      const day = prompt('أدخلوا التاريخ البديل بصيغة YYYY-MM-DD', booking.day); if (!day) return;
-      const time = prompt('أدخلوا الوقت بصيغة HH:MM', booking.time); if (!time) return;
+      const day = prompt('أدخلوا التاريخ البديل بصيغة YYYY-MM-DD', booking.day);
+      if (!day) return;
+      const time = prompt('أدخلوا الوقت بصيغة HH:MM', booking.time);
+      if (!time) return;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) { toast('صيغة التاريخ أو الوقت غير صحيحة.'); return; }
       method = action === 'move' ? 'moveConfirmedAppointment' : 'proposeAlternative';
       args = action === 'move' ? [ref, day, time, 'تعديل من لوحة العيادة', state.staffPin] : [ref, day, time, state.staffPin];
     } else return;
+
     button.disabled = true;
-    try { const response = await api(method, ...args); if (!response || !response.ok) throw new Error(response && response.message || 'تعذر تنفيذ الإجراء.'); toast(response.warning || (action === 'approve' ? 'تمت الموافقة وحفظ الموعد.' : action === 'reschedule' ? 'سُجل الوقت البديل المقترح؛ لم يتأكد الموعد.' : 'تم تحديث الطلب.')); await refreshDashboard(); }
-    catch (error) { toast(error.message); button.disabled = false; }
-  }
-  async function closeDay(event) {
-    event.preventDefault(); const day = $('#closureDate').value; const label = $('#closureLabel').value.trim() || 'إغلاق يوم';
-    try { const response = await api('closeDay', day, label, state.staffPin); if (!response || !response.ok) throw new Error(response && response.message || 'تعذر إغلاق اليوم.'); toast(response.warning || 'تم تسجيل إغلاق اليوم.'); $('#closureLabel').value = ''; await loadAvailability(state.selectedDay); await refreshDashboard(); }
-    catch (error) { toast(error.message); }
-  }
-  async function askQuestion(event) {
-    event.preventDefault(); const question = $('#faqQuestion').value.trim(); if (!question) return;
-    const answer = $('#faqAnswer'); answer.hidden = false; answer.textContent = 'جارٍ تجهيز الإجابة…'; $('#faqQuestion').disabled = true;
-    try { const result = await api('askGeneralQuestion', question); if (!result || !result.ok) throw new Error(result && result.message || 'المساعدة غير متاحة الآن.'); answer.textContent = result.answer; }
-    catch (error) { answer.textContent = `${error.message} يمكنك إكمال الحجز دون هذه الخدمة.`; }
-    finally { $('#faqQuestion').disabled = false; $('#faqQuestion').value = ''; }
+    try {
+      const response = await api(method, ...args);
+      if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر تنفيذ الإجراء.');
+      toast(response.warning || (action === 'approve' ? 'تمت الموافقة وحفظ الموعد.'
+        : action === 'reschedule' ? 'سُجل الوقت البديل المقترح؛ لم يتأكد الموعد.'
+          : 'تم تحديث الطلب.'));
+      await refreshDashboard();
+      renderHeroCalendar();
+    } catch (error) {
+      toast(error.message);
+      button.disabled = false;
+    }
   }
 
-  $$('[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
-  $$('.choice-card input').forEach((input) => input.addEventListener('change', () => $$('.choice-card').forEach((card) => card.classList.toggle('selected', card.contains(document.activeElement) || card.querySelector('input').checked))));
-  $('#visitDate').addEventListener('change', (event) => loadAvailability(event.target.value));
-  $$('.choice-card input').forEach((input) => input.addEventListener('change', () => loadAvailability($('#visitDate').value)));
-  $('#bookingForm').addEventListener('submit', submitBooking);
-  $('#trackForm').addEventListener('submit', trackRequest);
-  $('#staffLoginForm').addEventListener('submit', loginStaff);
-  $('#pendingList').addEventListener('click', (event) => { const button = event.target.closest('[data-action]'); if (button) staffAction(button); });
-  $('#weekList').addEventListener('click', (event) => { const button = event.target.closest('[data-action]'); if (button) staffAction(button); });
-  $('#closureForm').addEventListener('submit', closeDay);
-  $('#faqForm').addEventListener('submit', askQuestion);
-  $('#trackReference').addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase(); });
-  setMode(); setDateDefault(); loadAvailability(state.selectedDay);
+  async function closeDay(event) {
+    event.preventDefault();
+    const day = $('#closureDate').value;
+    const label = $('#closureLabel').value.trim() || 'إغلاق يوم';
+    try {
+      const response = await api('closeDay', day, label, state.staffPin);
+      if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر إغلاق اليوم.');
+      toast(response.warning || 'تم تسجيل إغلاق اليوم.');
+      $('#closureLabel').value = '';
+      renderHeroCalendar();
+      await loadAvailability(state.selectedDay);
+      await refreshDashboard();
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+
+  async function askQuestion(event) {
+    event.preventDefault();
+    const question = $('#faqQuestion').value.trim();
+    if (!question) return;
+    const answer = $('#faqAnswer');
+    answer.hidden = false;
+    answer.textContent = 'جارٍ تجهيز الإجابة…';
+    $('#faqQuestion').disabled = true;
+    try {
+      const result = await api('askGeneralQuestion', question);
+      if (!result || !result.ok) throw new Error(result && result.message ? result.message : 'المساعدة غير متاحة الآن.');
+      answer.textContent = result.answer;
+    } catch (error) {
+      answer.textContent = `${error.message} يمكنك إكمال الحجز دون هذه الخدمة.`;
+    } finally {
+      $('#faqQuestion').disabled = false;
+      $('#faqQuestion').value = '';
+    }
+  }
+
+  /* ---------------- motion polish ---------------- */
+  function revealOnScroll() {
+    if (reduceMotion || !('IntersectionObserver' in window)) return;
+    const targets = [...$$('.card, .side-card, .tool-card, .steps-strip')];
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.style.transition = 'opacity .6s cubic-bezier(.22,.61,.36,1), transform .6s cubic-bezier(.22,.61,.36,1)';
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'none';
+        observer.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    targets.forEach((node) => {
+      const box = node.getBoundingClientRect();
+      if (box.top < window.innerHeight) return;
+      node.style.opacity = '0';
+      node.style.transform = 'translateY(18px)';
+      observer.observe(node);
+    });
+  }
+
+  /* ---------------- wiring + boot ---------------- */
+  function init() {
+    $$('[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
+    $$('.choice-card input').forEach((input) => input.addEventListener('change', () => {
+      $$('.choice-card').forEach((card) => card.classList.toggle('selected', card.querySelector('input').checked));
+    }));
+    $('#visitDate').addEventListener('change', (event) => loadAvailability(event.target.value));
+    $$('.choice-card input').forEach((input) => input.addEventListener('change', () => loadAvailability($('#visitDate').value)));
+    $('#bookingForm').addEventListener('submit', submitBooking);
+    $('#trackForm').addEventListener('submit', trackRequest);
+    $('#staffLoginForm').addEventListener('submit', loginStaff);
+    $('#pendingList').addEventListener('click', (event) => { const button = event.target.closest('[data-action]'); if (button) staffAction(button); });
+    $('#weekList').addEventListener('click', (event) => { const button = event.target.closest('[data-action]'); if (button) staffAction(button); });
+    $('#closureForm').addEventListener('submit', closeDay);
+    $('#faqForm').addEventListener('submit', askQuestion);
+    $('#trackReference').addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase(); });
+    window.addEventListener('resize', moveNavIndicator);
+    window.addEventListener('load', moveNavIndicator);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && state.view === 'staff' && state.staffPin) refreshDashboard(); });
+
+    try {
+      setMode();
+      setDateDefault();
+      renderDayChips();
+      renderHeroCalendar();
+      startClock();
+      loadAvailability(state.selectedDay);
+      moveNavIndicator();
+      requestAnimationFrame(revealOnScroll);
+    } catch (error) {
+      console.error('Celia Kids failed to start', error);
+    }
+  }
+
+  // Works whether the script is deferred in <head> or inlined at the end of <body>.
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
+  else init();
 })();

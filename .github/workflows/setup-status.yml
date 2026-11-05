@@ -1,0 +1,51 @@
+name: Setup status
+
+# Reports which declared secrets/variables/environments actually exist.
+# NAMES ONLY — GitHub never exposes values, and this workflow never asks for them.
+# Non-blocking: it is a dashboard, not a gate (the CI job is the gate).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC — catches drift after rotation
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: setup-status
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: declared vs configured
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ vars.NODE_VERSION || '20' }}
+
+      - name: Compare docs/secrets-manifest.json with repository settings
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/setup-github.js || true
+
+      - name: Write a summary (names only)
+        if: always()
+        run: |
+          {
+            echo "### Secrets / variables setup status"
+            echo ""
+            echo "Declared in \`docs/secrets-manifest.json\`; values are never read or printed."
+            echo ""
+            echo '```'
+            node -e "const m=require('./docs/secrets-manifest.json'); console.log('secrets:   ' + m.secrets.map(s=>s.name+'@'+s.level).join(', ')); console.log('variables: ' + m.variables.map(v=>v.name).join(', '));"
+            echo '```'
+            echo ""
+            echo "Gaps and copy-paste commands: \`node scripts/setup-github.js\` locally, or \`docs/secrets.md\` §7c."
+          } >> "$GITHUB_STEP_SUMMARY"

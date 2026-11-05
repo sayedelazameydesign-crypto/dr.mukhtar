@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Non-sensitive configuration only (GitHub Variables). Secrets never live here.
+  APP_ENV: ${{ vars.APP_ENV || 'ci' }}
+  NODE_VERSION: ${{ vars.NODE_VERSION || '20' }}
+  LLM_PRIMARY: ${{ vars.LLM_PRIMARY || 'gemini' }}
+
+jobs:
+  quality:
+    name: lint · typecheck · test · build · audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Workflow + secrets contract
+        run: node scripts/check-workflows.js
+
+      - name: Contract checker self-test
+        run: node scripts/check-workflows.js --self-test
+
+      - name: Setup checker tests
+        run: node scripts/test-setup-github.js
+
+      - name: actionlint (preinstalled on the runner images)
+        run: |
+          if command -v actionlint >/dev/null 2>&1; then
+            actionlint -color
+          else
+            echo "::warning::actionlint is not preinstalled on this runner image; scripts/check-workflows.js already covered the local rules."
+          fi
+
+      - name: Syntax gate (JS)
+        run: |
+          node --check app.js
+          node -e "new Function(require('fs').readFileSync('Code.gs','utf8')); new Function(require('fs').readFileSync('Llm.gs','utf8')); console.log('Apps Script sources parse');"
+
+      - name: Python syntax gate
+        run: python3 -m py_compile scripts/build-gas-package.py scripts/preview.py
+
+      - name: Backend simulation tests
+        run: node scripts/test-gas-simulated.js
+
+      - name: LLM adapter + config tests
+        run: node scripts/test-llm-adapter.js
+
+      - name: Google bridge (offline, local adapter)
+        run: |
+          node scripts/test-google-bridge.js
+          node scripts/google/selftest.js --local
+
+      - name: UI smoke test (jsdom)
+        run: |
+          npm i --no-save --no-audit --no-fund jsdom@25
+          node scripts/test-ui-smoke.js
+          node scripts/test-demo-availability.js
+
+      - name: Build Apps Script bundle
+        run: python3 scripts/build-gas-package.py
+
+      - name: Artifact leak guard
+        run: |
+          # Built bundles must not contain secret-shaped values. Header *names*
+          # such as x-goog-api-key are code, not credentials, so the scan looks
+          # for values (key formats and ASSIGNMENT=value shapes) instead.
+          node scripts/scan-secrets.js gas
+          echo "artifact leak guard OK"
+
+      - name: Bundle self-containment guard
+        run: |
+          test -f gas/Index.html && test -f gas/Fonts.html && test -f gas/Llm.gs
+          if grep -rn "http://localhost\|127.0.0.1\|fonts.googleapis\|fonts.gstatic\|<script src=\"\./app\.js\"" gas/Index.html; then
+            echo "::error::GAS bundle must not reference local preview assets or external font CDNs."
+            exit 1
+          fi
+
+      - name: Config contract
+        run: node scripts/check-config.js
+
+      - name: Zero-Card ledger is valid JSON
+        run: node -e "const d=require('./docs/free-tiers.json'); if(!Array.isArray(d.services)||!d.services.length) throw new Error('services missing'); d.services.forEach(s=>{if(!('card_required' in s)) throw new Error('card_required missing for '+s.service)}); console.log('free-tiers.json OK:', d.services.length, 'services');"
+
+      - name: Secret scan (built-in, always on)
+        run: node scripts/scan-secrets.js
+
+      - name: Secret scan (gitleaks, pinned; skipped if the download fails)
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          set -uo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          if ! curl -sSfL --retry 2 --max-time 60 -o /tmp/gitleaks.tgz "${base}/${asset}"; then
+            echo "::warning::gitleaks download unavailable; built-in scanner already ran and passed."
+            exit 0
+          fi
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          /tmp/gitleaks version
+          /tmp/gitleaks detect --source . --no-banner --redact --verbose --exit-code 1
+
+      - name: Dependency audit
+        run: |
+          if [ -f package-lock.json ]; then npm audit --audit-level=high; else echo "No npm manifest: zero runtime dependencies by design — skipping audit."; fi
+
+  live-llm-smoke:
+    # Optional provider probe: needs a repository secret, so it never runs for
+    # fork PRs (they cannot see secrets by design) and is opt-in for the repo owner.
+    name: live LLM smoke (optional)
+    if: github.event.pull_request.head.repo.fork != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Probe the configured provider
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_PRIMARY == 'groq' && 'llama-3.3-70b-versatile' || 'gemini-2.5-flash' }}
+          LLM_SMOKE_ENABLED: ${{ vars.LLM_SMOKE_ENABLED || 'false' }}
+        run: node scripts/live-llm-smoke.js

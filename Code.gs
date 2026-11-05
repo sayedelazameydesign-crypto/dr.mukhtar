@@ -1,5 +1,5 @@
 /**
- * Celia Kids MVP — Google Apps Script backend.
+ * Celia Kids — Google Apps Script backend (2026 edition).
  * Data handled here is administrative contact data only. Never add medical notes.
  */
 const CK = {
@@ -25,6 +25,54 @@ function doGet() {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+/** Public read-only availability, cached briefly to protect Calendar read quota. */
+function getAvailableSlotsCached_(day, visitType) {
+  if (typeof CacheService === 'undefined') return null;
+  try {
+    const key = 'CK_SLOTS_' + String(day) + '_' + String(visitType || '');
+    const hit = CacheService.getScriptCache().get(key);
+    return hit ? JSON.parse(hit) : null;
+  } catch (error) { return null; }
+}
+
+function putAvailableSlotsCached_(day, visitType, slots) {
+  if (typeof CacheService === 'undefined') return;
+  try {
+    CacheService.getScriptCache().put(
+      'CK_SLOTS_' + String(day) + '_' + String(visitType || ''),
+      JSON.stringify(slots),
+      30 // seconds: short enough that approvals always re-check the calendar
+    );
+  } catch (error) { /* cache is best-effort; availability is re-verified on write */ }
+}
+
+/**
+ * Conservative screen for medical content. Long unambiguous stems are matched
+ * anywhere; short ambiguous words (ألم، وجع، مغص) need real word boundaries —
+ * without them the core booking word «الموعد» would be misread as «الم» (pain).
+ */
+const CK_MEDICAL_PATTERN = new RegExp(
+  'أعراض|اعراض|حرارة|سخونية|حمى|دواء|أدوية|علاج|جرعة|تشخيص|طفح|سعال|كحة|قيء|إسهال|اسهال|نزيف|' +
+  'طوارئ|تنفس|حساسية|عدوى|التهاب|عملية جراحية|' +
+  '(?<![\u0621-\u064A])ألم(?![\u0621-\u064A])|(?<![\u0621-\u064A])الم(?![\u0621-\u064A])|' +
+  '(?<![\u0621-\u064A])وجع(?![\u0621-\u064A])|(?<![\u0621-\u064A])مغص(?![\u0621-\u064A])|' +
+  'emergency|fever|symptom|medicine|medication|diagnos|dose|rash|vomit|pain|treatment|breathing|allerg',
+  'i'
+);
+
+/**
+ * Structured JSON log to stdout (Apps Script execution log). Never log names,
+ * phone numbers, questions or any free text — only codes and counters.
+ */
+function logEvent_(level, event, fields) {
+  try {
+    const line = { at: new Date().toISOString(), app: 'celia-kids', component: 'backend', event: event };
+    Object.keys(fields || {}).forEach(function (key) { line[key] = fields[key]; });
+    const logger = console[level] || console.log;
+    logger(JSON.stringify(line));
+  } catch (error) { /* logging must never break a request */ }
+}
+
 /** Run once from the bound spreadsheet's Apps Script editor and approve Google permissions. */
 function initializeCeliaKids() {
   const props = PropertiesService.getScriptProperties();
@@ -43,7 +91,14 @@ function initializeCeliaKids() {
     sheet.getRange(1, 1, 1, sheet.getLastColumn()).setFontWeight('bold').setBackground('#e3f2ec');
   });
   const calendar = ensureClinicCalendar_(props);
-  return 'تم تجهيز أوراق Requests وAudit وClosures وربط تقويم: ' + calendar.getName() + '. أضف ADMIN_PIN وأوقات الدوام قبل النشر.';
+  const readiness = validateConfig();
+  const blocked = readiness.checks.filter((check) => !check.ok && check.id !== 'llm_optional');
+  logEvent_(blocked.length ? 'warn' : 'info', 'initialize_complete', { calendar: calendar.getName(), blocked: blocked.length });
+  if (blocked.length) {
+    throw new Error('تم تجهيز الأوراق والتقويم، لكن الإعداد غير مكتمل: ' +
+      blocked.map((check) => check.id + ' — ' + check.detail).join(' | '));
+  }
+  return 'تم تجهيز الأوراق والتقويم وربط تقويم: ' + calendar.getName() + '. الإعداد صالح للنشر.';
 }
 
 /** Reuse a configured calendar; otherwise create one dedicated Celia Kids calendar. */
@@ -79,6 +134,8 @@ function include(filename) {
 function getAvailableSlots(day, visitType) {
   try {
     if (!isValidDay_(day)) return { ok: false, message: 'التاريخ غير صحيح.' };
+    const cached = getAvailableSlotsCached_(day, visitType || 'كشف جديد');
+    if (cached) return { ok: true, slots: cached, cached: true };
     const config = getConfig_();
     const date = makeDate_(day, config.start);
     if (!config.workDays.includes(date.getDay())) return { ok: true, slots: [] };
@@ -91,6 +148,7 @@ function getAvailableSlots(day, visitType) {
       const time = minutesToTime_(minute);
       if (isSlotAvailable_(day, time, visitMinutes, '')) slots.push(time);
     }
+    putAvailableSlotsCached_(day, visitType || 'كشف جديد', slots);
     return { ok: true, slots: slots };
   } catch (error) {
     return { ok: false, message: 'تعذر التحقق من تقويم العيادة الآن. يمكن إرسال وقت مفضل للمراجعة دون تأكيد.' };
@@ -140,6 +198,7 @@ function createRequest(payload) {
     const auditStored = auditBestEffort_(record.reference, 'guardian', 'REQUEST_CREATED', '', record.status, verified ? 'availability checked' : 'calendar unavailable; review required');
     let warning = verified ? '' : 'التقويم غير متاح؛ الطلب محفوظ كتفضيل ويحتاج مراجعة قبل الموافقة.';
     if (!auditStored) warning = (warning + ' تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.').trim();
+    logEvent_(savedLocally ? 'warn' : 'info', 'request_created', { verified: verified, queued: savedLocally, audit_stored: auditStored });
     return { ok: true, booking: publicBooking_(record), savedLocally: savedLocally, warning: warning };
   } catch (error) {
     return { ok: false, message: error.message || 'تعذر حفظ الطلب.' };
@@ -160,6 +219,7 @@ function lookupBooking(reference) {
   }
 }
 
+/** Constant-time comparison of the staff secret; no logging of the PIN itself. */
 /** Every staff operation checks the secret stored in Script Properties. */
 function getDashboard(pin) {
   if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح أو لم يُضبط بعد.' };
@@ -172,6 +232,20 @@ function getDashboard(pin) {
   const closures = [];
   try { closures.push.apply(closures, readClosures_()); }
   catch (error) { warnings.push('تعذر قراءة إغلاقات الدوام.'); }
+  try {
+    const readiness = validateConfig();
+    readiness.checks.filter((check) => !check.ok).forEach((check) => warnings.push('إعداد: ' + check.detail));
+  } catch (error) { warnings.push('تعذر فحص إعداد العيادة.'); }
+  try {
+    validateConfig().checks.filter((check) => !check.ok && check.id !== 'llm_optional')
+      .forEach((check) => warnings.push('إعداد: ' + check.detail));
+  } catch (error) {
+    logEvent_('error', 'config_check_failed', { code: String(error && error.message ? error.message : error) });
+    warnings.push('تعذر فحص إعداد العيادة؛ راجعوا السجلات.');
+  }
+  const llm = llmStatus();
+  if (!llm.enabled) warnings.push('المساعد الاختياري غير مفعّل (لا يؤثر على الحجز).');
+  else if (llm.circuitOpen) warnings.push('المساعد الاختياري في فترة تبريد بعد أعطال متكررة.');
   const queued = readOutageQueue_();
   if (queued.length) warnings.push('توجد طلبات محفوظة مؤقتاً في طابور الانقطاع ولم تُزامن بعد. لا تؤكدوا هذه الطلبات حتى عودة Sheets.');
   const pendingAuditCount = Object.keys(PropertiesService.getScriptProperties().getProperties()).filter((key) => key.indexOf(CK.AUDIT_QUEUE_PREFIX) === 0).length;
@@ -205,6 +279,7 @@ function approveRequest(reference, pin) {
     record.status = 'CONFIRMED';
     record.updatedAt = new Date().toISOString();
     updateRequestRow_(located.row, record);
+    logEvent_('info', 'appointment_confirmed', { has_event: !!record.eventId });
     const auditStored = auditBestEffort_(record.reference, 'staff', 'APPROVED_AND_SAVED', oldStatus, 'CONFIRMED', 'calendar event id stored');
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم حفظ الموعد لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) {
@@ -273,6 +348,7 @@ function cancelRequest(reference, reason, pin) {
     }
     record.status = 'CANCELLED'; record.updatedAt = new Date().toISOString();
     updateRequestRow_(located.row, record);
+    logEvent_('info', 'appointment_cancelled', { from_status: oldStatus });
     const auditStored = auditBestEffort_(record.reference, 'staff', 'CANCELLED', oldStatus, 'CANCELLED', String(reason || '').slice(0, 100));
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم الإلغاء لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) { return { ok: false, message: error.message || 'تعذر إلغاء الطلب.' }; }
@@ -311,59 +387,100 @@ function closeDay(day, label, pin) {
   finally { lock.releaseLock(); }
 }
 
-/** Optional administrative FAQ only. This endpoint is isolated from booking/calendar decisions. */
+/** Optional administrative FAQ only. Isolated from booking/calendar decisions. */
 function askGeneralQuestion(question) {
   const text = String(question || '').trim().slice(0, 500);
   if (!text) return { ok: false, message: 'اكتبوا سؤالاً إدارياً قصيراً.' };
-  if (/(أعراض|اعراض|حرارة|حمى|سخونية|دواء|علاج|جرعة|تشخيص|طفح|سعال|كحة|قيء|إسهال|اسهال|ألم|الم|نزيف|طوارئ|تنفس|حساسية|emergency|fever|symptom|medicine|medication|diagnos|dose|rash|vomit|pain|treatment|breathing|allerg)/i.test(text)) {
+  // Policy screen stays in the domain: never forward medical content to a model.
+  if (CK_MEDICAL_PATTERN.test(text)) {
     return { ok: true, answer: 'لا أقدم إرشادات طبية أو تشخيصاً. يرجى التواصل مع طبيب مؤهل، وفي الحالات الطارئة توجهوا فوراً إلى خدمات الطوارئ المحلية.' };
   }
-  if (/@[A-Z0-9.-]+\.[A-Z]{2,}|(?:\+?\d[\d\s().-]{8,}\d)/i.test(text)) return { ok: false, message: 'لا ترسلوا بريداً إلكترونياً أو رقم هاتف في سؤال Gemini. يمكنكم متابعة الحجز دونها.' };
-  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
-  if (!key) return { ok: false, message: 'مساعدة Gemini غير مفعلة. يمكنكم متابعة الحجز دونها.' };
-  if (!reserveGeminiQuota_()) return { ok: false, message: 'وصلت مساعدة Gemini إلى حد الاستخدام اليومي أو أنها مشغولة. يمكنكم متابعة الحجز دونها.' };
-  const model = PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || 'gemini-2.5-flash';
-  const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
-  const payload = {
-    systemInstruction: { parts: [{ text: 'أنت مساعد إداري لعيادة أطفال، لا تقدم أي تشخيص أو علاج أو نصيحة صحية أو طبية. أجب فقط عن إجراءات الحجز، حالة الطلب، ساعات العمل المذكورة في السؤال، والتواصل الإداري. لا تطلب بيانات شخصية أو صحية. إذا سئلت عن أعراض أو دواء أو حالة عاجلة، ارفض الإرشاد الطبي ووجّه المستخدم إلى طبيب مؤهل أو خدمات الطوارئ المحلية. إذا كانت المعلومة غير متاحة فقل ذلك بوضوح. أجب بالعربية بإيجاز.' }] },
-    contents: [{ role: 'user', parts: [{ text: text }] }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 220 }
-  };
-  try {
-    const response = UrlFetchApp.fetch(endpoint, { method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': key }, payload: JSON.stringify(payload), muteHttpExceptions: true });
-    const code = response.getResponseCode();
-    if (code < 200 || code >= 300) return { ok: false, message: 'تعذرت مساعدة Gemini الآن؛ استمروا بالحجز أو تواصلوا مع العيادة.' };
-    const body = JSON.parse(response.getContentText());
-    const answer = body.candidates && body.candidates[0] && body.candidates[0].content && body.candidates[0].content.parts && body.candidates[0].content.parts.map((part) => part.text || '').join('').trim();
-    return answer ? { ok: true, answer: answer } : { ok: false, message: 'لم تصل إجابة. يمكنكم متابعة الحجز دون Gemini.' };
-  } catch (error) {
-    return { ok: false, message: 'مساعدة Gemini غير متاحة الآن. يمكنكم متابعة الحجز دونها.' };
+  if (/@[A-Z0-9.-]+\.[A-Z]{2,}|(?:\+?\d[\d\s().-]{8,}\d)/i.test(text)) {
+    return { ok: false, code: 'PII_BLOCKED', message: 'لا ترسلوا بريداً إلكترونياً أو رقم هاتف في سؤال المساعد. يمكنكم متابعة الحجز دونها.' };
   }
+  // Provider, model, retries and limits live in Llm.gs only.
+  const result = llmAnswer_(text);
+  if (result.ok) return { ok: true, answer: result.answer, cached: !!result.cached };
+  const messages = {
+    DISABLED: 'مساعدة المساعد غير مفعلة. يمكنكم متابعة الحجز دونها.',
+    BUDGET: 'وصلت مساعدة المساعد إلى حد الاستخدام المسموح اليوم. يمكنكم متابعة الحجز دونها.',
+    CIRCUIT_OPEN: 'المساعد غير متاح مؤقتاً. يمكنكم متابعة الحجز دونها.',
+    INVALID_INPUT: 'اكتبوا سؤالاً إدارياً قصيراً.',
+    EMPTY_ANSWER: 'لم تصل إجابة. يمكنكم متابعة الحجز دون المساعد.',
+    PROVIDER_HTTP: 'تعذرت مساعدة المساعد الآن؛ استمروا بالحجز أو تواصلوا مع العيادة.',
+    PROVIDER_NETWORK: 'تعذرت مساعدة المساعد الآن؛ استمروا بالحجز أو تواصلوا مع العيادة.'
+  };
+  return { ok: false, code: result.code, message: messages[result.code] || 'المساعدة غير متاحة الآن. يمكنكم متابعة الحجز دونها.' };
 }
 
-function reserveGeminiQuota_() {
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(4000)) return false;
-  try {
-    const properties = PropertiesService.getScriptProperties();
-    const today = Utilities.formatDate(new Date(), getConfig_().timezone, 'yyyy-MM-dd');
-    const previousDay = properties.getProperty('GEMINI_USAGE_DAY') || '';
-    const used = previousDay === today ? Number(properties.getProperty('GEMINI_USAGE_COUNT') || 0) : 0;
-    const limit = Math.min(500, positiveNumber_(properties.getProperty('GEMINI_DAILY_LIMIT'), 25));
-    if (used >= limit) return false;
-    properties.setProperties({ GEMINI_USAGE_DAY: today, GEMINI_USAGE_COUNT: String(used + 1) });
-    return true;
-  } finally { lock.releaseLock(); }
-}
-
+/**
+ * Reads and validates runtime config. Invalid values are reported explicitly
+ * (never silently replaced) so a misconfigured clinic fails fast and loudly.
+ */
 function getConfig_() {
   const properties = PropertiesService.getScriptProperties();
+  const problems = [];
+  const start = String(properties.getProperty('WORK_START') || CK.DEFAULT_START).trim();
+  const end = String(properties.getProperty('WORK_END') || CK.DEFAULT_END).trim();
+  if (!isValidTime_(start)) problems.push('WORK_START يجب أن يكون بصيغة HH:MM (القيمة الحالية: ' + start + ').');
+  if (!isValidTime_(end)) problems.push('WORK_END يجب أن يكون بصيغة HH:MM (القيمة الحالية: ' + end + ').');
+  if (!problems.length && timeToMinutes_(start) >= timeToMinutes_(end)) problems.push('WORK_START يجب أن يسبق WORK_END.');
+
+  const rawDays = String(properties.getProperty('WORK_DAYS') || CK.DEFAULT_WORK_DAYS).split(',').map((v) => Number(v.trim()));
+  const invalidDays = rawDays.filter((v) => !Number.isInteger(v) || v < 0 || v > 6);
+  if (invalidDays.length) problems.push('WORK_DAYS يجب أن يحتوي أرقام أيام من 0 إلى 6 (غير صالح: ' + invalidDays.join(',') + ').');
+  const workDays = Array.from(new Set(rawDays.filter((v) => Number.isInteger(v) && v >= 0 && v <= 6)));
+
+  const rawDuration = properties.getProperty('SLOT_MINUTES');
+  const duration = positiveNumber_(rawDuration, CK.DEFAULT_MINUTES);
+  if (rawDuration && duration === CK.DEFAULT_MINUTES && Number(rawDuration) !== CK.DEFAULT_MINUTES) {
+    problems.push('SLOT_MINUTES يجب أن يكون رقماً موجباً.');
+  }
+  if (problems.length) {
+    const error = new Error('إعداد العيادة غير صالح: ' + problems.join(' '));
+    error.code = 'CONFIG_INVALID';
+    error.problems = problems;
+    throw error;
+  }
   return {
-    start: properties.getProperty('WORK_START') || CK.DEFAULT_START,
-    end: properties.getProperty('WORK_END') || CK.DEFAULT_END,
-    duration: positiveNumber_(properties.getProperty('SLOT_MINUTES'), CK.DEFAULT_MINUTES),
-    workDays: (properties.getProperty('WORK_DAYS') || CK.DEFAULT_WORK_DAYS).split(',').map((v) => Number(v.trim())).filter((v) => v >= 0 && v <= 6),
+    start: start,
+    end: end,
+    duration: duration,
+    workDays: workDays,
     timezone: properties.getProperty('TIMEZONE') || Session.getScriptTimeZone() || 'Africa/Cairo'
+  };
+}
+
+/** Explicit startup check used by initializeCeliaKids() and the staff dashboard. */
+function validateConfig() {
+  const checks = [];
+  const props = PropertiesService.getScriptProperties();
+  let config = null;
+  try { config = getConfig_(); checks.push({ id: 'clinic_config', ok: true }); }
+  catch (error) { checks.push({ id: 'clinic_config', ok: false, detail: error.message }); }
+
+  const pin = props.getProperty('ADMIN_PIN') || '';
+  const pinOk = pin.length >= 16 && pin !== '2468' && !/^(.)\1*$/.test(pin);
+  checks.push({ id: 'admin_pin', ok: pinOk, detail: pinOk ? '' : 'ADMIN_PIN مطلوب بطول 16 حرفاً على الأقل وليس رمز العرض 2468.' });
+
+  let sheetOk = false;
+  let sheetDetail = '';
+  try { sheetOk = !!getSpreadsheet_().getSheetByName(CK.REQUESTS); if (!sheetOk) sheetDetail = 'ورقة Requests غير موجودة؛ شغّلوا initializeCeliaKids().'; }
+  catch (error) { sheetDetail = error.message || 'تعذر الوصول إلى Sheets.'; }
+  checks.push({ id: 'sheets', ok: sheetOk, detail: sheetDetail });
+
+  let calendarOk = false;
+  let calendarDetail = '';
+  try { calendarOk = !!getCalendar_(); } catch (error) { calendarDetail = error.message || 'تعذر الوصول إلى Calendar.'; }
+  checks.push({ id: 'calendar', ok: calendarOk, detail: calendarDetail });
+
+  const llm = llmStatus();
+  checks.push({ id: 'llm_optional', ok: true, detail: llm.enabled ? 'مفعّل (اختياري)' : 'غير مفعّل (اختياري)' });
+
+  return {
+    ok: checks.filter((check) => check.id !== 'llm_optional').every((check) => check.ok),
+    checks: checks,
+    config: config
   };
 }
 function visitDuration_(visitType) {
@@ -452,7 +569,17 @@ function readAllRequests_() {
 }
 function readOutageQueue_() {
   const props = PropertiesService.getScriptProperties().getProperties();
-  return Object.keys(props).filter((key) => key.indexOf(CK.QUEUE_PREFIX) === 0).map((key) => { try { return JSON.parse(props[key]); } catch (_) { return null; } }).filter(Boolean);
+  const broken = [];
+  const records = Object.keys(props).filter((key) => key.indexOf(CK.QUEUE_PREFIX) === 0).map((key) => {
+    try { return JSON.parse(props[key]); }
+    catch (error) {
+      broken.push(key);
+      logEvent_('error', 'outage_queue_entry_unreadable', { key_suffix: key.slice(-6), code: String(error && error.message ? error.message : error) });
+      return null;
+    }
+  }).filter(Boolean);
+  if (broken.length) logEvent_('warn', 'outage_queue_entries_skipped', { count: broken.length });
+  return records;
 }
 function queueOutageRequest_(record) {
   const encoded = JSON.stringify(record);
@@ -516,5 +643,14 @@ function auditBestEffort_(reference, actor, action, fromStatus, toStatus, detail
 }
 function syncAuditQueue_() {
   const properties = PropertiesService.getScriptProperties(); const all = properties.getProperties(); const sheet = auditSheet_();
-  Object.keys(all).filter((key) => key.indexOf(CK.AUDIT_QUEUE_PREFIX) === 0).forEach((key) => { try { sheet.appendRow(JSON.parse(all[key])); properties.deleteProperty(key); } catch (_) { /* leave queued for a later staff review */ } });
+  let stranded = 0;
+  Object.keys(all).filter((key) => key.indexOf(CK.AUDIT_QUEUE_PREFIX) === 0).forEach((key) => {
+    try { sheet.appendRow(JSON.parse(all[key])); properties.deleteProperty(key); }
+    catch (error) {
+      // Keep the entry queued, but record that it is still pending (never silent).
+      stranded += 1;
+      logEvent_('error', 'audit_queue_sync_failed', { key_suffix: key.slice(-6), code: String(error && error.message ? error.message : error) });
+    }
+  });
+  if (stranded) logEvent_('warn', 'audit_queue_stranded', { count: stranded });
 }

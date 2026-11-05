@@ -1,0 +1,50 @@
+{
+  "$comment": "Google bridge profile — TEMPLATE. Copy to config/google.profile.json (git-ignored) and fill the layout IDs. Code resolves logical names ('memory/long'), never account emails or raw Drive IDs. One profile = one Google account; swap = change GOOGLE_PROFILE + its refresh-token secret, zero code changes. Policy: docs/google-setup.md, google-bridge.md §3.",
+  "$schema_note": "layout values stay null until `bootstrap` creates the folders; a null value means 'not bootstrapped for this profile' and the gateway falls back to `fallback`.",
+
+  "profile": "dev",
+  "account_label": "developer-1",
+  "account_created": "existing",
+  "purpose": "development and testing only — demo data, never a real guardian's contact data",
+
+  "auth_mode": "oauth_user",
+  "auth_mode_reason": "Apps Script Script Properties cannot be read by an outside process, so a bridge token would need rclone's extended scope on the account; GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN keeps the same app registration usable from GitHub Actions and Colab without a card or a domain.",
+  "scopes": ["drive.file", "spreadsheets", "calendar.events"],
+  "scope_notes": {
+    "drive.file": "per-file: the app sees only what it created — non-sensitive, no verification needed",
+    "spreadsheets": "index sheet inside the app-created root folder",
+    "calendar.events": "read/write the clinic calendar events only (no calendar management)"
+  },
+
+  "root_folder_name": "celia-kids-memory",
+  "layout": {
+    "memory/short": null,
+    "memory/long": null,
+    "evidence": null,
+    "inbox": null,
+    "archive": null,
+    "backups": null,
+    "index_sheet": null,
+    "sheet_id": null,
+    "calendar_id": null
+  },
+
+  "function_map": {
+    "memory.long": "drive",
+    "memory.evidence": "drive",
+    "memory.backup": "drive",
+    "memory.index": "sheets",
+    "state": "sheets",
+    "time": "calendar",
+    "llm": "gemini",
+    "mail": "none",
+    "tasks": "none"
+  },
+  "function_map_note": "mail = none on purpose: no Gmail scope is requested, so a leak cannot expose a mailbox. state stays Sheets because it is already the system of record (Code.gs) — do not split hot state across two stores.",
+
+  "fallback": "local",
+  "backup_outside_google": "encrypted archive → private GitHub repo or local disk (docs/google-setup.md §5)",
+  "quota_alert_percent": 80,
+  "bootstrapped_at": null,
+  "rotated_at": null
+}
