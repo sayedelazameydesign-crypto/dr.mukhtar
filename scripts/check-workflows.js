@@ -95,8 +95,10 @@ jobs:
     { name: 'missing permissions block is rejected', workflow: GOOD_WORKFLOW.replace('permissions:\n  contents: read\n', ''), expect: 1 },
     { name: 'self-hosted runner is rejected', workflow: GOOD_WORKFLOW.replace('runs-on: ubuntu-latest', 'runs-on: [self-hosted, linux]'), expect: 1 },
     { name: 'pull_request_target with head checkout is rejected', workflow: GOOD_WORKFLOW.replace('on: [push]', 'on: [pull_request_target]') + '      - uses: actions/checkout@v5\n        with:\n          ref: \${{ github.event.pull_request.head.sha }}\n', expect: 1 },
+    // A commit this repository cannot see: in a full clone that is an error; in a shallow
+    // clone it is only a warning (checked below by the deploy path, which uses depth 1).
     // An ancestor of HEAD is acceptable (documented in §8: a code-only commit must not be
-    // blocked by a doc bump), so the stale case is a commit this repository has never had.
+    // blocked by a doc bump).
     { name: 'a map pinned to an unknown commit is rejected', map: GOOD_MAP_PROJECT, expect: 1, mapCommit: 'deadbee' },
     { name: 'env dump is flagged', workflow: GOOD_WORKFLOW.replace('run: echo "using $APP_ENV"', 'run: printenv'), expect: 0, expectWarning: true },
     { name: 'map edge pointing at an undeclared node is rejected', map: GOOD_MAP_PROJECT.replace(JSON.stringify('domain.code'), JSON.stringify('domain.ghost')), expect: 1 },
@@ -530,8 +532,16 @@ if (!fs.existsSync(MAP_DIR)) {
   // These two were warnings for several commits and nothing ever acted on them, which is
   // how a map becomes fiction. A map that points at a commit this repository does not have,
   // or that is not on the path to HEAD, is now an error: refresh it in the same change.
+  // A shallow clone cannot see older commits, so "unknown commit" and "we did not fetch it"
+  // are different findings. The deploy workflow checked out with depth 1 and this rule then
+  // failed for a map that was correct — a gate that punishes its own environment.
+  const shallow = git(['rev-parse', '--is-shallow-repository']) === 'true';
   if (head && mapped && !commitExists(mapped)) {
-    fail(`docs/map/ — meta.commit ${mapped} is not a commit in this repository`);
+    if (shallow) {
+      warn(`docs/map/ — meta.commit ${mapped} cannot be verified in a shallow clone; use fetch-depth: 0 to check it`);
+    } else {
+      fail(`docs/map/ — meta.commit ${mapped} is not a commit in this repository`);
+    }
   } else if (head && mapped && !head.startsWith(mapped) && !isAncestor(mapped, head)) {
     fail(`docs/map/ is stale — meta.commit ${mapped} is not on the path to HEAD ${head.slice(0, 7)}; refresh per project-map.md §8`);
   }
