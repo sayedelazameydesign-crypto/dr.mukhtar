@@ -29,11 +29,37 @@ jobs:
         with:
           node-version: ${{ vars.NODE_VERSION || '20' }}
 
+      # This step used to end in `|| true`, so the only reporter of G2/U3 — the one job
+      # that compares the manifest with the real repository settings — could never fail.
+      # It ran green by construction. It now reports a verdict:
+      #   exit 0 → every declared name that must exist exists
+      #   exit 1 → drift: a declared name is missing while zero is not the correct state
+      #   exit 2 → the settings cannot be read with this token (a real, reportable condition)
       - name: Compare docs/secrets-manifest.json with repository settings
+        id: setup
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node scripts/setup-github.js || true
+        run: |
+          # No `set +e` and no `|| true`: the step must fail when the check fails. The output
+          # is captured by the shell's tee so the reason survives into the summary.
+          set -euo pipefail
+          node scripts/setup-github.js 2>&1 | tee /tmp/setup-github.txt || code=$?
+          code=${code:-0}
+          {
+            echo '<details><summary>setup-github.js output</summary>'
+            echo ''
+            echo '```'
+            cat /tmp/setup-github.txt
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+          case "$code" in
+            0) echo "::notice title=GitHub settings::كل الأسماء المعلنة موجودة" ;;
+            2) echo "::error title=GitHub settings unreadable::The token cannot read repository secrets/variables (exit 2). A dashboard that cannot read its subject must not report success. Fix the token permission or run node scripts/setup-github.js locally." ;;
+            *) echo "::error title=GitHub settings drift::A declared secret or variable is missing (exit $code). Run sh scripts/bootstrap-github.sh, then re-run this workflow." ;;
+          esac
+          exit "$code"
 
       - name: Write a summary (names only)
         if: always()

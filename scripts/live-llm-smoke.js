@@ -29,6 +29,12 @@ const PROMPT = 'ما هي خطوات تغيير موعد زيارة في الع�
 
 function skip(reason) {
   console.log(`SKIPPED live LLM smoke: ${reason}. Unit tests and the booking flow do not need this.`);
+  // A check named "live LLM smoke" that exits 0 without probing anything is rendered as a
+  // green pass on the PR. Keep the exit code (a fork PR legitimately cannot have the key),
+  // but make the outcome impossible to misread.
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    console.log(`::notice title=live LLM smoke NOT executed::${reason}. This job proves nothing about the provider today.`);
+  }
   process.exit(0);
 }
 function fail(reason) {
