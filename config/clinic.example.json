@@ -47,7 +47,7 @@
       "value": "0,1,2,3,4",
       "required": false,
       "secret": false,
-      "rule": "comma separated 0..6 where 0 = Sunday"
+      "rule": "أيام العمل: ٠=الأحد … ٦=السبت. يُحرَّر من لوحة العيادة"
     },
     "CALENDAR_ID": {
       "value": "",
@@ -149,7 +149,7 @@
       "value": "5,6",
       "required": false,
       "secret": false,
-      "rule": "comma separated 0..6 where 0 = Sunday; must not overlap WORK_DAYS"
+      "rule": "أيام الإغلاق الأسبوعي. يُحرَّر من لوحة العيادة"
     },
     "CLINIC_NAME": {
       "value": "Celia Kids",
@@ -198,6 +198,24 @@
       "required": false,
       "secret": false,
       "rule": "العنوان كما يظهر لولي الأمر. لا تُضاف إحداثيات GPS إلى المستودع"
+    },
+    "ADMIN_PIN_HASH": {
+      "value": "",
+      "required": false,
+      "secret": false,
+      "rule": "بصمة SHA-256 (٦٤ حرفًا hex) لرمز الدخول. يكتبها initializeCeliaKids() نيابةً عنك؛ لا تُحرَّر يدويًا وتُغيَّر من لوحة العيادة"
+    },
+    "CK_MUST_CHANGE_PIN": {
+      "value": "",
+      "required": false,
+      "secret": false,
+      "rule": "1 = الرمز الحالي مؤقت (تولّده التهيئة). يصبح 0 تلقائيًا بعد أول تغيير من لوحة العيادة"
+    },
+    "VISIT_SERVICES": {
+      "value": "كشف جديد = 60\nمتابعة = 30",
+      "required": false,
+      "secret": false,
+      "rule": "سطر لكل نوع زيارة بالصيغة: الاسم = المدة بالدقائق. يُحرَّر من لوحة العيادة لا من هنا"
     }
   }
 }

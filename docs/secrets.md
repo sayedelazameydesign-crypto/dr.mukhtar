@@ -8,13 +8,22 @@ This page is the human summary; both are validated in CI by `scripts/check-workf
 
 | Store | Count | Notes |
 | --- | --- | --- |
-| Repository secrets | **0** | none set yet |
-| Repository variables | **0** | none set yet |
-| Environment secrets (`production`) | **0** | environment does not exist yet |
+| Repository secrets | **0** | **intentionally empty** — nothing here needs one |
+| Repository variables | **0** | **intentionally empty** — defaults in the workflows cover CI |
+| Environment secrets (`production`) | **0** | environment does not exist; only a manual deployment checklist would use it |
 | Dependabot secrets | 0 | not needed (Dependabot PRs only run dependency checks) |
 
 Nothing in this repository needs a secret to build, test, or deploy the site:
 CI runs entirely on mocked providers, and the published site is demo-mode only.
+
+**Zero is the correct state, not an unfinished setup.** A contributor who sees "0 secrets"
+should not conclude that something is missing — the *names* are declared (§2), validated in CI,
+and the deployment branch fails if a workflow references an undeclared name. The only value that
+must exist for production lives in Apps Script Script Properties (§5), never in GitHub.
+
+The clinic's own settings (clinic/doctor identity, hours, visit types, staff PIN) deliberately have
+**no** secret here: they are non-sensitive data edited from the dashboard and stored in the clinic
+sheet. See [`settings.md`](./settings.md).
 
 ## 2. What is declared (names only — never values)
 
@@ -112,7 +121,9 @@ sh scripts/pre-commit.sh     # secrets scan + workflow contract
 The clinic backend reads configuration from **Script Properties**, not from GitHub. Same names,
 same rules — see [`config/clinic.example.json`](../config/clinic.example.json) and
 `node scripts/check-config.js`. `CELIA_ADMIN_PIN` in GitHub is only for the deployment checklist;
-the value that actually guards the dashboard is the Script Property `ADMIN_PIN`.
+the value that actually guards the dashboard is the Script Property `ADMIN_PIN_HASH` — a SHA-256
+hash written by `initializeCeliaKids()`. The plain PIN is never stored anywhere: the first run
+returns a generated PIN **once**, and it is then replaced from the dashboard.
 
 ## 6. Rotation
 
