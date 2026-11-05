@@ -25,7 +25,11 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const DOC = path.join(ROOT, 'docs', 'production-readiness.md');
+// CELIA_READINESS_DOC is a test seam, not a feature: scripts/test-readiness-report.js points it
+// at a fixture copy so the comparison rule can be exercised without editing the real document.
+const DOC = process.env.CELIA_READINESS_DOC
+  ? path.resolve(process.env.CELIA_READINESS_DOC)
+  : path.join(ROOT, 'docs', 'production-readiness.md');
 const GAPS = path.join(ROOT, 'docs', 'map', 'gaps.json');
 const MARK_START = '<!-- GENERATED:START -->';
 const MARK_END = '<!-- GENERATED:END -->';
@@ -237,6 +241,29 @@ const block = (text) => {
 const currentBlock = block(current);
 const nextBlock = block(next);
 
+/*
+ * Two honest runs differ in exactly one way that is not a fact about the repository: whether
+ * this machine could reach the published site. With --offline the summary row says "متخطّاة
+ * (--offline)" and site.up's detail says the network was skipped; with a network it says
+ * "مستخدمة" and carries the failure reason. Comparing that text verbatim made the check red on
+ * any machine whose connectivity differed from the one that generated the file — a gate that
+ * cries wolf gets ignored, which is worse than not having it.
+ *
+ * So exactly two cells are normalised, and nothing else:
+ *   · the "الشبكة" summary row, and
+ *   · site.up's detail cell (index 3) — its *status* cell stays compared, so a site that comes
+ *     up (unverified → ready/action) still fails the check, as do the counts that follow it.
+ */
+const normaliseNetwork = (text) => text.split('\n').map((line) => {
+  if (/^\| الشبكة \|/.test(line)) return '| الشبكة | <شبكة> |';
+  if (line.startsWith('| site.up ')) {
+    const cells = line.split('|');
+    if (cells.length >= 6) cells[3] = ' <شبكة> ';
+    return cells.join('|');
+  }
+  return line;
+}).join('\n');
+
 if (contradictions.length) {
   console.error(`✗ ${contradictions.length} contradiction(s) between the ledger and the report:`);
   contradictions.forEach((line) => console.error(`   ✗ ${line}`));
@@ -253,7 +280,7 @@ if (!currentBlock) {
   console.error('✗ docs/production-readiness.md has no generated block — run with --write');
   process.exit(1);
 }
-if (currentBlock !== nextBlock) {
+if (normaliseNetwork(currentBlock) !== normaliseNetwork(nextBlock)) {
   console.error('✗ docs/production-readiness.md is stale relative to gaps.json + a real run.');
   console.error('  Fix: NODE_PATH=… node scripts/readiness-report.js --write');
   process.exit(1);
