@@ -1,33 +1,23 @@
 # النشر — `docs/publish.md`
 
 > الهدف: الموقع يفتح من رابط عام، **بصفر بطاقة**، وبمسار مكتوب لا محفوظ في الرأس.
-> الحالة: الكود مدموج على `main` (14 كوميت، 63 ملفًا). المتبقّي خطوة واحدة منك على GitHub.
+> الحالة: **الموقع منشور فعلًا** — <https://sayedelazameydesign-crypto.github.io/dr.mukhtar/>
+> Pages مفعّل على `main`، وكل `push` إلى `main` يعيد النشر تلقائيًا.
 
-## 0 | ما الذي يمنع النشر الآن
+## 0 | الحالة الحالية (تحقّق قبل الاعتماد عليه)
 
-آخر تشغيل لـ `Deploy site` على `main` فشل في **خطوة واحدة فقط**:
+| ما نتحقق منه | كيف | النتيجة المتوقعة |
+| --- | --- | --- |
+| Pages مفعّل | `gh api repos/…/dr.mukhtar/pages` | `"html_url": "…/dr.mukhtar/"` وليس 404 |
+| آخر نشر | `gh api repos/…/deployments` | `environment: github-pages` وبصمة آخر كوميت على `main` |
+| النشر الأخير نجح | `gh run list --workflow "Deploy site"` | `main success` |
+| الملف الحيّ هو آخر كود | افتح `الموقع/app.js` وابحث عن سطر من آخر تعديل | يظهر |
 
-```
-success  Workflow + secrets contract
-success  Assemble static site
-success  Verify backend simulation / LLM adapter / bundle
-failure  Run actions/configure-pages@v5        ← هنا (Pages غير موجود)
-skipped  Run actions/upload-pages-artifact@v3  ← لذلك تخطّى الباقي
-skipped  JOB deploy
-```
+إن نجح `Deploy site` لكن الصفحة تبدو قديمة، فالسبب دائمًا **كاش المتصفح** أو **CDN**، لا النشر.
+أضف `?cb=<بصمة الكوميت>` إلى الرابط للتحقق.
 
-بعد هذا الفرع، نفس الدفعة تفشل **بخطوة تشرح السبب** بدل أن تفشل داخل الإجراء:
-`::error title=Pages is not enabled:: … settings/pages … ثم أعد التشغيل`.
-
-السبب: مستودع `dr.mukhtar` **ليس فيه موقع Pages بعد** (`GET /pages` → 404)، و`GITHUB_TOKEN`
-لا يستطيع **إنشاء** موقع Pages (403). ولذلك نحتاج توكينك الخاص للتوكين الأول فقط.
-
-> **درس موثّق (حدث فعلًا):** أول محاولة أصلحت هذا بإضافة `administration: write` داخل `permissions:`
-> — وهذا مفتاح **غير موجود** في GitHub. رفض GitHub الملف كله:
-> `failed to parse workflow: (Line: 22, Col: 3): Unexpected value 'administration'`.
-> والنتيجة الخبيثة: كل تشغيل كان يفشل **بصفر وظائف**، فيبدو أحمر بلا سبب ظاهر.
-> الصواب: `permissions` تبقى `contents/pages/id-token` فقط، والصلاحية الإدارية تأتي من **الـPAT** في خطوة التفعيل.
-كل الخطوات الأخرى نجحت: العقد، جمع الملفات، محاكاة الخادم، المحوّل، حارس localhost/CDN، بناء الحزمة.
+القاعدة: **الدمج ≠ النشر ≠ ظهور التعديل.** دمج طلب في `main` يشغّل النشر، والنشر ينشر *ملفات*،
+أمّا ما يُكتب في `localStorage` أو الأوراق (إعدادات العيادة) فيظهر لحظة الحفظ دون أي نشر.
 
 ## 1 | الاختيار بين مسارين
 
