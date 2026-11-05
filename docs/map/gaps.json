@@ -179,6 +179,62 @@
       "impact": "Drive/Sheets/Calendar paths of the gateway are proven only against a scripted fake; a real account may surface scope or folder-visibility issues",
       "fix": "Run docs/google-setup.md §2 steps 7–10 on the dev account, then record the selftest output in TODO.md",
       "severity": "med"
+    },
+    {
+      "id": "G15",
+      "type": "unsafe_default_behaviour",
+      "evidence": "Code.gs invalidateSlotCache_ was called only from Settings.gs (lines 493,515); approveRequest, proposeAlternative, moveConfirmedAppointment, cancelRequest and closeDay changed what is bookable without dropping the 30-second CK_SLOTS_* entry",
+      "impact": "A guardian could be shown, and could pick, a time a staff approval had just consumed (or a day just closed); they only met the error after choosing it. Found while making the fake cache persistent, which is why the suite had never seen it.",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "scripts/test-gas-simulated.js primes the cache before the first approval, then asserts the approved/moved-to/closed times vanish and the freed times return; with invalidateSlotCacheFor_ stubbed out the suite fails on 'the approved time disappears from the cached slot list, not only from Calendar'",
+        "note": "Fixed with a targeted invalidateSlotCacheFor_(day) so the read quota is still protected; approval, proposal, move (both days), cancellation and day closure call it."
+      },
+      "fix": "Keep invalidateSlotCacheFor_(day) wired to every staff verb that changes availability; the seeded-cache assertions in test-gas-simulated.js are the regression gate."
+    },
+    {
+      "id": "G16",
+      "type": "missing_abuse_control",
+      "evidence": "Settings.gs verifyStaffPin_ answered wrong PINs unbounded; no counter or lock existed anywhere in the script",
+      "impact": "The long generated PIN bought little against an endpoint that never throttles: a borrowed browser could guess indefinitely. Still valid at the time it was found — nothing in CI covered it.",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "Script cache counter with a 5-failure / 15-minute lock, shared across executions; test-gas-simulated.js asserts four typos do not lock, the fifth does, the correct PIN is refused while locked, the window clears, and a good login resets the counter. Removing the lock check fails the suite.",
+        "note": "Best effort by design: a CacheService failure reports 'not locked' rather than locking the clinic out."
+      },
+      "fix": "Keep the cache-backed counter; if per-account staff logins land (TODO.md), move the lock key to the account so one attacker cannot lock the clinic out."
+    },
+    {
+      "id": "G17",
+      "type": "unattributable_audit",
+      "evidence": "Every staff action wrote the literal actor 'staff' to the Audit sheet (Code.gs approveRequest and the other staff verbs; Settings.gs saveClinicSettings/saveStaffPin/resetClinicSettings)",
+      "impact": "With one shared PIN the trail could not answer 'who confirmed or cancelled this appointment?', which is exactly the question asked after a mistake.",
+      "severity": "med",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "staffActor_() records the signed-in account as staff:<email> (lower-cased), degrades to 'staff' when the account cannot be resolved, and the public clinic profile is asserted to carry no email; test-gas-simulated.js checks both branches.",
+        "note": "Identity only, never rendered to a guardian. Full per-staff accounts remain the open item in TODO.md."
+      },
+      "fix": "Record staffActor_() in every staff audit row; per-staff accounts and roles stay open in TODO.md."
+    },
+    {
+      "id": "G18",
+      "type": "unbounded_wait",
+      "evidence": "app.js callServer() wrapped google.script.run in a Promise with success/failure handlers only; no timer existed anywhere in the client, while the server can queue a call past any browser patience",
+      "impact": "A hung or queued call left the submit button disabled and the spinner running with no message: the screen froze until the tab was reloaded, and a reload during a write invited a duplicate request",
+      "fix": "Keep withDeadline() wrapping every transport call; the DOM test reproduces a hung runner and asserts the button, the label and the message all recover.",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "scripts/test-ui-smoke.js drives a real Apps Script-shaped runner whose callback never fires: the slot read falls back to the documented preference list, the submit button returns to enabled with its label restored, and the toast says the response did not arrive. Removing the wrapper (mutation) fails 4 assertions.",
+        "note": "Copy differs by method: a timed-out write never invites an immediate resend; staff actions re-read the dashboard because the write may have landed. window.CELIA_CALL_TIMEOUT_MS raises the 45 s default."
+      }
     }
   ],
   "questions": [

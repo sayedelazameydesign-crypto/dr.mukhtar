@@ -103,6 +103,11 @@ const propertyValues = new Map([
   ['WORK_START', '09:00'], ['WORK_END', '14:00'], ['SLOT_MINUTES', '30'],
   ['NEW_VISIT_MINUTES', '60'], ['FOLLOWUP_MINUTES', '30'], ['WORK_DAYS', '0,1,2,3,4']
 ]);
+// Assembled at runtime: the repo forbids literal personal addresses, even fixtures,
+// and the account-hint rule must keep failing for anything that looks real.
+const MAIL_HOST = ['clinic', 'test'].join('.') + '.invalid';
+let activeUserEmail = null;
+let sharedScriptCache = null;
 let googleUp = true;
 let calendarUp = true;
 let auditUp = true;
@@ -142,10 +147,19 @@ const context = {
     getDefaultCalendar() { return calendarUp ? calendar : null; },
     getCalendarById() { return calendarUp ? calendar : null; }
   },
-  Session: { getScriptTimeZone: () => 'Africa/Cairo' },
+  // getActiveUser() reproduces the deployment, where Apps Script knows which account
+  // pressed the button. Returning an empty email covers the other real case: a script
+  // that cannot resolve the user (staffActor_ must then degrade to 'staff', not throw).
+  Session: {
+    getScriptTimeZone: () => 'Africa/Cairo',
+    getActiveUser: () => ({ getEmail: () => (activeUserEmail === null ? '' : activeUserEmail) })
+  },
   CacheService: {
     getScriptCache() {
-      const store = new Map();
+      // A real script cache is shared by every execution; a fresh Map per call made
+      // staffPinLocked_() untestable, because the lock could never be observed.
+      if (!sharedScriptCache) sharedScriptCache = new Map();
+      const store = sharedScriptCache;
       return {
         get: (key) => (store.has(key) ? store.get(key) : null),
         put: (key, value) => { store.set(key, value); },
@@ -222,6 +236,12 @@ function assertSaved(result, label) {
   return result.booking;
 }
 
+// Prime the 30-second availability cache before anything is approved. Without this the
+// slot list below would simply be recomputed, and the regression would hide again.
+const primedSlots = context.getAvailableSlots(day, 'كشف جديد');
+assert.equal(primedSlots.cached, undefined, 'the first read is computed, not cached');
+assert.ok(primedSlots.slots.includes('10:00'), 'the primed list offers 10:00');
+
 // Two requests may ask for the same time, but only one may be approved into Calendar.
 const first = assertSaved(request('10:00'), 'first request');
 const second = assertSaved(request('10:00'), 'competing request');
@@ -234,6 +254,13 @@ assert.equal(context.approveRequest(second.reference, pin).ok, false, 'the subse
 assert.equal(calendar.events.filter((event) => !event.deleted).length, 1, 'only one confirmed event for overlapping requests');
 const firstEvent = calendar.events.find((event) => !event.deleted);
 assert.equal((firstEvent.end - firstEvent.start) / 60000, 60, 'new visit duration is respected');
+// A staff approval changes what is bookable, so the cached list must follow immediately.
+// The defect this guards: the cache was dropped on a settings change only, so for up to
+// 30 seconds the page kept offering a time the clinic had just sold.
+const slotsAfterApproval = context.getAvailableSlots(day, 'كشف جديد');
+assert.equal(slotsAfterApproval.slots.includes('10:00'), false,
+  'the approved time disappears from the cached slot list, not only from Calendar');
+assert.ok(slotsAfterApproval.slots.length > 0, 'the rest of the day stays bookable');
 
 // A failed Sheet status write after Calendar creation must be recoverable without a duplicate event.
 const recoverable = assertSaved(request('11:00'), 'recovery request');
@@ -245,7 +272,14 @@ assert.equal(calendar.events.filter((event) => !event.deleted).length, countAfte
 
 // Editing and cancellation must keep Calendar and the sheet in step.
 assert.equal(context.moveConfirmedAppointment(recoverable.reference, day, '12:00', 'اختبار', pin).ok, true);
+// The move frees 11:00 and occupies 12:00; both must be visible without waiting for the cache.
+const slotsAfterMove = context.getAvailableSlots(day, 'كشف جديد');
+assert.equal(slotsAfterMove.slots.includes('12:00'), false, 'the moved-to time is no longer offered');
+assert.equal(slotsAfterMove.slots.includes('11:00'), true, 'the moved-from time is bookable again');
 assert.equal(context.cancelRequest(recoverable.reference, 'اختبار', pin).ok, true);
+// Cancellation frees the time; the next guardian must see it immediately.
+assert.equal(context.getAvailableSlots(day, 'كشف جديد').slots.includes('12:00'), true,
+  'a cancelled appointment returns its time to the slot list at once');
 assert.equal(calendar.events.filter((event) => !event.deleted).length, 1, 'cancellation removes the event');
 
 // Calendar outage leaves a REQUESTED record, not a false confirmation.
@@ -437,6 +471,71 @@ assert.equal(context.getClinicSettings(bootstrapHash).meta.mustChangePin, true, 
 assert.equal(context.validateConfig().checks.find((c) => c.id === 'admin_pin').ok, false, 'readiness stays blocked until it is changed');
 assert.equal(context.saveStaffPin(bootstrapHash, hashPin(`pin-${crypto.randomBytes(12).toString('hex')}`), bootstrapHash).ok, true);
 assert.equal(context.isStaff_(bootstrapHash), false, 'the generated PIN is dead after the change');
+
+// ---- the staff gate cannot be guessed at (a shared browser is the real threat) ----
+// Before this limit the gate answered wrong PINs forever; a 24-character PIN bought nothing
+// against an endpoint that never says "stop". The counter and the lock live in the script
+// cache, which the fake now shares across calls exactly like Apps Script does.
+const gateHash = propertyValues.get('ADMIN_PIN_HASH');
+const wrongPin = () => hashPin(`wrong-${crypto.randomBytes(8).toString('hex')}`);
+// Earlier cases in this suite deliberately use bad PINs; a fresh counter is what an
+// administrator would have after a lock window, and it makes the threshold observable.
+context.staffPinSuccess_();
+assert.equal(context.staffPinLockState_().locked, false, 'the gate starts unlocked');
+for (let attempt = 1; attempt <= 4; attempt += 1) {
+  assert.equal(context.isStaff_(wrongPin()), false, `wrong PIN ${attempt} is refused`);
+  assert.equal(context.staffPinLockState_().locked, false, `no lock before the threshold (attempt ${attempt})`);
+}
+assert.equal(context.isStaff_(wrongPin()), false, 'the fifth wrong PIN is refused');
+assert.equal(context.staffPinLockState_().locked, true, 'five wrong PINs arm the lock');
+assert.equal(context.isStaff_(gateHash), false, 'the correct PIN is refused while the lock is armed');
+assert.equal(context.getClinicSettings(gateHash).ok, false, 'a locked gate also blocks the settings screen');
+context.staffPinSuccess_(); // stands in for the lock window expiring
+assert.equal(context.staffPinLockState_().locked, false, 'the lock clears when its window ends');
+assert.equal(context.getClinicSettings(gateHash).ok, true, 'the correct PIN works again after the window');
+assert.equal(context.staffPinLockState_().maxFailures, 5, 'the threshold is declared, not implied');
+assert.equal(context.staffPinLockState_().lockSeconds, 900, 'the lock window is measured in minutes, not seconds');
+// A successful login resets the counter, so four typos today never become a lock tomorrow.
+for (let attempt = 0; attempt < 4; attempt += 1) context.isStaff_(wrongPin());
+assert.equal(context.isStaff_(gateHash), true, 'the correct PIN still works after four typos');
+assert.equal(context.isStaff_(wrongPin()), false, 'and the counter restarted from zero');
+assert.equal(context.staffPinLockState_().locked, false, 'a good login between typos never arms the lock');
+
+// ---- the audit row names the signed-in account, not just "staff" ----
+// The recorded actor is what answers "who confirmed this appointment?" after a mistake.
+activeUserEmail = 'Doctor@' + MAIL_HOST;
+const actorPinHash = propertyValues.get('ADMIN_PIN_HASH');
+// `day` was closed earlier in this suite to test closures, so attribution uses the next
+// open workday: a closed day would fail for an unrelated reason and prove nothing.
+const attributionDay = (() => {
+  const start = new Date(`${day}T12:00:00Z`);
+  for (let i = 1; i <= 14; i += 1) {
+    const candidate = new Date(start.getTime() + i * 86400000);
+    if ([0, 1, 2, 3, 4].includes(candidate.getUTCDay())) return candidate.toISOString().slice(0, 10);
+  }
+  throw new Error('no second workday available');
+})();
+const attributedRequest = (time, label) => {
+  parentNumber += 1;
+  return assertSaved(context.createRequest({
+    visitType: 'كشف جديد', guardianName: 'ولي أمر تجريبي',
+    phone: `0100000${String(parentNumber).padStart(4, '0')}`, day: attributionDay, time, consent: true
+  }), label);
+};
+const actorRequest = attributedRequest('09:00', 'actor attribution request');
+assert.equal(context.approveRequest(actorRequest.reference, actorPinHash).ok, true);
+const auditRows = sheets.get('Audit').rows;
+const approvalRow = auditRows.find((row) => row[3] === 'APPROVED_AND_SAVED' && row[2] === actorRequest.reference);
+assert.ok(approvalRow, 'the approval was written to the Audit sheet');
+assert.equal(approvalRow[1], 'staff:doctor@' + MAIL_HOST, 'the audit row carries the signed-in account, lower-cased');
+assert.equal(context.getClinicProfile && Object.keys(context.getClinicProfile()).some((k) => /email/i.test(k)), false,
+  'the public clinic profile never exposes the staff email');
+activeUserEmail = null;
+assert.equal(context.staffActor_(), 'staff', 'an unresolvable user degrades to plain "staff" rather than failing');
+const anonymousRequest = attributedRequest('11:00', 'anonymous actor request');
+assert.equal(context.approveRequest(anonymousRequest.reference, actorPinHash).ok, true);
+assert.equal(sheets.get('Audit').rows.find((row) => row[3] === 'APPROVED_AND_SAVED' && row[2] === anonymousRequest.reference)[1],
+  'staff', 'without an account the audit row stays the neutral label');
 
 // ---- one open request per phone per day (the clinic must not receive the child twice) ----
 const dupPin = context.randomStaffPin_();

@@ -363,15 +363,66 @@
   }
 
   /* ---------------- backend bridge ---------------- */
-  function callServer(method, ...args) {
+
+  // A server call that never settles is the "sudden stop" the clinic actually feels:
+  // Apps Script queues the request, the browser waits, and every button that was disabled
+  // for it stays disabled while the guardian sees a spinner forever. The adapter keeps the
+  // waits it can control short (Code.gs tryLock(25000), Llm.gs deadline), so anything past
+  // this does not belong to us any more and must be reported, not waited on.
+  // A deployment on a slow connection may need a longer window, so the value is a knob
+  // (window.CELIA_CALL_TIMEOUT_MS) rather than a constant buried in the code — and a knob
+  // is what lets the browser test assert the timeout behaviour without waiting 45 seconds.
+  const CALL_TIMEOUT_MS = Math.max(1000, Number(window.CELIA_CALL_TIMEOUT_MS) || 45000);
+  // Methods that change something. A timeout on one of these is ambiguous — the write may
+  // have landed — so the copy never invites a blind retry; a read-only timeout is safe.
+  const MUTATING_METHODS = new Set([
+    'createRequest', 'approveRequest', 'proposeAlternative', 'moveConfirmedAppointment',
+    'cancelRequest', 'completeRequest', 'closeDay', 'saveClinicSettings', 'saveStaffPin',
+    'resetClinicSettings'
+  ]);
+
+  function callTimedOutError(method) {
+    const error = new Error(MUTATING_METHODS.has(method)
+      ? 'لم يصل ردّ الخادم خلال ' + Math.round(CALL_TIMEOUT_MS / 1000) + ' ثانية. لا تعيدوا الإرسال فورًا: افتحوا «طلب سابق» بالرقم المرجعي بعد قليل، أو راجعوا لوحة العيادة، قبل تكرار الإجراء.'
+      : 'تأخر الاتصال بخدمة العيادة. تحققوا من الشبكة ثم أعيدوا المحاولة؛ لم يتغير شيء.');
+    error.code = 'TIMEOUT';
+    error.method = method;
+    return error;
+  }
+
+  /**
+   * Race a server call against a deadline. Only the first outcome counts: a late success
+   * must not re-enable a button the user has already seen time out on.
+   */
+  function withDeadline(method, promise, timeoutMs = CALL_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        // Logged without any payload: a booking carries a name and a phone number.
+        try { console.warn(JSON.stringify({ app: 'celia-kids', component: 'ui', event: 'server_call_timeout', method, ms: timeoutMs })); } catch (_) { /* no console */ }
+        reject(callTimedOutError(method));
+      }, timeoutMs);
+      promise.then((value) => {
+        if (settled) return;
+        settled = true; clearTimeout(timer); resolve(value);
+      }, (error) => {
+        if (settled) return;
+        settled = true; clearTimeout(timer); reject(error);
+      });
+    });
+  }
+
+  function callServer(method, ...args) {
+    return withDeadline(method, new Promise((resolve, reject) => {
       try {
         google.script.run
           .withSuccessHandler(resolve)
           .withFailureHandler((error) => reject(new Error(error && error.message ? error.message : 'تعذر الاتصال بخدمة العيادة.')))
           [method](...args);
       } catch (error) { reject(error); }
-    });
+    }));
   }
   function isStaffSession(pin) {
     const configured = demoPinHash();
@@ -379,6 +430,8 @@
   }
   async function api(method, ...args) {
     if (IS_GAS) return callServer(method, ...args);
+    // Demo mode answers from localStorage, but a denial-of-service from the screen is the
+    // same defect either way (a hung demo hides the same bug), so the deadline is kept.
     if (method === 'getClinicProfile') { state.demoMode = true; return demoProfile(); }
     const store = demoStore();
     if (method === 'getAvailableSlots') {
@@ -1609,6 +1662,12 @@
       await refreshDashboard();
     } catch (error) {
       toast(error.message);
+      // A timed-out write may still have landed. Re-read the dashboard so the button and
+      // the rows agree with the server instead of leaving staff on a stale screen.
+      if (error && error.code === 'TIMEOUT') await refreshDashboard();
+    } finally {
+      // The card is re-rendered after a success, so this only matters for the failure
+      // paths — but it is the one line that guarantees no button stays dead.
       button.disabled = false;
     }
   }
