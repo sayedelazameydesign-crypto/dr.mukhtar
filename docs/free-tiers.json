@@ -166,6 +166,10 @@
     {
       "service": "anthropic-api",
       "reason": "direct API requires paid account"
+    },
+    {
+      "service": "whatsapp-cloud-api (sending to real numbers)",
+      "reason": "business-initiated messages are billed per delivery and Meta requires a payment method; adopted here only as an off/dry-run adapter — see docs/prd/whatsapp-cloud-api.md"
     }
   ]
 }

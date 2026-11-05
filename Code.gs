@@ -409,6 +409,9 @@ function approveRequest(reference, pin) {
     updateRequestRow_(located.row, record);
     logEvent_('info', 'appointment_confirmed', { has_event: !!record.eventId });
     const auditStored = auditBestEffort_(record.reference, 'staff', 'APPROVED_AND_SAVED', oldStatus, 'CONFIRMED', 'calendar event id stored');
+    // Optional notice, OFF by default (WHATSAPP_MODE). whatsappNotify_ never throws and never
+    // changes the appointment state: the booking is already CONFIRMED and saved above.
+    whatsappNotify_('confirmation', record);
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم حفظ الموعد لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) {
     return { ok: false, message: error.message || 'تعذرت الموافقة. لم يُعرض تأكيد.' };
@@ -478,6 +481,7 @@ function cancelRequest(reference, reason, pin) {
     updateRequestRow_(located.row, record);
     logEvent_('info', 'appointment_cancelled', { from_status: oldStatus });
     const auditStored = auditBestEffort_(record.reference, 'staff', 'CANCELLED', oldStatus, 'CANCELLED', String(reason || '').slice(0, 100));
+    whatsappNotify_('cancellation', record);
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم الإلغاء لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) { return { ok: false, message: error.message || 'تعذر إلغاء الطلب.' }; }
   finally { lock.releaseLock(); }

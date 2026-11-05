@@ -14,7 +14,7 @@ Three runtimes, one source of truth:
 | Layer | Files | Runtime |
 | --- | --- | --- |
 | Static site | `index.html`, `app.css`, `app.js`, `assets/` | any static host (GitHub Pages) |
-| Backend | `Code.gs` (domain), `Llm.gs` (LLM adapter) | Google Apps Script |
+| Backend | `Code.gs` (domain), `Llm.gs` (LLM adapter), `WhatsApp.gs` (WhatsApp adapter, off by default) | Google Apps Script |
 | Tooling | `scripts/*.py`, `scripts/*.js` | Node 20 / Python 3.11 |
 
 `gas/` is **generated** (git-ignored). Never edit it; rebuild instead.
@@ -35,7 +35,9 @@ Three runtimes, one source of truth:
    never inlined in `run:`; skip secret-dependent jobs on fork PRs; environment secrets for deploy;
    never upload `.env`/properties files as artifacts (the contract checker enforces this).
 5. **Provider boundaries.** `Code.gs` must never build provider URLs or name models.
-   All LLM work goes through `llmAnswer_()` in `Llm.gs`. Calendar/Sheets access stays
+   All LLM work goes through `llmAnswer_()` in `Llm.gs`; all WhatsApp work goes through
+   `whatsappNotify_()` in `WhatsApp.gs` (mode `off` by default — see
+   `docs/prd/whatsapp-cloud-api.md`). Calendar/Sheets access stays
    inside `getCalendar_*`, `*Sheet_*` helpers so a provider swap is one file.
 6. **One Google boundary, one swappable account.** Drive/Sheets/Calendar are reached only through
    `scripts/google/gateway.js`; the active account is a *profile* (`config/google.profile.<name>.json`,

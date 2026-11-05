@@ -176,12 +176,13 @@ const context = {
 vm.createContext(context);
 // Apps Script concatenates every .gs file into one global scope; the offline test
 // must reproduce that, including Settings.gs and Llm.gs.
-const BACKEND_FILES = ['Code.gs', 'Settings.gs', 'Llm.gs'];
+const BACKEND_FILES = ['Code.gs', 'Settings.gs', 'Llm.gs', 'WhatsApp.gs'];
 BACKEND_FILES.forEach((file) => {
   const target = ['gas/' + file, file].find((candidate) => fs.existsSync(candidate));
   if (!target) {
     if (file === 'Code.gs') throw new Error('Apps Script backend not found (gas/Code.gs or Code.gs)');
     if (file === 'Llm.gs') throw new Error('Llm.gs not found; it is part of the Apps Script bundle');
+    if (file === 'WhatsApp.gs') return; // adapter is optional in very old checkouts (off by default)
     return; // Settings.gs is optional in very old checkouts
   }
   vm.runInContext(fs.readFileSync(target, 'utf8'), context, { filename: target });
