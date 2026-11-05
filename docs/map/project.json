@@ -14,8 +14,8 @@
       "css",
       "shell"
     ],
-    "generated_at": "2026-11-05T01:50:00Z",
-    "commit": "339516d",
+    "generated_at": "2026-11-05T02:00:00Z",
+    "commit": "c7d5ab2",
     "generated_by": "agent",
     "coverage": "partial",
     "excluded": [
@@ -869,6 +869,22 @@
       "lang": "env",
       "layer": "infra",
       "role": "Variable name: gated first-run Pages creation"
+    },
+    {
+      "id": "tool.enable-pages",
+      "kind": "job",
+      "path": "scripts/enable-pages.sh",
+      "lang": "sh",
+      "layer": "infra",
+      "role": "Owner-only first-run Pages enablement, self-cleaning"
+    },
+    {
+      "id": "doc.publish",
+      "kind": "doc",
+      "path": "docs/publish.md",
+      "lang": "md",
+      "layer": "infra",
+      "role": "Publish routes, verified failure cause, verification steps"
     }
   ],
   "edges": [
@@ -2011,6 +2027,54 @@
           "env.PAGES_TOKEN"
         ]
       ]
+    },
+    {
+      "type": "calls",
+      "evidence": "scripts/enable-pages.sh:1-79 sets PAGES_AUTO_ENABLE, stores PAGES_TOKEN, dispatches the workflow, then deletes both",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.enable-pages",
+          "ci.pages"
+        ],
+        [
+          "tool.enable-pages",
+          "env.PAGES_TOKEN"
+        ],
+        [
+          "tool.enable-pages",
+          "env.PAGES_AUTO_ENABLE"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "docs/publish.md documents the exact failure sequence of run 41951611038 and the two routes that fix it",
+      "confidence": "high",
+      "source": "runtime",
+      "pairs": [
+        [
+          "doc.publish",
+          "ci.pages"
+        ],
+        [
+          "doc.publish",
+          "tool.enable-pages"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/check-workflows.js enforces the enable script's --dry-run support and its PAGES_TOKEN cleanup",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.contract",
+          "tool.enable-pages"
+        ]
+      ]
     }
   ],
   "tests": [
@@ -2154,6 +2218,16 @@
       "cmd": "node scripts/google/auth.js / bootstrap / selftest (live)",
       "verified": false,
       "result": "requires the system account's consent — user-side only"
+    },
+    {
+      "cmd": "sh scripts/enable-pages.sh --dry-run",
+      "verified": true,
+      "result": "exit 0 — prints the four steps, changes nothing"
+    },
+    {
+      "cmd": "gh api repos/.../pages",
+      "verified": true,
+      "result": "404 — Pages site still absent, so Deploy site fails at the explanatory gate"
     }
   ],
   "risks": [
