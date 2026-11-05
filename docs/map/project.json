@@ -15,7 +15,7 @@
       "shell"
     ],
     "generated_at": "2026-11-05T13:10:00Z",
-    "commit": "1a1ab54",
+    "commit": "9b41fa1",
     "generated_by": "agent",
     "coverage": "partial",
     "excluded": [
@@ -987,6 +987,30 @@
       "lang": "json",
       "layer": "ui",
       "role": "Published stage-A clinic facts; demoMode controls badge and gate"
+    },
+    {
+      "id": "scripts.readiness-report",
+      "kind": "script",
+      "path": "scripts/readiness-report.js",
+      "lang": "javascript",
+      "layer": "verify",
+      "role": "Generates the readiness document from the ledger and a live run"
+    },
+    {
+      "id": "scripts.go-live-check",
+      "kind": "script",
+      "path": "scripts/go-live-check.js",
+      "lang": "javascript",
+      "layer": "verify",
+      "role": "Readiness report with human and JSON output"
+    },
+    {
+      "id": "data.gaps-json",
+      "kind": "data",
+      "path": "docs/map/gaps.json",
+      "lang": "json",
+      "layer": "docs",
+      "role": "The gap ledger and source of truth"
     }
   ],
   "edges": [
@@ -2349,6 +2373,22 @@
         [
           "scripts.test-clinic-schema",
           "data.clinic-json"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "scripts/readiness-report.js:38 gaps.json; :52 spawns go-live-check.js --json",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "scripts.readiness-report",
+          "data.gaps-json"
+        ],
+        [
+          "scripts.readiness-report",
+          "scripts.go-live-check"
         ]
       ]
     }
