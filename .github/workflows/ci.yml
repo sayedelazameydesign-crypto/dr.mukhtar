@@ -51,7 +51,7 @@ jobs:
       - name: Syntax gate (JS)
         run: |
           node --check app.js
-          node -e "new Function(require('fs').readFileSync('Code.gs','utf8')); new Function(require('fs').readFileSync('Llm.gs','utf8')); console.log('Apps Script sources parse');"
+          node -e "['Code.gs','Llm.gs','Settings.gs'].forEach((f)=>new Function(require('fs').readFileSync(f,'utf8'))); console.log('Apps Script sources parse');"
 
       - name: Python syntax gate
         run: python3 -m py_compile scripts/build-gas-package.py scripts/preview.py
@@ -86,7 +86,7 @@ jobs:
 
       - name: Bundle self-containment guard
         run: |
-          test -f gas/Index.html && test -f gas/Fonts.html && test -f gas/Llm.gs
+          test -f gas/Index.html && test -f gas/Fonts.html && test -f gas/Llm.gs && test -f gas/Settings.gs
           if grep -rn "http://localhost\|127.0.0.1\|fonts.googleapis\|fonts.gstatic\|<script src=\"\./app\.js\"" gas/Index.html; then
             echo "::error::GAS bundle must not reference local preview assets or external font CDNs."
             exit 1
@@ -108,13 +108,37 @@ jobs:
           set -uo pipefail
           base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
           asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          if ! curl -sSfL --retry 2 --max-time 60 -o /tmp/gitleaks.tgz "${base}/${asset}"; then
-            echo "::warning::gitleaks download unavailable; built-in scanner already ran and passed."
+          binary_ok=0
+          if curl -sSfL --retry 3 --retry-all-errors --max-time 120 -o /tmp/gitleaks.tgz "${base}/${asset}" \
+             && tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks \
+             && /tmp/gitleaks version; then
+            binary_ok=1
+          fi
+          if [ "$binary_ok" != '1' ]; then
+            echo "::warning::gitleaks binary unavailable (release host unreachable); the built-in scanner already ran on the same tree."
             exit 0
           fi
-          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
-          /tmp/gitleaks version
-          /tmp/gitleaks detect --source . --no-banner --redact --verbose --exit-code 1
+          # Exit 0 here: the decision is made from the JSON report below, so a finding
+          # becomes a visible annotation instead of a silent "exit code 1".
+          /tmp/gitleaks dir . --config .gitleaks.toml --no-banner --redact \
+            --report-format json --report-path /tmp/leaks.json --exit-code 0 || true
+          node -e '
+            const fs = require("node:fs");
+            let findings = [];
+            try { findings = JSON.parse(fs.readFileSync("/tmp/leaks.json", "utf8")) || []; }
+            catch (error) { console.log(`::error::gitleaks produced no readable report: ${error.message}`); process.exit(1); }
+            for (const finding of findings.slice(0, 20)) {
+              const file = finding.File || "?";
+              const line = finding.StartLine || 0;
+              console.log(`::error file=${file},line=${line}::${finding.RuleID} — ${finding.Description || "secret detected"}`);
+            }
+            if (findings.length) {
+              console.log(`gitleaks: ${findings.length} finding(s) in the shipped tree.`);
+              process.exit(1);
+            }
+            console.log("gitleaks: 0 findings in the shipped tree.");
+          '
+
 
       - name: Dependency audit
         run: |

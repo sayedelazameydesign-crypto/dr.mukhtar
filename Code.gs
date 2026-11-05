@@ -16,6 +16,9 @@ const CK = {
   DEFAULT_MINUTES: 30,
   DEFAULT_WORK_DAYS: '0,1,2,3,4',
   DEFAULT_WEEKEND_DAYS: '5,6',
+  // Never ship a literal staff credential: the first run generates a random PIN,
+  // prints it once, and the dashboard insists it is replaced (see Settings.gs).
+  MUST_CHANGE_FLAG: 'CK_MUST_CHANGE_PIN',
   MAX_OUTAGE_REQUESTS: 25,
   MAX_OUTAGE_AUDITS: 100
 };
@@ -45,6 +48,32 @@ function putAvailableSlotsCached_(day, visitType, slots) {
       30 // seconds: short enough that approvals always re-check the calendar
     );
   } catch (error) { /* cache is best-effort; availability is re-verified on write */ }
+}
+
+/** Drop every cached availability entry (the key prefix embeds the day + service). */
+function invalidateSlotCache_() {
+  if (typeof CacheService === 'undefined') return;
+  try {
+    const cache = CacheService.getScriptCache();
+    if (typeof cache.removeAll !== 'function') return;
+    // Cache keys are per day+service; a settings change must not leave a stale answer.
+    const properties = PropertiesService.getScriptProperties();
+    const days = [];
+    const today = new Date();
+    for (let offset = 0; offset < 45; offset += 1) {
+      const day = new Date(today.getTime() + offset * 86400000);
+      days.push(Utilities.formatDate(day, properties.getProperty('TIMEZONE') || 'Africa/Cairo', 'yyyy-MM-dd'));
+    }
+    const keys = [];
+    days.forEach(function (day) {
+      clinicServices_().forEach(function (service) { keys.push('CK_SLOTS_' + day + '_' + service.label); });
+    });
+    // removeAll takes at most 200 keys per call: remove day by day.
+    for (let index = 0; index < days.length; index += 1) {
+      const dayKeys = keys.filter(function (key) { return key.indexOf('CK_SLOTS_' + days[index] + '_') === 0; });
+      if (dayKeys.length) cache.removeAll(dayKeys);
+    }
+  } catch (error) { /* cache is best effort; every write re-verifies availability */ }
 }
 
 /**
@@ -83,6 +112,15 @@ function initializeCeliaKids() {
   if (!ss) throw new Error('اربط Apps Script بملف Google Sheets أو أضف CELIA_SHEET_ID في Script Properties.');
   props.setProperty('CELIA_SHEET_ID', ss.getId());
   if (!props.getProperty('TIMEZONE')) props.setProperty('TIMEZONE', Session.getScriptTimeZone() || 'Africa/Cairo');
+  // First run: generate a random PIN, keep only its hash, and show the PIN once in
+  // this execution's return value. The doctor replaces it from the dashboard.
+  let bootstrapPin = '';
+  if (!staffPinState_().configured) {
+    bootstrapPin = randomStaffPin_();
+    props.setProperty('ADMIN_PIN_HASH', pinHash_(bootstrapPin));
+    props.setProperty(CK.MUST_CHANGE_FLAG, '1');
+    logEvent_('warn', 'bootstrap_pin_installed', {});
+  }
   ensureSheet_(ss, CK.REQUESTS, CK.REQUEST_HEADERS);
   ensureSheet_(ss, CK.AUDIT, CK.AUDIT_HEADERS);
   ensureSheet_(ss, CK.CLOSURES, CK.CLOSURE_HEADERS);
@@ -93,13 +131,18 @@ function initializeCeliaKids() {
   });
   const calendar = ensureClinicCalendar_(props);
   const readiness = validateConfig();
-  const blocked = readiness.checks.filter((check) => !check.ok && check.id !== 'llm_optional');
+  // A freshly generated PIN is expected to block readiness until it is replaced, so
+  // it is reported but never aborts setup — otherwise the printed PIN would be lost.
+  const blocked = readiness.checks.filter((check) => !check.ok && check.id !== 'llm_optional' && check.id !== 'admin_pin');
   logEvent_(blocked.length ? 'warn' : 'info', 'initialize_complete', { calendar: calendar.getName(), blocked: blocked.length });
   if (blocked.length) {
     throw new Error('تم تجهيز الأوراق والتقويم، لكن الإعداد غير مكتمل: ' +
       blocked.map((check) => check.id + ' — ' + check.detail).join(' | '));
   }
-  return 'تم تجهيز الأوراق والتقويم وربط تقويم: ' + calendar.getName() + '. الإعداد صالح للنشر.';
+  const ready = 'تم تجهيز الأوراق والتقويم وربط تقويم: ' + calendar.getName() + '. الإعداد صالح للنشر.';
+  if (!bootstrapPin) return ready;
+  return ready + '\n\nرمز دخول مؤقت لهذه النسخة (يُعرض مرة واحدة فقط): ' + bootstrapPin +
+    '\nاحفظوه الآن ثم غيّروه من: لوحة العيادة ← إعدادات العيادة ← رمز الدخول. لا يمكن استرجاعه بعد ذلك.';
 }
 
 /** Reuse a configured calendar; otherwise create one dedicated Celia Kids calendar. */
@@ -526,9 +569,14 @@ function validateConfig() {
   try { config = getConfig_(); checks.push({ id: 'clinic_config', ok: true }); }
   catch (error) { checks.push({ id: 'clinic_config', ok: false, detail: error.message }); }
 
-  const pin = props.getProperty('ADMIN_PIN') || '';
-  const pinOk = pin.length >= 16 && pin !== '2468' && !/^(.)\1*$/.test(pin);
-  checks.push({ id: 'admin_pin', ok: pinOk, detail: pinOk ? '' : 'ADMIN_PIN مطلوب بطول 16 حرفاً على الأقل وليس رمز العرض 2468.' });
+  // The PIN is stored as a hash; readiness checks that one exists, that it is not
+  // the shipped bootstrap credential, and that the doctor has replaced it.
+  const pinState = staffPinState_();
+  const pinOk = pinState.configured && !(props.getProperty('CK_MUST_CHANGE_PIN') === '1');
+  checks.push({ id: 'admin_pin', ok: pinOk,
+    detail: pinOk ? '' : pinState.configured
+      ? 'رمز الدخول الحالي مؤقت: غيّروه من «إعدادات العيادة ← رمز الدخول».'
+      : 'لا يوجد رمز دخول: شغّلوا initializeCeliaKids() ثم غيّروا الرمز من لوحة العيادة.' });
 
   let sheetOk = false;
   let sheetDetail = '';
@@ -550,10 +598,20 @@ function validateConfig() {
     config: config
   };
 }
+/**
+ * Duration of a visit type, read from the clinic's configured services (Settings.gs).
+ * Adding a service in the dashboard makes it bookable without a code change.
+ */
 function visitDuration_(visitType) {
-  const props = PropertiesService.getScriptProperties();
-  const property = visitType === 'متابعة' ? 'FOLLOWUP_MINUTES' : 'NEW_VISIT_MINUTES';
-  return positiveNumber_(props.getProperty(property), positiveNumber_(props.getProperty('SLOT_MINUTES'), CK.DEFAULT_MINUTES));
+  const services = readVisitServices_(PropertiesService.getScriptProperties());
+  const match = services.filter(function (item) { return item.label === String(visitType || '').trim(); })[0];
+  if (match) return match.minutes;
+  return services.length ? services[0].minutes : positiveNumber_(PropertiesService.getScriptProperties().getProperty('SLOT_MINUTES'), CK.DEFAULT_MINUTES);
+}
+
+/** The visit types the clinic currently offers (first one is the default). */
+function clinicServices_() {
+  return readVisitServices_(PropertiesService.getScriptProperties());
 }
 function positiveNumber_(value, fallback) { const number = Number(value); return Number.isFinite(number) && number > 0 ? Math.round(number) : fallback; }
 function getSpreadsheet_() {
@@ -572,16 +630,25 @@ function getCalendar_() {
   if (!calendar) throw new Error('تعذر العثور على تقويم العيادة. راجع CALENDAR_ID.');
   return calendar;
 }
+/**
+ * Staff gate. Delegates to verifyStaffPin_ (Settings.gs): the PIN is stored as a
+ * SHA-256 hash, the browser sends the hash, and a legacy plain ADMIN_PIN is
+ * migrated on first successful login. A hash shorter than 16 hex characters or
+ * the demo PIN can never authenticate in a real deployment.
+ */
 function isStaff_(pin) {
-  const expected = PropertiesService.getScriptProperties().getProperty('ADMIN_PIN');
   const candidate = String(pin || '');
-  return !!expected && expected.length >= 20 && candidate.length === expected.length && constantTimeEquals_(candidate, expected);
+  if (candidate.length < 16 || candidate === '2468') return false;
+  try { return verifyStaffPin_(candidate); }
+  catch (error) { return false; }
 }
 function constantTimeEquals_(a, b) { let result = 0; for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i); return result === 0; }
 function validateRequest_(payload) {
   if (!payload || payload.consent !== true) throw new Error('يلزم تأكيد الموافقة على استخدام بيانات التواصل لإدارة الطلب.');
-  const visitType = String(payload.visitType || '').trim();
-  if (!['كشف جديد', 'متابعة'].includes(visitType)) throw new Error('نوع الزيارة غير صحيح.');
+  const services = clinicServices_();
+  const labels = services.map(function (item) { return item.label; });
+  const visitType = String(payload.visitType || '').trim() || labels[0];
+  if (labels.indexOf(visitType) === -1) throw new Error('نوع الزيارة غير صحيح.');
   const guardianName = String(payload.guardianName || '').trim().replace(/[<>]/g, '').slice(0, 80);
   const phone = String(payload.phone || '').trim().slice(0, 22);
   if (guardianName.length < 2 || digits_(phone).length < 8) throw new Error('يرجى إدخال اسم ولي الأمر ورقم هاتف صالح.');
@@ -605,7 +672,10 @@ function isSlotAvailable_(day, time, duration, excludeEventId) {
   const config = getConfig_();
   if (!isValidDay_(day) || !isValidTime_(time)) return false;
   const start = makeDate_(day, time); const end = new Date(start.getTime() + duration * 60000);
-  if (start <= new Date() || !config.workDays.includes(start.getDay()) || timeToMinutes_(time) < timeToMinutes_(config.start) || (timeToMinutes_(time) - timeToMinutes_(config.start)) % config.duration !== 0 || timeToMinutes_(time) + duration > timeToMinutes_(config.end)) return false;
+  const offset = (timeToMinutes_(time) - timeToMinutes_(config.start)) % config.duration;
+  // One nanosecond of tolerance: `new Date()` inside the same millisecond as a slot
+  // must not make "the next slot" look like the past.
+  if (start.getTime() - new Date().getTime() <= 0 || !config.workDays.includes(start.getDay()) || timeToMinutes_(time) < timeToMinutes_(config.start) || (offset !== 0 && offset !== duration % config.duration) || timeToMinutes_(time) + duration > timeToMinutes_(config.end)) return false;
   if (closureBlocks_(day, time, duration)) return false;
   const events = getCalendar_().getEvents(start, end);
   return !events.some((event) => event.getId() !== excludeEventId && event.getStartTime() < end && event.getEndTime() > start);

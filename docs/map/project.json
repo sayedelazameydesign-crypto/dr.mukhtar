@@ -15,7 +15,7 @@
       "shell"
     ],
     "generated_at": "2026-11-05T02:00:00Z",
-    "commit": "40f6070",
+    "commit": "7cb8db7",
     "generated_by": "agent",
     "coverage": "partial",
     "excluded": [
@@ -913,6 +913,20 @@
       "path": "Code.gs:getClinicProfile",
       "layer": "domain",
       "role": "display-only clinic facts, no secrets"
+    },
+    {
+      "id": "domain.settings",
+      "kind": "module",
+      "path": "Settings.gs",
+      "layer": "domain",
+      "role": "owner-editable settings catalog, validation, hashed staff PIN"
+    },
+    {
+      "id": "ui.settings",
+      "kind": "component",
+      "path": "index.html#staffSettings",
+      "layer": "ui",
+      "role": "settings screen rendered from the server catalog"
     }
   ],
   "edges": [
@@ -2137,6 +2151,42 @@
         [
           "domain.clinic-profile",
           "domain.code-gs"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "app.js:openSettings -> getClinicSettings",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.settings",
+          "domain.settings"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "Settings.gs:CK_SETTINGS_CATALOG",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.settings",
+          "domain.code-gs"
+        ]
+      ]
+    },
+    {
+      "type": "writes",
+      "evidence": "Settings.gs:saveClinicSettings -> Script Properties",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.settings",
+          "domain.clinic-profile"
         ]
       ]
     }

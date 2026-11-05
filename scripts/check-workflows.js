@@ -586,6 +586,22 @@ walkRepo(ROOT).forEach((file) => {
   });
 });
 
+// 5b. Settings stay owner-editable and secret-free: the catalog lives in one place,
+//     the dashboard renders from it, and no secret name may enter it.
+const settingsPath = path.join(ROOT, 'Settings.gs');
+if (fs.existsSync(settingsPath)) {
+  const settings = fs.readFileSync(settingsPath, 'utf8');
+  if (!/CK_SETTINGS_CATALOG/.test(settings)) fail('Settings.gs — CK_SETTINGS_CATALOG is the single source of truth for the settings screen');
+  ['GEMINI_API_KEY', 'CALENDAR_ID', 'CELIA_SHEET_ID', 'GOOGLE_REFRESH_TOKEN'].forEach((secretName) => {
+    if (new RegExp(`key:\\s*'${secretName}'`).test(settings)) {
+      fail(`Settings.gs — ${secretName} must never be a catalog field: secrets stay in Script Properties`);
+    }
+  });
+  if (!/function saveClinicSettings\(/.test(settings)) fail('Settings.gs — saveClinicSettings is required');
+  if (!/function getAdminPublicKey_|function pinHash_\(/.test(settings)) fail('Settings.gs — the staff PIN must be hashed, never stored in clear text');
+  if (/SS\.setProperty\('ADMIN_PIN'/.test(settings)) fail('Settings.gs — never write a plain-text ADMIN_PIN');
+}
+
 // 6. The shipped site must not grow a Google dependency: no SDKs, no direct API hosts.
 const clientFiles = ['index.html', 'app.js', 'app.css'];
 clientFiles.forEach((file) => {
