@@ -146,8 +146,9 @@ gh api -X POST repos/sayedelazameydesign-crypto/dr.mukhtar/pages -f source.branc
 - ثلاثة مخازن بنفس الأسماء: GitHub Actions (القيم) · `.env` محلي (غير مُودَع) · Colab Secrets إن لزم؛
   والقيم وقت التشغيل الحقيقية في Script Properties.
 - `scripts/env.js` يتحقق من الأسماء والصيغ عند البدء ويفشل بصوت عالٍ **بالأسماء فقط** دون طباعة أي قيمة.
-- غير مُطبَّق بعد (صلاحية الرمز 403): حماية فرع `main` وإنشاء بيئة `production` — الخطوات والأوامر في
-  `docs/secrets.md` §7c.
+- غير مُطبَّق بعد (صلاحية الرمز 403): إنشاء بيئة `production` والمتغيرات والأسرار وحماية `main` —
+  الخطوات في `docs/secrets.md` §7c، وللتحقق من الحالة: `node scripts/setup-github.js` أو سير عمل
+  **Setup status** من تبويب Actions.
 - القاعدة: الأسرار تُمرّر عبر `env:` فقط، وكل `secrets.NAME`/`vars.NAME` يجب أن يكون في السجل،
   وإلا يفشل `node scripts/check-workflows.js` (ومعه 9 اختبارات ذاتية للقواعد).
 - قيم التشغيل الحقيقية تبقى في Script Properties؛ نسخة GitHub من `CELIA_ADMIN_PIN` مخصّصة لقائمة

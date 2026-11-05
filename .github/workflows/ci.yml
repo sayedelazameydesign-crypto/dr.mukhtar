@@ -37,6 +37,9 @@ jobs:
       - name: Contract checker self-test
         run: node scripts/check-workflows.js --self-test
 
+      - name: Setup checker tests
+        run: node scripts/test-setup-github.js
+
       - name: actionlint (preinstalled on the runner images)
         run: |
           if command -v actionlint >/dev/null 2>&1; then

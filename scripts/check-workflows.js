@@ -78,7 +78,8 @@ jobs:
     { name: 'missing permissions block is rejected', workflow: GOOD_WORKFLOW.replace('permissions:\n  contents: read\n', ''), expect: 1 },
     { name: 'self-hosted runner is rejected', workflow: GOOD_WORKFLOW.replace('runs-on: ubuntu-latest', 'runs-on: [self-hosted, linux]'), expect: 1 },
     { name: 'pull_request_target with head checkout is rejected', workflow: GOOD_WORKFLOW.replace('on: [push]', 'on: [pull_request_target]') + '      - uses: actions/checkout@v5\n        with:\n          ref: \${{ github.event.pull_request.head.sha }}\n', expect: 1 },
-    { name: 'env dump is flagged', workflow: GOOD_WORKFLOW.replace('run: echo "using $APP_ENV"', 'run: printenv'), expect: 0, expectWarning: true }
+    { name: 'env dump is flagged', workflow: GOOD_WORKFLOW.replace('run: echo "using $APP_ENV"', 'run: printenv'), expect: 0, expectWarning: true },
+    { name: 'built-in GITHUB_TOKEN needs no declaration', workflow: GOOD_WORKFLOW.replace('GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}', 'GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}'), expect: 0, expectWarning: false }
   ];
 
   let failed = 0;
@@ -124,6 +125,8 @@ try {
 }
 
 const NAME_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+// Injected by Actions on every run; never stored, never user-supplied.
+const BUILTIN_CONTEXT = new Set(['GITHUB_TOKEN', 'GITHUB_ACTOR', 'GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_REF']);
 const declared = new Map(); // name -> kind
 
 function validateEntry(entry, kind) {
@@ -179,6 +182,7 @@ for (const file of workflowFiles) {
   // 1. references exist in the manifest
   for (const match of text.matchAll(/\$\{\{\s*secrets\.([A-Za-z0-9_]+)/g)) {
     usedSecrets.add(match[1]);
+    if (BUILTIN_CONTEXT.has(match[1])) continue;
     if (!declared.has(match[1].toLowerCase())) fail(`${relative} — secrets.${match[1]} is not declared in docs/secrets-manifest.json`);
   }
   for (const match of text.matchAll(/\$\{\{\s*vars\.([A-Za-z0-9_]+)/g)) {

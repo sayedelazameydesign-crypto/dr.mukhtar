@@ -147,6 +147,20 @@ Re-run the workflow afterwards (old runs keep old values).
 | Live smoke skipped | `GEMINI_API_KEY` unset — expected; set `LLM_SMOKE_ENABLED=true` if you want that to be an error |
 | Contract job fails with "not declared in docs/secrets-manifest.json" | add the name to the manifest + `.env.example` + `scripts/env.js` in the same PR |
 
+## 7b-2. Check the current state (names only)
+
+```bash
+node scripts/setup-github.js        # needs a token with administration/actions access
+```
+
+Or run the **Setup status** workflow (Actions → Setup status → Run workflow, and every Monday):
+it prints the declared names next to the configured ones in the job summary. It never reads values.
+
+> The session agent token is a restricted GitHub App installation token
+> (`allows_permissionless_access`). It can write code, PRs and comments, but environment,
+> variable, secret and branch-protection endpoints all return **403**. That is why those four
+> steps are yours to run — not a limitation of the code.
+
 ## 7c. Not yet applied (token limitation) — do these once in the UI
 
 This session's GitHub token cannot modify environments or branch protection (HTTP 403), so the
