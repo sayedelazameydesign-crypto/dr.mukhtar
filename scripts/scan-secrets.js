@@ -8,8 +8,9 @@
  * baseline gate, not a replacement for gitleaks, which runs afterwards in CI
  * when its binary can be downloaded.
  *
- *   node scripts/scan-secrets.js          # scan tracked files
- *   node scripts/scan-secrets.js --all    # include untracked, non-ignored files
+ *   node scripts/scan-secrets.js                 # scan git-tracked files
+ *   node scripts/scan-secrets.js --all           # include untracked, non-ignored files
+ *   node scripts/scan-secrets.js gas _site       # scan built artifact directories
  */
 
 const { execFileSync } = require('node:child_process');
@@ -18,6 +19,7 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const includeUntracked = process.argv.includes('--all');
+const explicitPaths = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
 
 const SKIP_EXT = new Set(['.woff2', '.woff', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.pdf', '.zip', '.gz', '.tgz']);
 const SKIP_PATH = /^(gas\/|node_modules\/|\.git\/|_site\/)/;
@@ -43,6 +45,27 @@ const ALLOWLIST = [
   /fake-key/, /test-admin-secret/, /^x{16,}$/i, /^\.{3,}$/, /^<.*>$/, /e\.g\./i
 ];
 
+function walk(dir) {
+  const out = [];
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    let entries;
+    try { entries = fs.readdirSync(current, { withFileTypes: true }); } catch (error) { continue; }
+    for (const entry of entries) {
+      const full = path.join(current, entry.name);
+      // Explicit targets are scanned even if they sit in a normally-skipped
+      // folder (gas/); only VCS and dependency trees stay out.
+      if (entry.isDirectory()) {
+        const rel = path.relative(ROOT, full) + '/';
+        if (!/^(\.git|node_modules)\//.test(rel)) stack.push(full);
+      }
+      else out.push(path.relative(ROOT, full));
+    }
+  }
+  return out;
+}
+
 function trackedFiles() {
   const args = includeUntracked ? ['ls-files', '--cached', '--others', '--exclude-standard'] : ['ls-files'];
   const out = execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
@@ -52,8 +75,19 @@ function trackedFiles() {
 const findings = [];
 let scanned = 0;
 
-for (const relative of trackedFiles()) {
-  if (SKIP_PATH.test(relative) || SKIP_EXT.has(path.extname(relative).toLowerCase())) continue;
+const fileList = explicitPaths.length
+  ? explicitPaths.flatMap((target) => {
+      const full = path.resolve(ROOT, target);
+      if (!fs.existsSync(full)) { console.log(`· skipped missing path: ${target}`); return []; }
+      return fs.statSync(full).isDirectory() ? walk(full) : [path.relative(ROOT, full)];
+    })
+  : trackedFiles();
+
+for (const relative of fileList) {
+  // Explicit targets bypass the generated-folder skip so artifacts get read;
+  // VCS metadata and dependencies are still excluded.
+  const skipPath = explicitPaths.length ? /^(\.git|node_modules)\//.test(relative) : SKIP_PATH.test(relative);
+  if (skipPath || SKIP_EXT.has(path.extname(relative).toLowerCase())) continue;
   let text;
   try { text = fs.readFileSync(path.join(ROOT, relative), 'utf8'); }
   catch (error) { continue; }
@@ -80,4 +114,5 @@ if (findings.length) {
   process.exit(1);
 }
 
-console.log(`Secret scan passed — ${scanned} tracked text files, ${PATTERNS.length} rules, 0 findings.`);
+const scope = explicitPaths.length ? explicitPaths.join(', ') : 'tracked files';
+console.log(`Secret scan passed — ${scanned} text files (${scope}), ${PATTERNS.length} rules, 0 findings.`);

@@ -32,7 +32,8 @@ Three runtimes, one source of truth:
    `docs/secrets-manifest.json`; the human guide is `docs/secrets.md`. An agent may add a *name*
    (plus `.env.example` entry and workflow reference) in the same PR — never a value, never a
    `--body` secret, never asking the user for a value. Workflow rules: secrets via `env:` only,
-   never inlined in `run:`; skip secret-dependent jobs on fork PRs; environment secrets for deploy.
+   never inlined in `run:`; skip secret-dependent jobs on fork PRs; environment secrets for deploy;
+   never upload `.env`/properties files as artifacts (the contract checker enforces this).
 5. **Provider boundaries.** `Code.gs` must never build provider URLs or name models.
    All LLM work goes through `llmAnswer_()` in `Llm.gs`. Calendar/Sheets access stays
    inside `getCalendar_*`, `*Sheet_*` helpers so a provider swap is one file.
@@ -56,6 +57,7 @@ node scripts/test-ui-smoke.js               # DOM journey (needs: npm i --no-sav
 node scripts/check-config.js [props.json]   # config contract
 node scripts/scan-secrets.js                # dependency-free secret scan (always on in CI)
 node scripts/check-workflows.js [--self-test]  # secrets/variables + workflow policy contract
+node scripts/env.js                         # startup env contract (names only, never values)
 node scripts/live-llm-smoke.js              # optional provider probe (env only; skips without a key)
 sh scripts/pre-commit.sh                    # local gate: secrets + contract (+ actionlint if installed)
 python3 scripts/build-gas-package.py        # build gas/ bundle (Index.html, Fonts.html, Code.gs, Llm.gs)

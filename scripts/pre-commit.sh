@@ -10,6 +10,9 @@ node scripts/scan-secrets.js --all
 echo "→ workflow/secrets contract"
 node scripts/check-workflows.js
 
+echo "→ startup env contract"
+node scripts/env.js >/dev/null
+
 if command -v actionlint >/dev/null 2>&1; then
   echo "→ actionlint"
   actionlint

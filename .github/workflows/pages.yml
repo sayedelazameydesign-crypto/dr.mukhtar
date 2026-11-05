@@ -25,6 +25,10 @@ jobs:
         with:
           node-version: ${{ vars.NODE_VERSION || '20' }}
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ vars.PYTHON_VERSION || '3.11' }}
+
       - name: Workflow + secrets contract
         run: node scripts/check-workflows.js
 

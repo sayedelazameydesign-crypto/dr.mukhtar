@@ -51,6 +51,7 @@ if (process.argv.includes('--self-test')) {
     variables: [{ name: 'APP_ENV', level: 'repo', default: 'ci', used_by: ['ci'] }]
   });
   const GOOD_ENV = 'APP_ENV=ci\nGEMINI_API_KEY=\n';
+  const GOOD_ENV_JS = `const ENV_SPECS = [\n  { name: 'GEMINI_API_KEY', secret: true, required: false, pattern: null, hint: '' },\n  { name: 'APP_ENV', secret: false, required: false, pattern: /^(ci)$/, hint: '' }\n];\n`;
   const GOOD_WORKFLOW = `name: ok
 on: [push]
 permissions:
@@ -87,6 +88,8 @@ jobs:
     fs.mkdirSync(path.join(dir, 'docs'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'docs', 'secrets-manifest.json'), GOOD_MANIFEST);
     fs.writeFileSync(path.join(dir, '.env.example'), GOOD_ENV);
+    fs.mkdirSync(path.join(dir, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'scripts', 'env.js'), GOOD_ENV_JS);
     fs.writeFileSync(path.join(dir, '.github', 'workflows', 'test.yml'), testCase.workflow);
 
     let outcome;
@@ -233,6 +236,10 @@ for (const file of workflowFiles) {
       }
     }
     if (inRun || /^\s*(?:-\s+)?run:/.test(line)) {
+      // Uploading a directory that may hold .env / properties exports is forbidden.
+      if (/upload-artifact/.test(line) && /\.(env|properties)/.test(line)) {
+        fail(`${relative}:${index + 1} — do not upload .env or properties files as artifacts`);
+      }
       FORBIDDEN_RUN.forEach((rule) => {
         if (rule.re.test(line)) warn(`${relative}:${index + 1} — pattern "${rule.why}" (${line.trim().slice(0, 60)})`);
       });
@@ -250,6 +257,27 @@ const BYPASS = new Set(['CELIA_ADMIN_PIN']);
 (manifest.variables || []).forEach((entry) => {
   if (!usedVars.has(entry.name)) warn(`manifest variable ${entry.name} is not referenced by any workflow`);
 });
+
+/* ---------------------------------------------- scripts/env.js ↔ manifest */
+const ENV_JS = path.join(ROOT, 'scripts', 'env.js');
+if (!fs.existsSync(ENV_JS)) {
+  fail('scripts/env.js is missing (startup env contract)');
+} else {
+  const envSource = fs.readFileSync(ENV_JS, 'utf8');
+  const specNames = new Set([...envSource.matchAll(/name:\s*'([A-Z][A-Z0-9_]*)'/g)].map((match) => match[1]));
+  if (!specNames.size) fail('scripts/env.js declares no ENV_SPECS names');
+  (manifest.secrets || []).forEach((entry) => {
+    if (!specNames.has(entry.name)) fail(`scripts/env.js — missing secret ${entry.name} (add an ENV_SPECS entry with required/pattern)`);
+  });
+  (manifest.variables || []).forEach((entry) => {
+    if (!specNames.has(entry.name)) fail(`scripts/env.js — missing variable ${entry.name}`);
+  });
+  specNames.forEach((name) => {
+    if (!declared.has(name.toLowerCase())) fail(`scripts/env.js — ${name} is not declared in docs/secrets-manifest.json`);
+  });
+  // Generated/committed files must never embed a value: spec entries carry names only.
+  if (/name:\s*'[A-Z_]+'[^}]*value:\s*'[^']+'/i.test(envSource)) fail('scripts/env.js — must not contain literal values');
+}
 
 /* --------------------------------------------------------- .env.example */
 if (!fs.existsSync(ENV_EXAMPLE)) {

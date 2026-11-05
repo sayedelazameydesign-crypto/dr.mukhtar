@@ -67,6 +67,14 @@ jobs:
       - name: Build Apps Script bundle
         run: python3 scripts/build-gas-package.py
 
+      - name: Artifact leak guard
+        run: |
+          # Built bundles must not contain secret-shaped values. Header *names*
+          # such as x-goog-api-key are code, not credentials, so the scan looks
+          # for values (key formats and ASSIGNMENT=value shapes) instead.
+          node scripts/scan-secrets.js gas
+          echo "artifact leak guard OK"
+
       - name: Bundle self-containment guard
         run: |
           test -f gas/Index.html && test -f gas/Fonts.html && test -f gas/Llm.gs

@@ -16,6 +16,12 @@
  */
 
 const KEY = process.env.GEMINI_API_KEY || '';
+
+// Redaction is exact-match only, so transformed copies would leak. Nothing here
+// derives a value today; this line documents the rule for future edits.
+if (process.env.GITHUB_ACTIONS === 'true' && KEY) {
+  console.log(`::add-mask::${KEY}`);
+}
 const MODEL = process.env.LLM_MODEL || 'gemini-2.5-flash';
 const ENABLED = String(process.env.LLM_SMOKE_ENABLED || 'false').toLowerCase() === 'true';
 const TIMEOUT_MS = 20000;

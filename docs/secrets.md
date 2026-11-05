@@ -27,6 +27,7 @@ CI runs entirely on mocked providers, and the published site is demo-mode only.
 | `NODE_VERSION` | variable | repo | workflows (`20`) | — |
 | `LLM_PRIMARY` | variable | repo | live smoke test model choice (`gemini`) | — |
 | `LLM_SMOKE_ENABLED` | variable | repo | `false` normally; `true` makes a missing key a hard failure | — |
+| `PYTHON_VERSION` | variable | repo | Pages workflow (Apps Script bundle build), `3.11` | — |
 
 Rule of thumb: **doubt → secret**. Variables are printed verbatim in the UI and logs.
 
@@ -79,6 +80,33 @@ steps:
   because forks cannot read repository secrets by design.
 - Environment secrets are invisible to any job without `environment: production`.
 
+## 4b. Three stores, one set of names
+
+| Store | Holds values? | How it is kept in sync |
+| --- | --- | --- |
+| GitHub Actions | yes (write-only) | `docs/secrets-manifest.json` is the name list; CI rejects unknown names |
+| Local `.env` | yes (never committed) | `cp .env.example .env`; `.env` is git-ignored |
+| Colab Secrets (third store) | yes, only if a notebook needs it | same names via `google.colab.userdata`; nothing runs in Colab today |
+
+Colab (only if you later add a notebook):
+
+```python
+from google.colab import userdata
+import os
+os.environ['GEMINI_API_KEY'] = userdata.get('GEMINI_API_KEY')   # name must match the manifest
+```
+
+Dependabot has its own store: PRs from Dependabot see **only** Dependabot secrets. Currently it
+needs none — do not duplicate production keys there. If a dependency PR ever must run a live probe,
+add a throwaway key there instead.
+
+Local sanity check before pushing (never prints values):
+
+```bash
+node scripts/env.js          # presence + format only
+sh scripts/pre-commit.sh     # secrets scan + workflow contract
+```
+
 ## 5. Runtime (Apps Script) is the real home
 
 The clinic backend reads configuration from **Script Properties**, not from GitHub. Same names,
@@ -107,6 +135,44 @@ Re-run the workflow afterwards (old runs keep old values).
 - `.github/CODEOWNERS` requires owner review for workflow changes; enable branch protection on
   `main` (Settings → Branches) so `.github/workflows/**` cannot be edited unreviewed.
 - `.env` is git-ignored; `.env.example` carries names with empty values only.
+
+## 7b. Troubleshooting
+
+| Symptom | Cause / fix |
+| --- | --- |
+| Value empty in a job | fork PR or Dependabot PR (expected) · secret lives in `production` but the job has no `environment:` · typo in the name (case-insensitive, spelling is not) |
+| `vars.X` empty | variable not created, or created at environment level while the job has no `environment:` |
+| Value truncated/garbled | trailing newline or quotes pasted — re-add cleanly; multiline values (PEM/JSON) should be base64-encoded and decoded in the step |
+| Changed secret not picked up | re-run the workflow; old runs keep old values |
+| Live smoke skipped | `GEMINI_API_KEY` unset — expected; set `LLM_SMOKE_ENABLED=true` if you want that to be an error |
+| Contract job fails with "not declared in docs/secrets-manifest.json" | add the name to the manifest + `.env.example` + `scripts/env.js` in the same PR |
+
+## 7c. Not yet applied (token limitation) — do these once in the UI
+
+This session's GitHub token cannot modify environments or branch protection (HTTP 403), so the
+following are documented rather than applied:
+
+1. **Branch protection on `main`** — Settings → Branches → Add rule:
+   require a PR before merging, require review from CODEOWNERS, require the `CI` status check,
+   disallow force pushes. CLI equivalent:
+
+   ```bash
+   gh api -X PUT repos/sayedelazameydesign-crypto/dr.mukhtar/branches/main/protection \
+     -H "Accept: application/vnd.github+json" \
+     -F "required_status_checks[strict]=true" \
+     -F "required_status_checks[contexts][]=quality" \
+     -F "enforce_admins=true" \
+     -F "required_pull_request_reviews[required_approving_review_count]=1" \
+     -F "restrictions=null"
+   ```
+
+2. **`production` environment** (needed before `gh secret set CELIA_ADMIN_PIN --env production`):
+
+   ```bash
+   gh api -X PUT repos/sayedelazameydesign-crypto/dr.mukhtar/environments/production
+   ```
+
+   Optionally add required reviewers so a deploy needs a human approval.
 
 ## 8. What an AI agent may and may not do
 
