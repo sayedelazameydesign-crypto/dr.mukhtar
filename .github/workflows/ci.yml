@@ -69,7 +69,16 @@ jobs:
           fi
           # The image already ships the shell linter that actionlint delegates to.
           echo "::notice title=linters::actionlint=$(actionlint --version) shellcheck=$(shellcheck --version 2>/dev/null | sed -n 's/^version: //p')"
-          actionlint -color
+          # Capture the report: the raw job log is not always reachable, and a gate whose
+          # reason is invisible is a gate people learn to ignore.
+          status=0
+          actionlint -color 2>&1 | tee /tmp/actionlint.txt || status=1
+          while IFS= read -r line; do
+            case "$line" in
+              *.yml:*|*.yaml:*) echo "::error title=actionlint::${line}" ;;
+            esac
+          done < /tmp/actionlint.txt
+          exit "$status"
 
       - name: Syntax gate (JS)
         run: |
@@ -150,8 +159,9 @@ jobs:
             binary_ok=1
           fi
           if [ "$binary_ok" != '1' ]; then
-            echo "::warning::gitleaks binary unavailable (release host unreachable); the built-in scanner already ran on the same tree."
-            exit 0
+            # Same rule as actionlint: a gate that cannot run is reported, not passed.
+            echo "::error title=gitleaks unavailable::The second secret scanner did not run (release host unreachable). The built-in scanner passed, but coverage shrank silently."
+            exit 1
           fi
           # Exit 0 here: the decision is made from the JSON report below, so a finding
           # becomes a visible annotation instead of a silent "exit code 1".
