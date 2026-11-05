@@ -118,6 +118,8 @@ jobs:
     fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'config', 'google.profile.example.json'),
       JSON.stringify({ profile: 'dev', account_label: 'label', auth_mode: 'oauth_user', scopes: ['drive.file'], root_folder_name: 'r', fallback: 'local', layout: { 'memory/long': null }, function_map: { 'memory.long': 'drive' } }));
+    fs.writeFileSync(path.join(dir, 'scripts', 'enable-pages.sh'),
+      '#!/usr/bin/env sh\n# --dry-run\ngh secret set PAGES_TOKEN\ngh secret delete PAGES_TOKEN\n');
     fs.writeFileSync(path.join(dir, 'scripts', 'bootstrap-github.sh'),
       '#!/usr/bin/env sh\n# --dry-run supported\ngit status >/dev/null\n');
     fs.writeFileSync(path.join(dir, '.github', 'workflows', 'test.yml'), testCase.workflow || GOOD_WORKFLOW);
@@ -480,6 +482,23 @@ if (!fs.existsSync(MAP_DIR)) {
   }
 }
 
+/* -------------------------------------------------- pages enablement script */
+const ENABLE_PAGES = path.join(ROOT, 'scripts', 'enable-pages.sh');
+if (!fs.existsSync(ENABLE_PAGES)) {
+  fail('scripts/enable-pages.sh is missing (first-run Pages enablement path)');
+} else {
+  const script = fs.readFileSync(ENABLE_PAGES, 'utf8');
+  if (/gh secret set [^\n]*--body/.test(script)) fail('scripts/enable-pages.sh — never pass --body to gh secret set');
+  if (!/--dry-run/.test(script)) fail('scripts/enable-pages.sh — must support --dry-run');
+  // The token it stores is single-purpose and short-lived: the script must remove it again.
+  if (!/gh secret delete PAGES_TOKEN/.test(script)) fail('scripts/enable-pages.sh — must delete PAGES_TOKEN after a successful deploy');
+  try {
+    require('node:child_process').execFileSync('sh', ['-n', ENABLE_PAGES], { stdio: 'pipe' });
+  } catch (error) {
+    fail('scripts/enable-pages.sh — shell syntax error');
+  }
+}
+
 /* --------------------------------------------------------- google bridge */
 /**
  * The bridge's promises are testable, so they are checked here:
@@ -544,7 +563,30 @@ if (fs.existsSync(BRIDGE_DIR)) {
   warn('scripts/google/ is absent — the Google bridge is not wired in this repo');
 }
 
-// 5. The shipped site must not grow a Google dependency: no SDKs, no direct API hosts.
+// 5. No real email address anywhere in the repo: a personal address is an
+//    account hint (google-bridge.md §0) and belongs in a profile, never in Git.
+const EMAIL_ALLOWED = /@(example\.(com|org|net)|example|localhost|invalid|schema\.org|github\.com)$/i;
+const SCANNED_EXTENSIONS = /\.(js|json|md|ya?ml|sh|py|html|ts|example)$/;
+const walkRepo = (dir, out = []) => {
+  fs.readdirSync(dir, { withFileTypes: true }).forEach((entry) => {
+    if (['.git', 'node_modules', 'gas', '_site', '.local-store', '.secrets'].includes(entry.name)) return;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walkRepo(full, out);
+    else if (SCANNED_EXTENSIONS.test(entry.name)) out.push(full);
+  });
+  return out;
+};
+walkRepo(ROOT).forEach((file) => {
+  const relative = path.relative(ROOT, file);
+  fs.readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
+    for (const match of line.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)) {
+      if (EMAIL_ALLOWED.test(match[0])) continue;
+      fail(`${relative}:${index + 1} — real email address in the repo; keep accounts in a profile, not in Git`);
+    }
+  });
+});
+
+// 6. The shipped site must not grow a Google dependency: no SDKs, no direct API hosts.
 const clientFiles = ['index.html', 'app.js', 'app.css'];
 clientFiles.forEach((file) => {
   const target = path.join(ROOT, file);

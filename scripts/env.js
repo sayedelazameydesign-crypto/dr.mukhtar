@@ -13,10 +13,12 @@ const ENV_SPECS = [
   { name: 'GEMINI_API_KEY', secret: true, required: false, pattern: null, hint: 'optional: administrative assistant only' },
   { name: 'GROQ_API_KEY', secret: true, required: false, pattern: null, hint: 'optional: reserved for the fallback provider' },
   { name: 'CELIA_ADMIN_PIN', secret: true, required: false, pattern: /^.{16,}$/, hint: 'optional locally; required for deployment (16+ chars)' },
+  { name: 'PAGES_TOKEN', secret: true, required: false, pattern: /^github_pat_/, hint: 'optional, first-run Pages enablement only' },
   { name: 'APP_ENV', secret: false, required: false, pattern: /^(ci|preview|production)$/, hint: 'ci | preview | production' },
   { name: 'NODE_VERSION', secret: false, required: false, pattern: /^\d+(\.\d+){0,2}$/, hint: 'e.g. 20' },
   { name: 'LLM_PRIMARY', secret: false, required: false, pattern: /^[a-z][a-z0-9_]*$/, hint: 'provider id from Llm.gs' },
   { name: 'LLM_SMOKE_ENABLED', secret: false, required: false, pattern: /^(true|false)$/i, hint: 'true | false' },
+  { name: 'PAGES_AUTO_ENABLE', secret: false, required: false, pattern: /^(true|false)$/i, hint: 'true only until the Pages site exists' },
   { name: 'PYTHON_VERSION', secret: false, required: false, pattern: /^3\.\d+$/, hint: 'e.g. 3.11' },
   // Google bridge (docs/google-setup.md). Optional everywhere: with none of them
   // set, the gateway runs its local adapter and CI needs zero credentials.

@@ -4,11 +4,23 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # A feature branch touching the deploy wiring must prove it still runs —
+  # otherwise a broken pages.yml is only discovered after merge.
+  pull_request:
+    paths:
+      - '.github/workflows/pages.yml'
+      - 'scripts/check-workflows.js'
+      - 'scripts/enable-pages.sh'
+      - 'docs/publish.md'
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  # NOTE: "administration" is NOT a valid permissions key (GitHub rejects the
+  # whole workflow with "Unexpected value 'administration'"). Creating the Pages
+  # site needs an OWNER PAT with Administration+Pages write, passed to the
+  # enablement step below — GITHUB_TOKEN can never do it.
 
 concurrency:
   group: pages
@@ -54,13 +66,52 @@ jobs:
       - name: Verify Apps Script bundle builds
         run: python3 scripts/build-gas-package.py
 
-      - uses: actions/configure-pages@v5
+      # A pushed branch cannot deploy before the site exists, and configure-pages
+      # only says "Not Found". Fail with the exact fix instead (docs/publish.md §2).
+      - name: Explain the fix when Pages is not enabled yet
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PAGES_AUTO_ENABLE: ${{ vars.PAGES_AUTO_ENABLE }}
+        run: |
+          if gh api "repos/$REPO/pages" >/dev/null 2>&1; then
+            echo "Pages site exists — continuing."
+            exit 0
+          fi
+          if [ "$(printf '%s' "${PAGES_AUTO_ENABLE:-}")" = 'true' ]; then
+            echo "Pages missing but PAGES_AUTO_ENABLE=true — the owner-PAT step below creates it."
+            exit 0
+          fi
+          echo "::error title=Pages is not enabled::Open $GITHUB_SERVER_URL/$REPO/settings/pages → Build and deployment → Source: GitHub Actions, then re-run this job. Or run: sh scripts/enable-pages.sh"
+          exit 1
+
+      # On a pull request the Pages site may not exist yet, and a PR has no
+      # business creating it: the check is the build itself (see docs/publish.md).
+      - name: Create the Pages site (owner PAT, only when asked to)
+        if: ${{ vars.PAGES_AUTO_ENABLE == 'true' && github.event_name != 'pull_request' }}
+        continue-on-error: true
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+          token: ${{ secrets.PAGES_TOKEN }}
+
+      # Metadata only: needs no existing site, so a PR build stays meaningful.
+      # configure-pages fails outright when the repository has no Pages site —
+      # verified on a PR too — so it never runs there. A PR proves the build
+      # (assembly, simulation, adapter, bundle, artifact) and stops.
+      - name: Configure Pages
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
 
   deploy:
     needs: build
+    # Never deploy from a pull request: build-only there (deploy needs the
+    # github-pages environment and must stay a main-branch concern).
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
