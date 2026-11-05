@@ -57,16 +57,43 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   await wait(260);
 
   check('demo banner is visible', !$('#environmentBanner').hidden);
+  check('staff PIN is not exposed in the public view', $('#staffView').hidden && $('#demoPinHint').closest('#staffView') !== null);
   check('demo mode label', $('#modeLabel').textContent.includes('تجريبي'));
   check('date defaults to a workday', /^\d{4}-\d{2}-\d{2}$/.test($('#visitDate').value));
   check('quick day chips rendered', $$('#dayChips .day-chip').length === 5);
-  check('hero calendar rendered', $$('#heroCalendar .vday').length > 20);
-  check('hero clock filled', $('#heroClock').textContent.trim() !== '—');
+  check('clinic clock filled', $('#heroClock') === null || $('#heroClock').textContent.trim() !== '—');
   check('slots offered', $$('#slotsGrid .slot-button').length > 0);
+
+  // ---- identity: this must read as a pediatric clinic, not a chatbot ----
+  const pageText = document.body.textContent;
+  check('specialty stated on the page', /طب الأطفال/.test(pageText));
+  check('doctor profile block present', $$('.doctor-card [data-config]').length >= 4);
+  check('licence row is never invented', /ترخيص/.test(pageText), 'licence label missing');
+  check('emergency routing above the fold', $('.emergency-rail') !== null && /طوارئ/.test($('.emergency-rail').textContent));
+  check('no decorative avatar remains', $('.doctor-avatar') === null && $('.sun-shape') === null && $('.sparkle') === null);
+  check('no dev version shown to patients', !/إصدار 2026/.test(pageText));
+  check('no model provider named on the page', !/Gemini/i.test(pageText));
+  check('medical disclaimer present', /لا يشخّص/.test(pageText));
+  // ---- never invent a physician's credentials ----
+  check('licence stays a placeholder until the clinic fills it', ['—', ''].includes($('[data-config="license"]').textContent.trim()), $('[data-config="license"]').textContent.trim());
+  check('phone stays a placeholder until the clinic fills it', /إعداد العيادة/.test($('[data-config="phone"]').textContent));
+  check('no fabricated syndicate/licence number', !/\d{4,}/.test($('.doctor-facts').textContent.replace(/[٠-٩]/g, '')), 'a long number appeared in the doctor card');
+
+  const jsonLd = JSON.parse($('script[type="application/ld+json"]').textContent);
+  const types = (jsonLd['@graph'] || []).map((node) => node['@type']);
+  check('structured data declares clinic + physician', types.includes('MedicalClinic') && types.includes('Physician'), types.join(','));
+  check('one visit duration per type (60/30)', /٦٠ دقيقة/.test(pageText) && /٣٠ دقيقة/.test(pageText) && !/٣٠ دقيقة للزيارة/.test(pageText));
+
+  // ---- progress is real, not a static badge ----
+  check('progress starts on step 2 (type is pre-selected)', $('.booking-progress li[data-step="2"]').dataset.state === 'current');
+  check('summary waits for a time', /لم يُحدد/.test($('[data-summary="time"]').textContent));
 
   // ---- booking ----
   $$('#slotsGrid .slot-button')[1].click();
   check('slot selection stored', $('#visitTime').value.length === 5);
+  check('summary shows the chosen time', !/لم يُحدد/.test($('[data-summary="time"]').textContent));
+  check('progress advances to guardian step', $('.booking-progress li[data-step="3"]').dataset.state === 'current');
+  check('duration matches the chosen visit', /٦٠/.test($('[data-summary="duration"]').textContent));
   $('#guardianName').value = 'سارة تجريبية';
   $('#phone').value = '01000000000';
   $('#consent').checked = true;
@@ -74,6 +101,7 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   await wait(220);
 
   check('result card shown', !$('#bookingResult').hidden);
+  check('progress returns to the time step after submit', $('.booking-progress li[data-step="2"]').dataset.state === 'current');
   const reference = ($('.reference-chip') || {}).textContent;
   check('reference returned', /^CK-[A-Z0-9]{6,}$/.test(reference || ''), reference);
   check('result never claims confirmation', /لم يتأكد/.test($('#bookingResult').textContent));

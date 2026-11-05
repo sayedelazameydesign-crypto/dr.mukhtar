@@ -28,6 +28,12 @@
   const DEMO_PIN = '2468';
   const FALLBACK_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00'];
   const WORK_DAYS = [0, 1, 2, 3, 4];
+  // One source of truth for visit duration — the site, the demo backend and the
+  // copy all read this table (Code.gs visitDuration_ is the live equivalent).
+  const VISIT_MINUTES = { 'كشف جديد': 60, 'متابعة': 30 };
+  const visitMinutes = (type) => VISIT_MINUTES[type] || VISIT_MINUTES['كشف جديد'];
+  const arabicDigits = (value) => String(value).replace(/[0-9]/g, (digit) => '٠١٢٣٤٥٦٧٨٩'[Number(digit)]);
+  const minutesLabel = (minutes) => `${arabicDigits(minutes)} دقيقة`;
   const statusText = {
     REQUESTED: 'طلب مستلم',
     PENDING_APPROVAL: 'بانتظار موافقة العيادة',
@@ -122,7 +128,7 @@
       const day = args[0];
       // Work in whole minutes: `visitType` here is the *service* visit type.
       const visitType = args[1] || 'كشف جديد';
-      const visitDuration = visitType === 'متابعة' ? 30 : 60;
+      const visitDuration = visitMinutes(visitType);
       if (store.closures.some((item) => item.day === day)) return { ok: true, slots: [] };
       const parts = String(day).split('-').map(Number);
       const weekday = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
@@ -135,7 +141,7 @@
       const toMinutes = (time) => { const [h, m] = String(time).split(':').map(Number); return h * 60 + m; };
       const busy = store.bookings
         .filter((item) => item.day === day && ['CONFIRMED', 'COMPLETED'].includes(item.status))
-        .map((item) => ({ start: toMinutes(item.time), end: toMinutes(item.time) + (item.visitType === 'متابعة' ? 30 : 60) }));
+        .map((item) => ({ start: toMinutes(item.time), end: toMinutes(item.time) + visitMinutes(item.visitType) }));
       const slots = [];
       for (let minute = start; minute + duration <= end; minute += step) {
         const clash = busy.some((span) => minute < span.end && span.start < minute + duration);
@@ -214,8 +220,12 @@
       saveDemo(store);
       return { ok: true };
     }
+    if (method === 'getClinicProfile') {
+      // The demo build reports the same shape but no verified credentials.
+      return { ok: true, name: 'Celia Kids', phone: '', address: '', hours: '', license: '' };
+    }
     if (method === 'askGeneralQuestion') {
-      return { ok: true, answer: 'هذا وضع عرض تجريبي. يمكن لفريق العيادة مساعدتكم في خطوات الحجز وتعديل الطلب. لا أقدم معلومات طبية أو تشخيصًا.' };
+      return { ok: true, answer: 'هذا وضع عرض تجريبي بلا مساعد حقيقي: فريق العيادة هو من يجيب عن خطوات الحجز وتعديل الطلب. لا تُقدَّم هنا معلومات طبية ولا تشخيص.' };
     }
     return { ok: false, message: 'هذه الوظيفة غير متاحة في العرض.' };
   }
@@ -223,36 +233,103 @@
   /* ---------------- shell chrome ---------------- */
   function setView(view) {
     state.view = view;
-    $('#bookingView').hidden = view !== 'booking';
-    $('#staffView').hidden = view !== 'staff';
+    const booking = $('#bookingView');
+    const staff = $('#staffView');
+    booking.hidden = view !== 'booking';
+    staff.hidden = view !== 'staff';
     $$('[data-view]').forEach((button) => {
       const active = button.dataset.view === view;
       button.classList.toggle('active', active);
-      if (button.classList.contains('nav-button')) button.setAttribute('aria-current', active ? 'page' : 'false');
+      if (button.classList.contains('nav-button')) {
+        if (active) button.setAttribute('aria-current', 'page');
+        else button.removeAttribute('aria-current');
+      }
     });
-    moveNavIndicator();
     if (view === 'staff' && state.staffPin) refreshDashboard();
-    if (typeof window.scrollTo === 'function') window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
-  }
-  function moveNavIndicator() {
-    const indicator = $('.nav-indicator');
-    if (!indicator) return;
-    const active = $('.nav-button.active');
-    if (!active) { indicator.style.opacity = '0'; return; }
-    indicator.style.opacity = '1';
-    indicator.style.width = `${active.offsetWidth}px`;
-    indicator.style.left = `${active.offsetLeft}px`;
+    // Keep the visible panel in view instead of jumping to the top of the page.
+    const target = view === 'staff' ? staff : booking;
+    if (target && typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
   }
   function setMode() {
-    $('#modeLabel').textContent = IS_GAS ? 'مرتبط بـ Google' : 'وضع تجريبي';
-    $('#modePill').classList.toggle('live', IS_GAS);
-    $('#environmentBanner').hidden = IS_GAS;
-    $('#demoPinHint').hidden = IS_GAS;
-    $('#geminiStatus').textContent = IS_GAS ? 'Gemini عند التفعيل' : 'أسئلة تجريبية';
-    if (IS_GAS) $('#availabilityNote').textContent = '';
+    const modeLabel = $('#modeLabel');
+    if (modeLabel) modeLabel.textContent = IS_GAS ? 'الطلبات تصل إلى العيادة' : 'وضع تجريبي';
+    if ($('#modePill')) $('#modePill').classList.toggle('live', IS_GAS);
+    if ($('#environmentBanner')) $('#environmentBanner').hidden = IS_GAS;
+    // The demo staff PIN is only ever visible in the demo build, inside the staff view.
+    if ($('#demoPinHint')) $('#demoPinHint').hidden = IS_GAS;
+    // Never name the model provider on a patient-facing page.
+    if ($('#geminiStatus')) $('#geminiStatus').textContent = IS_GAS ? 'مساعد إداري' : 'وضع تجريبي';
+    if (IS_GAS && $('#availabilityNote')) $('#availabilityNote').textContent = '';
   }
 
-  /* ---------------- hero clock + mini calendar ---------------- */
+  /* ---------------- live clinic facts ---------------- */
+  // The page ships with neutral placeholders; a live clinic fills them from its
+  // own configuration (getClinicProfile) so no credential is ever invented here.
+  const CLINIC_FALLBACK = {
+    name: 'Celia Kids',
+    phone: 'يُضاف من إعداد العيادة',
+    address: 'يُضاف من إعداد العيادة',
+    hours: 'الأحد – الخميس · ٩:٠٠ ص – ٢:٠٠ م',
+    license: '—'
+  };
+  function applyClinicProfile(profile) {
+    if (!profile || !profile.ok) return;
+    state.clinicName = profile.name || '';
+    const facts = {};
+    ['phone', 'hours', 'address', 'license', 'doctorName', 'doctorRole', 'subspecialty']
+      .forEach((key) => { if (profile[key]) facts[key] = profile[key]; });
+    Object.keys(facts).forEach((key) => {
+      $$(`[data-config="${key}"]`).forEach((node) => { node.textContent = facts[key]; });
+    });
+  }
+  async function loadClinicProfile() {
+    if (!IS_GAS) return; // the demo build keeps the neutral placeholders visible
+    try {
+      const profile = await api('getClinicProfile');
+      applyClinicProfile(profile);
+    } catch (_) { /* placeholders stay; they never claim facts */ }
+  }
+
+  /* ---------------- progress + summary ---------------- */
+  function selectedVisitType() {
+    const form = $('#bookingForm');
+    return form && form.elements.visitType ? form.elements.visitType.value : 'كشف جديد';
+  }
+  function syncProgress() {
+    const steps = $$('.booking-progress li');
+    if (!steps.length) return;
+    const hasTime = !!state.selectedTime;
+    const states = hasTime ? ['done', 'done', 'current'] : ['done', 'current', 'todo'];
+    steps.forEach((step, index) => {
+      const state_ = states[index] || 'todo';
+      step.dataset.state = state_;
+      if (state_ === 'current') step.setAttribute('aria-current', 'step');
+      else step.removeAttribute('aria-current');
+    });
+    $$('.form-section').forEach((section, index) => {
+      section.classList.toggle('filled', states[index] === 'done');
+    });
+  }
+  function syncSummary() {
+    const type = selectedVisitType();
+    const set = (key, value, pending = false) => {
+      const node = $(`[data-summary="${key}"]`);
+      if (!node) return;
+      node.textContent = value;
+      node.classList.toggle('pending', pending);
+    };
+    set('visit', type);
+    set('duration', minutesLabel(visitMinutes(type)));
+    set('day', state.selectedDay ? prettyDate(state.selectedDay) : 'لم يُحدد', !state.selectedDay);
+    set('time', state.selectedTime ? prettyTime(state.selectedTime) : 'لم يُحدد', !state.selectedTime);
+    $$('[data-visit-duration]').forEach((node) => { node.textContent = `${type} · ${minutesLabel(visitMinutes(type))}`; });
+  }
+
+  /* ---------------- clinic clock ---------------- */
+  // Only the clinic clock survives: it is real information (Cairo time), not a
+  // decorative widget, and nothing else on the page claims live availability.
   function startClock() {
     const node = $('#heroClock');
     if (!node) return;
@@ -262,42 +339,6 @@
     const tick = () => { node.textContent = format.format(new Date()); };
     tick();
     setInterval(tick, 15000);
-  }
-
-  function renderHeroCalendar() {
-    const grid = $('#heroCalendar');
-    if (!grid) return;
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    $('#heroMonth').textContent = new Intl.DateTimeFormat('ar-EG', { month: 'long', year: 'numeric' }).format(new Date(year, month, 1));
-
-    const monthStart = new Date(year, month, 1);
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const lead = monthStart.getDay(); // Sunday-first grid
-    const store = IS_GAS ? { bookings: [], closures: [] } : demoStore();
-    const todayISO = localISO(today);
-
-    const frag = document.createDocumentFragment();
-    for (let i = 0; i < lead; i += 1) {
-      const pad = document.createElement('span');
-      pad.className = 'vday is-empty';
-      frag.appendChild(pad);
-    }
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const weekday = new Date(year, month, day).getDay();
-      const cell = document.createElement('span');
-      cell.className = 'vday';
-      cell.textContent = day.toLocaleString('ar-EG');
-      if (iso === todayISO) cell.classList.add('is-today');
-      else if (!WORK_DAYS.includes(weekday)) cell.classList.add('is-full');
-      else if (!IS_GAS && (store.closures || []).some((item) => item.day === iso)) cell.classList.add('is-full');
-      else if (!IS_GAS && store.bookings.filter((item) => item.day === iso && item.status === 'CONFIRMED').length >= 6) cell.classList.add('is-full');
-      else if (new Date(year, month, day) >= new Date(today.getFullYear(), today.getMonth(), today.getDate())) cell.classList.add('has-slot');
-      frag.appendChild(cell);
-    }
-    grid.replaceChildren(...Array.from(grid.children).filter((node) => node.classList.contains('dow')), frag);
   }
 
   /* ---------------- date + slots ---------------- */
@@ -326,6 +367,7 @@
       chip.addEventListener('click', () => {
         $('#visitDate').value = iso;
         loadAvailability(iso);
+        syncSummary();
       });
       wrap.appendChild(chip);
     }
@@ -337,12 +379,15 @@
 
   function selectTime(time) {
     state.selectedTime = time;
-    $('#visitTime').value = time;
+    const hidden = $('#visitTime');
+    if (hidden) hidden.value = time;
     $$('#slotsGrid .slot-button').forEach((button) => {
       const selected = button.dataset.time === time;
       button.classList.toggle('selected', selected);
       button.setAttribute('aria-pressed', String(selected));
     });
+    syncProgress();
+    syncSummary();
   }
 
   function renderSlots(slots, unverified = false) {
@@ -391,7 +436,7 @@
     $('#slotsGrid').setAttribute('aria-busy', 'true');
     try {
       const visitType = $('#bookingForm').elements.visitType.value;
-      const result = await api('getAvailableSlots', day, visitType);
+      const result = await api('getAvailableSlots', day, visitType, state.staffPin);
       if (!result || !result.ok) throw new Error(result && result.message ? result.message : 'تعذر التحقق من التقويم.');
       renderSlots(result.slots || [], false);
     } catch (error) {
@@ -416,7 +461,7 @@
             : 'سيراجع فريق العيادة الطلب، وسيؤكد الموعد أو يتواصل معكم بشأن وقت بديل.');
     result.innerHTML = `
       <div class="result-top">
-        <span class="result-check" aria-hidden="true">✓</span>
+        <span class="result-check" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="m4.5 10.5 3.4 3.4 7.6-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         <div><h3>وصل طلبكم إلى العيادة</h3><p>حالة الطلب: <strong>${escapeHTML(formatStatus(booking.status))}</strong>. لم يتأكد الموعد بعد.</p></div>
       </div>
       <div class="result-meta">
@@ -439,7 +484,7 @@
         const value = copyButton.dataset.copy;
         try {
           await navigator.clipboard.writeText(value);
-          copyButton.textContent = 'تم النسخ ✓';
+          copyButton.textContent = 'تم النسخ';
         } catch (_) {
           window.prompt('انسخوا الرقم المرجعي:', value);
         }
@@ -489,8 +534,8 @@
       form.reset();
       $$('.choice-card').forEach((card, index) => card.classList.toggle('selected', index === 0));
       $('#visitDate').value = state.selectedDay;
-      renderHeroCalendar();
       loadAvailability(state.selectedDay);
+      syncSummary();
     } catch (error) {
       toast(error.message || 'تعذر حفظ الطلب. لم نعرض تأكيدًا.');
     } finally {
@@ -530,7 +575,7 @@
     let number = digits(booking.phone);
     if (number.startsWith('0')) number = `20${number.slice(1)}`;
     else if (number.length === 10 && number.startsWith('1')) number = `20${number}`;
-    const clinic = IS_GAS ? 'عيادة الأطفال' : 'عيادة Celia Kids التجريبية';
+    const clinic = IS_GAS ? (state.clinicName || 'عيادة الأطفال') : 'عيادة Celia Kids (عرض تجريبي)';
     const prefix = proposal ? 'نقترح عليكم وقتًا بديلًا لطلب الموعد' : 'تم تأكيد موعدكم في';
     const message = `${prefix} لدى ${clinic}: ${prettyDate(booking.day)} الساعة ${prettyTime(booking.time)}. رقم الطلب: ${booking.reference}. للرد أو الاستفسار، تواصلوا مع العيادة.`;
     return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
@@ -582,7 +627,6 @@
       $('#staffLogin').hidden = true;
       $('#staffDashboard').hidden = false;
       renderDashboard(response);
-      renderHeroCalendar();
     } catch (error) {
       $('#staffLoginError').textContent = error.message;
       $('#staffLoginError').hidden = false;
@@ -653,7 +697,6 @@
         : action === 'reschedule' ? 'سُجل الوقت البديل المقترح؛ لم يتأكد الموعد.'
           : 'تم تحديث الطلب.'));
       await refreshDashboard();
-      renderHeroCalendar();
     } catch (error) {
       toast(error.message);
       button.disabled = false;
@@ -669,7 +712,6 @@
       if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر إغلاق اليوم.');
       toast(response.warning || 'تم تسجيل إغلاق اليوم.');
       $('#closureLabel').value = '';
-      renderHeroCalendar();
       await loadAvailability(state.selectedDay);
       await refreshDashboard();
     } catch (error) {
@@ -735,18 +777,14 @@
     $('#closureForm').addEventListener('submit', closeDay);
     $('#faqForm').addEventListener('submit', askQuestion);
     $('#trackReference').addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase(); });
-    window.addEventListener('resize', moveNavIndicator);
-    window.addEventListener('load', moveNavIndicator);
     document.addEventListener('visibilitychange', () => { if (!document.hidden && state.view === 'staff' && state.staffPin) refreshDashboard(); });
 
     try {
       setMode();
       setDateDefault();
       renderDayChips();
-      renderHeroCalendar();
       startClock();
       loadAvailability(state.selectedDay);
-      moveNavIndicator();
       requestAnimationFrame(revealOnScroll);
     } catch (error) {
       console.error('Celia Kids failed to start', error);

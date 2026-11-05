@@ -1,16 +1,26 @@
 {
-  "name": "Celia Kids — حجز مواعيد الأطفال",
+  "name": "Celia Kids — عيادة أطفال · طلب موعد",
   "short_name": "Celia Kids",
-  "description": "طلب مواعيد عيادة الأطفال مع تأكيد بشري من العيادة.",
+  "description": "طلب مواعيد عيادة أطفال مع تأكيد من العيادة قبل الموعد.",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f6f7f2",
-  "theme_color": "#0f7a6c",
+  "background_color": "#fbfbf9",
+  "theme_color": "#0e6f61",
   "icons": [
-    { "src": "./brand.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "./brand.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    {
+      "src": "./brand.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./brand.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
   ]
 }

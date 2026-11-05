@@ -15,6 +15,7 @@ const CK = {
   DEFAULT_END: '14:00',
   DEFAULT_MINUTES: 30,
   DEFAULT_WORK_DAYS: '0,1,2,3,4',
+  DEFAULT_WEEKEND_DAYS: '5,6',
   MAX_OUTAGE_REQUESTS: 25,
   MAX_OUTAGE_AUDITS: 100
 };
@@ -233,10 +234,7 @@ function getDashboard(pin) {
   try { closures.push.apply(closures, readClosures_()); }
   catch (error) { warnings.push('تعذر قراءة إغلاقات الدوام.'); }
   try {
-    const readiness = validateConfig();
-    readiness.checks.filter((check) => !check.ok).forEach((check) => warnings.push('إعداد: ' + check.detail));
-  } catch (error) { warnings.push('تعذر فحص إعداد العيادة.'); }
-  try {
+    // One readiness pass: the LLM check is reported on its own line below (it is optional).
     validateConfig().checks.filter((check) => !check.ok && check.id !== 'llm_optional')
       .forEach((check) => warnings.push('إعداد: ' + check.detail));
   } catch (error) {
@@ -417,6 +415,17 @@ function askGeneralQuestion(question) {
  * Reads and validates runtime config. Invalid values are reported explicitly
  * (never silently replaced) so a misconfigured clinic fails fast and loudly.
  */
+/** Display-only clinic facts for the page. Never includes PINs, ids or limits. */
+function getClinicProfile() {
+  try {
+    const config = getConfig_();
+    return { ok: true, name: config.clinicName, phone: config.clinicPhone, timeline: config.clinicTimeline,
+      workStart: config.start, workEnd: config.end, workDays: config.workDays, weekendDays: config.weekendDays, timezone: config.timezone };
+  } catch (error) {
+    return { ok: false, message: 'تعذر قراءة بيانات العيادة.' };
+  }
+}
+
 function getConfig_() {
   const properties = PropertiesService.getScriptProperties();
   const problems = [];
@@ -430,6 +439,11 @@ function getConfig_() {
   const invalidDays = rawDays.filter((v) => !Number.isInteger(v) || v < 0 || v > 6);
   if (invalidDays.length) problems.push('WORK_DAYS يجب أن يحتوي أرقام أيام من 0 إلى 6 (غير صالح: ' + invalidDays.join(',') + ').');
   const workDays = Array.from(new Set(rawDays.filter((v) => Number.isInteger(v) && v >= 0 && v <= 6)));
+
+  const rawWeekend = String(properties.getProperty('WEEKEND_DAYS') || CK.DEFAULT_WEEKEND_DAYS).split(',').map((v) => Number(v.trim()));
+  const weekendDays = Array.from(new Set(rawWeekend.filter((v) => Number.isInteger(v) && v >= 0 && v <= 6)));
+  const weekendOverlap = weekendDays.filter((v) => workDays.includes(v));
+  if (weekendOverlap.length) problems.push('WEEKEND_DAYS يتقاطع مع WORK_DAYS في الأيام: ' + weekendOverlap.join(',') + '.');
 
   const rawDuration = properties.getProperty('SLOT_MINUTES');
   const duration = positiveNumber_(rawDuration, CK.DEFAULT_MINUTES);
@@ -447,6 +461,10 @@ function getConfig_() {
     end: end,
     duration: duration,
     workDays: workDays,
+    weekendDays: weekendDays,
+    clinicName: String(properties.getProperty('CLINIC_NAME') || 'Celia Kids').trim(),
+    clinicPhone: String(properties.getProperty('CLINIC_PHONE') || '').replace(/[^0-9+]/g, ''),
+    clinicTimeline: String(properties.getProperty('CLINIC_TIMELINE') || '').trim().slice(0, 80),
     timezone: properties.getProperty('TIMEZONE') || Session.getScriptTimeZone() || 'Africa/Cairo'
   };
 }
@@ -539,7 +557,7 @@ function isSlotAvailable_(day, time, duration, excludeEventId) {
   if (!isValidDay_(day) || !isValidTime_(time)) return false;
   const start = makeDate_(day, time); const end = new Date(start.getTime() + duration * 60000);
   if (start <= new Date() || !config.workDays.includes(start.getDay()) || timeToMinutes_(time) < timeToMinutes_(config.start) || (timeToMinutes_(time) - timeToMinutes_(config.start)) % config.duration !== 0 || timeToMinutes_(time) + duration > timeToMinutes_(config.end)) return false;
-  if (readClosures_().some((item) => item.day === day && intervalsOverlap_(time, duration, item.start, item.end))) return false;
+  if (closureBlocks_(day, time, duration)) return false;
   const events = getCalendar_().getEvents(start, end);
   return !events.some((event) => event.getId() !== excludeEventId && event.getStartTime() < end && event.getEndTime() > start);
 }
@@ -547,6 +565,24 @@ function intervalsOverlap_(time, duration, otherStart, otherEnd) {
   if (!otherStart || !otherEnd) return true;
   const start = timeToMinutes_(time); const end = start + duration;
   return start < timeToMinutes_(otherEnd) && end > timeToMinutes_(otherStart);
+}
+/**
+ * True when the requested time overlaps a stored closure.
+ *
+ * A closure row with empty start/end means "the whole day is closed" and blocks
+ * every slot that day; a row with start/end blocks only that window. This is the
+ * only place availability consults Closures, so closing a day really removes it
+ * from the guardian's view (the dashboard already shows it as closed).
+ */
+function closureBlocks_(day, time, duration) {
+  const minute = timeToMinutes_(time);
+  return readClosures_().some((item) => {
+    if (item.day !== day) return false;
+    if (!item.start && !item.end) return true;
+    const start = item.start ? timeToMinutes_(item.start) : 0;
+    const end = item.end ? timeToMinutes_(item.end) : 24 * 60;
+    return minute < end && start < minute + duration;
+  });
 }
 function readClosures_() {
   const sheet = closuresSheet_(); if (sheet.getLastRow() < 2) return [];
