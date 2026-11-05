@@ -391,11 +391,21 @@ assert.equal(context.getClinicSettings(bootstrapHash).meta.mustChangePin, true, 
 assert.equal(context.validateConfig().checks.find((c) => c.id === 'admin_pin').ok, false, 'readiness stays blocked until it is changed');
 assert.equal(context.saveStaffPin(bootstrapHash, hashPin(`pin-${crypto.randomBytes(12).toString('hex')}`), bootstrapHash).ok, true);
 assert.equal(context.isStaff_(bootstrapHash), false, 'the generated PIN is dead after the change');
+
+// A 45-minute visit on a 30-minute grid must not be offered a start that ends after
+// closing: 09:00-14:00 offers 09:00..13:00 and never 13:30.
+assert.equal(context.paddedStartIndex_(300, 45, 30), 30, 'the end padding for a 45-minute visit');
+const lastStart = 840 - 45 - context.paddedStartIndex_(300, 45, 30);
+assert.equal(lastStart, 765, 'the last acceptable start is 12:45 (13:30 would end 14:15)');
+const gridSlots = [];
+for (let minute = 540; minute <= lastStart; minute += 30) gridSlots.push(minute);
+assert.equal(gridSlots[gridSlots.length - 1], 750, '13:00 ends exactly at closing and stays bookable');
+assert.equal(gridSlots.includes(810), false, '13:30 is never offered for a 45-minute visit');
 assert.equal(propertyValues.has('CK_MUST_CHANGE_PIN'), false, 'the flag clears after the change');
 const readinessAfter = context.validateConfig().checks.find((c) => c.id === 'admin_pin');
 assert.equal(readinessAfter.ok, true, 'readiness passes once the doctor owns the PIN — ' + readinessAfter.detail);
 assert.equal(context.getClinicSettings(bootstrapHash).ok, false, 'the bootstrap PIN stops working immediately');
 
-console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, a secret-free clinic profile, and dashboard-editable settings (validation, services, PIN hashing and migration).')
+console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, a secret-free clinic profile, dashboard-editable settings (validation, services, PIN hashing and migration), and slot starts that always fit inside opening hours.')
 ;
 console.log('Reminder: these mocked-service tests do not establish Google quotas, permissions, live deployment behavior, or legal readiness.');

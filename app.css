@@ -525,3 +525,15 @@ svg{display:block}
   body{background:#fff}
   .card,.tool-card,.side-card{border:1px solid #bbb;box-shadow:none}
 }
+
+/* Onboarding gate: the page ships with examples, and it says so until the clinic
+   fills its own facts. Deliberately louder than an ordinary notice. */
+.onboarding-banner{display:flex;align-items:flex-start;gap:12px;margin:0 0 14px;padding:14px 16px;border:1px solid #e6cfa0;border-left:4px solid #c08a2b;border-radius:14px;background:#fdf6e7;color:#5a4416}
+.onboarding-banner[hidden]{display:none}
+.onboarding-banner>svg{width:18px;height:18px;flex:none;margin-top:2px;color:#a8721c}
+.onboarding-banner>div{flex:1;min-width:0}
+.onboarding-banner p{margin:0;font-size:13px;line-height:1.6}
+.onboarding-banner p strong{display:block;margin-bottom:2px;font-size:13.5px;color:#4a370f}
+.onboarding-missing{margin-top:4px!important;color:#7a5c1e;font-size:12px!important}
+.onboarding-banner .secondary-button,.onboarding-banner .link-button{flex:none;align-self:center}
+@media (max-width:640px){.onboarding-banner{flex-wrap:wrap}.onboarding-banner .secondary-button,.onboarding-banner .link-button{width:100%}}

@@ -19,6 +19,9 @@
     selectedTime: '',
     selectedDay: '',
     slots: [],
+    workDays: [],
+    filled: {},
+    demoMode: false,
     availabilityVerified: false,
     bookings: [],
     closures: [],
@@ -32,10 +35,13 @@
   // One source of truth for visit duration — the site, the demo backend and the
   // copy all read this table (Code.gs visitDuration_ is the live equivalent).
   // Rebuilt from the clinic's configured services (settings), never hardcoded in markup.
-  const VISIT_MINUTES = { 'كشف جديد': 60, 'متابعة': 30 };
+  // Visit durations live in SERVICES only. A second frozen table used to shadow it,
+  // so changing a service's duration in settings did not change the booking maths.
   let SERVICES = [{ label: 'كشف جديد', minutes: 60 }, { label: 'متابعة', minutes: 30 }];
-  const visitMinutes = (type) => VISIT_MINUTES[type]
-    || (SERVICES[0] && SERVICES[0].minutes) || 60;
+  const visitMinutes = (type) => {
+    const match = SERVICES.find((service) => service.label === type);
+    return (match && match.minutes) || (SERVICES[0] && SERVICES[0].minutes) || 60;
+  };
   const arabicDigits = (value) => String(value).replace(/[0-9]/g, (digit) => '٠١٢٣٤٥٦٧٨٩'[Number(digit)]);
   const minutesLabel = (minutes) => `${arabicDigits(minutes)} دقيقة`;
   const statusText = {
@@ -56,14 +62,9 @@
   };
   // The Nth *open* day from today. It used to jump every offset to the same next
   // open day, so the first chips all showed one date and couldn't be picked apart.
-  function nextWorkday(offset = 1) {
-    let openDays = WORK_DAYS;
-    try {
-      const raw = localStorage.getItem(SETTINGS_KEY);
-      const configured = raw ? JSON.parse(raw).WORK_DAYS : '';
-      const parsed = String(configured || '').split(',').filter(Boolean).map(Number);
-      if (parsed.length) openDays = parsed;
-    } catch (_) { /* fall back to the module default */ }
+  // `openDays` is passed in by the caller (state.workDays), so this stays a pure
+  // date function: it cannot disagree with the availability rules.
+  function nextWorkday(offset = 1, openDays = WORK_DAYS) {
     const date = new Date();
     date.setHours(12, 0, 0, 0);
     let found = 0;
@@ -296,8 +297,7 @@
   }
   async function api(method, ...args) {
     if (IS_GAS) return callServer(method, ...args);
-    if (method === 'getClinicProfile') { /* handled below, keep the demo honest */ }
-    if (method === 'getClinicProfile') return demoProfile();
+    if (method === 'getClinicProfile') { state.demoMode = true; return demoProfile(); }
     const store = demoStore();
     if (method === 'getAvailableSlots') {
       const day = args[0];
@@ -321,7 +321,12 @@
         .filter((item) => item.day === day && ['CONFIRMED', 'COMPLETED'].includes(item.status))
         .map((item) => ({ start: toMinutes(item.time), end: toMinutes(item.time) + visitMinutes(item.visitType) }));
       const slots = [];
-      for (let minute = start; minute + duration <= end; minute += step) {
+      // A start is only offered when the visit ends inside the last block that actually
+      // begins during opening hours (see paddedStartIndex_ in Code.gs for the rule and
+      // the 45-minute/30-minute example it fixes).
+      const pause = (end - start) % duration;
+      const lastStart = end - duration - pause;
+      for (let minute = start; minute <= lastStart; minute += step) {
         const clash = busy.some((span) => minute < span.end && span.start < minute + duration);
         if (!clash) slots.push(toTime(minute));
       }
@@ -528,6 +533,7 @@
     name: 'Celia Kids',
     phone: 'يُضاف من إعداد العيادة',
     address: 'يُضاف من إعداد العيادة',
+    subspecialty: 'طب أطفال عام',
     hours: { workDays: [0, 1, 2, 3, 4], weekendDays: [5, 6], start: '09:00', end: '14:00' },
     license: ''
   };
@@ -559,19 +565,77 @@
   function setFact(key, value) {
     $$(`[data-config="${key}"]`).forEach((node) => { node.textContent = value; });
   }
+
+  /* ---------------- onboarding: is the page still showing examples? ---------------- */
+  // A page that silently ships example names and default hours is a misrepresentation,
+  // not a placeholder. These are the facts a real clinic must supply before the page
+  // can introduce itself; the dashboard shows a banner until each one is filled.
+  const REQUIRED_FACTS = [
+    { key: 'CLINIC_NAME', label: 'اسم العيادة' },
+    { key: 'CLINIC_PHONE', label: 'هاتف العيادة' },
+    { key: 'DOCTOR_NAME', label: 'اسم الطبيب' },
+    { key: 'DOCTOR_TITLE', label: 'اللقب العلمي' },
+    { key: 'DOCTOR_LICENSE', label: 'رقم الترخيص' }
+  ];
+  // Driven by the profile alone, so the banner can render the moment the page loads
+  // instead of waiting for staff to open the settings screen.
+  const DEFAULT_CLINIC_NAME = 'Celia Kids';
+  function missingFacts() {
+    const filled = state.filled || {};
+    const project = {
+      CLINIC_NAME: filled.name && state.clinicName !== DEFAULT_CLINIC_NAME,
+      CLINIC_PHONE: filled.phone,
+      DOCTOR_NAME: filled.doctorName,
+      DOCTOR_TITLE: filled.doctorRole,
+      DOCTOR_LICENSE: filled.license
+    };
+    return REQUIRED_FACTS.filter((fact) => !project[fact.key]);
+  }
+  // Public rendering: neutral placeholders wherever the clinic has not filled a fact.
+  // This runs on every profile load, whether or not staff ever open the dashboard.
+  function renderPlaceholders() {
+    const filled = state.filled || {};
+    if (!filled.doctorName) setFact('doctorName', 'بيانات الطبيب لم تُسجَّل بعد');
+    if (!filled.doctorRole) setFact('doctorRole', 'اللقب العلمي يُسجَّل من الإعداد');
+    if (!filled.subspecialty) setFact('subspecialty', 'طب الأطفال');
+    if (!filled.address) setFact('address', 'يُضاف من إعداد العيادة');
+  }
+  // Dashboard rendering: the page still introduces itself with examples.
+  function renderOnboarding() {
+    const banner = $('#onboardingBanner');
+    if (!banner) return;
+    const missing = missingFacts();
+    banner.hidden = missing.length === 0;
+    const list = $('#onboardingMissing');
+    if (list) list.textContent = missing.length ? `الناقص: ${missing.map((fact) => fact.label).join(' · ')}` : '';
+    // The one-click demo is a published sample, so it is offered in demo mode only —
+    // in a real deployment it would fill a clinic's page with another clinic's details.
+    const demoButton = $('#onboardingDemo');
+    if (demoButton) demoButton.hidden = !(settingsState.meta.demo || state.demoMode);
+  }
   function setLicence(value, verified) {
     setFact('license', value || 'غير منشور');
     $$('[data-license-state]').forEach((node) => {
       node.textContent = verified
         ? 'رقم الترخيص كما سجّلته العيادة'
-        : 'يُضاف من إعداد العيادة — لم يُتحقق بعد';
+        : 'لم تُسجَّل بعد — تُكتب من إعداد العيادة';
       node.classList.toggle('is-unverified', !verified);
     });
     const card = $('.doctor-card');
     if (card) card.dataset.licenseVerified = verified ? 'true' : 'false';
   }
+  // Which facts did the clinic actually fill? Anything absent keeps a neutral
+  // placeholder: the page must never present an example as a clinic's own data.
+  const PROFILE_TEXT_KEYS = ['name', 'phone', 'address', 'doctorName', 'doctorRole', 'subspecialty', 'timeline'];
   function applyClinicProfile(profile) {
     if (!profile || !profile.ok) return;
+    const filled = {};
+    PROFILE_TEXT_KEYS.forEach((key) => { filled[key] = String(profile[key] || '').trim() !== ''; });
+    filled.license = String(profile.license || '').trim() !== '';
+    state.filled = filled;
+    state.workDays = (profile.hours && Array.isArray(profile.hours.workDays) && profile.hours.workDays.length)
+      ? profile.hours.workDays.slice()
+      : WORK_DAYS;
     state.clinicName = profile.name || '';
     if (profile.phone) setFact('phone', profile.phone);
     if (profile.address) setFact('address', profile.address);
@@ -584,6 +648,8 @@
     // The licence is a regulated credential: show it only when the clinic set it,
     // and say so plainly when it is still unverified.
     setLicence(profile.license, !!profile.licenseVerified);
+    renderPlaceholders();
+    renderOnboarding();
     const schema = $('script[type="application/ld+json"]');
     if (schema && profile.doctorName) {
       try {
@@ -614,7 +680,6 @@
     const current = form.elements.visitType.value;
     grid.replaceChildren();
     SERVICES.forEach((service, index) => {
-      VISIT_MINUTES[service.label] = service.minutes;
       const card = document.createElement('label');
       card.className = 'choice-card';
       card.dataset.choice = `service-${index}`;
@@ -650,8 +715,6 @@
       .map((item) => ({ label: String(item.label || '').trim(), minutes: Number(item.minutes) }))
       .filter((item) => item.label && Number.isFinite(item.minutes) && item.minutes > 0);
     if (!SERVICES.length) return;
-    Object.keys(VISIT_MINUTES).forEach((key) => { delete VISIT_MINUTES[key]; });
-    SERVICES.forEach((item) => { VISIT_MINUTES[item.label] = item.minutes; });
     renderVisitTypes();
   }
   async function refreshVisitTypes() {
@@ -786,6 +849,7 @@
     const version = $('#settingsVersion');
     if (version) version.textContent = settingsState.meta.demo ? 'وضع تجريبي' : 'مرتبط بالعيادة';
     showPinBanner(!!settingsState.meta.mustChangePin);
+    renderOnboarding();
     renderSettingsGroup(settingsState.group);
   }
   function readSettingsForm() {
@@ -829,6 +893,7 @@
       const result = await api('saveClinicSettings', { values, reason: ($('#settingsReason') || {}).value || '' }, state.staffPin);
       if (!result || !result.ok) throw new Error(result && result.message ? result.message : 'تعذر حفظ الإعدادات.');
       await refreshVisitTypes();
+      if (state.selectedDay) await loadAvailability(state.selectedDay);
       const reload = await api('getClinicSettings', state.staffPin);
       if (reload && reload.ok) renderSettings(reload);
       const saved = $('#settingsSaved');
@@ -853,6 +918,7 @@
       const result = await api('resetClinicSettings', settingsState.group, state.staffPin);
       if (!result || !result.ok) throw new Error(result && result.message ? result.message : 'تعذرت الاستعادة.');
       await refreshVisitTypes();
+      if (state.selectedDay) await loadAvailability(state.selectedDay);
       const reload = await api('getClinicSettings', state.staffPin);
       if (reload && reload.ok) renderSettings(reload);
       toast(result.warning || 'تمت استعادة القيم الافتراضية.');
@@ -944,7 +1010,7 @@
   /* ---------------- date + slots ---------------- */
   function setDateDefault() {
     const input = $('#visitDate');
-    const tomorrow = localISO(nextWorkday(1));
+    const tomorrow = localISO(nextWorkday(1, state.workDays.length ? state.workDays : WORK_DAYS));
     input.min = localISO(new Date());
     input.value = tomorrow;
     state.selectedDay = tomorrow;
@@ -957,7 +1023,7 @@
     wrap.replaceChildren();
     const labels = ['غدًا', 'بعد غد', 'اليوم الثالث', 'اليوم الرابع', 'اليوم الخامس'];
     for (let i = 1; i <= 5; i += 1) {
-      const date = nextWorkday(i);
+      const date = nextWorkday(i, state.workDays.length ? state.workDays : WORK_DAYS);
       const iso = localISO(date);
       const chip = document.createElement('button');
       chip.type = 'button';
@@ -1371,11 +1437,15 @@
   /* ---------------- wiring + boot ---------------- */
   function init() {
     $$('[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
-    $$('.choice-card input').forEach((input) => input.addEventListener('change', () => {
+    // Delegated on purpose: the service cards are rebuilt from settings, so binding
+    // listeners to the initial nodes silently stopped working after a save.
+    $('.choice-grid').addEventListener('change', (event) => {
+      if (!event.target || event.target.name !== 'visitType') return;
       $$('.choice-card').forEach((card) => card.classList.toggle('selected', card.querySelector('input').checked));
-    }));
+      loadAvailability($('#visitDate').value);
+    });
     $('#visitDate').addEventListener('change', (event) => loadAvailability(event.target.value));
-    $$('.choice-card input').forEach((input) => input.addEventListener('change', () => loadAvailability($('#visitDate').value)));
+
     $('#bookingForm').addEventListener('submit', submitBooking);
     $('#trackForm').addEventListener('submit', trackRequest);
     $('#staffLoginForm').addEventListener('submit', loginStaff);
@@ -1387,6 +1457,33 @@
     if ($('#settingsForm')) $('#settingsForm').addEventListener('submit', saveSettings);
     if ($('#settingsCancel')) $('#settingsCancel').addEventListener('click', () => renderSettingsGroup(settingsState.group));
     if ($('#settingsReset')) $('#settingsReset').addEventListener('click', resetGroup);
+    if ($('#onboardingFix')) $('#onboardingFix').addEventListener('click', () => {
+      const missing = missingFacts();
+      const first = missing[0];
+      if (first) {
+        const group = settingsState.catalog.find((item) => item.fields.some((field) => field.key === first.key));
+        if (group) renderSettingsGroup(group.group);
+        const field = document.querySelector(`#setting-${first.key}`);
+        if (field) { field.focus(); field.scrollIntoView({ block: 'center' }); }
+      }
+    });
+    // Demo only: fill the page with the sample clinic published in docs/settings.md,
+    // so the screen can be tried without inventing a doctor. Never shown live.
+    if ($('#onboardingDemo')) $('#onboardingDemo').addEventListener('click', async () => {
+      const sample = {
+        CLINIC_NAME: 'عيادة أطفال — نسخة عرض',
+        CLINIC_PHONE: '01000000000',
+        DOCTOR_NAME: 'د. اسم تجريبي',
+        DOCTOR_TITLE: 'استشاري طب الأطفال (بيانات عرض)',
+        DOCTOR_LICENSE: 'DEMO-0000'
+      };
+      const merged = Object.assign(readSettingsStore(), sample);
+      writeSettingsStore(merged);
+      await refreshVisitTypes();
+      if (state.selectedDay) await loadAvailability(state.selectedDay);
+      const reload = await api('getClinicSettings', state.staffPin);
+      if (reload && reload.ok) renderSettings(reload);
+    });
     if ($('#pinBannerGo')) $('#pinBannerGo').addEventListener('click', () => {
       setStaffTab('settings');
       const group = settingsState.catalog.find((item) => item.group === 'security');

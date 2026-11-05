@@ -175,6 +175,19 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
+/**
+ * Start times a visit of `duration` minutes cannot use because the next visit would
+ * have to start before the clinic would actually be open that day.
+ *
+ * The grid steps by SLOT_MINUTES and accepts a start when `start + duration <= end`,
+ * which lets the *last* start overrun the end whenever duration is not a multiple of
+ * the step (45-minute visit, 30-minute grid: 13:00 reaches 14:00, 13:30 does not).
+ * The demo backend has to hide those starts too, otherwise the two disagree.
+ */
+function paddedStartIndex_(offset, duration, step) {
+  return ((offset % duration) + duration) % duration;
+}
+
 function getAvailableSlots(day, visitType) {
   try {
     if (!isValidDay_(day)) return { ok: false, message: 'التاريخ غير صحيح.' };
@@ -188,7 +201,9 @@ function getAvailableSlots(day, visitType) {
     const startMinutes = timeToMinutes_(config.start);
     const endMinutes = timeToMinutes_(config.end);
     const slots = [];
-    for (let minute = startMinutes; minute + visitMinutes <= endMinutes; minute += minutes) {
+    const pause = paddedStartIndex_(endMinutes - startMinutes, visitMinutes, minutes);
+    const lastStart = endMinutes - visitMinutes - pause;
+    for (let minute = startMinutes; minute <= lastStart; minute += minutes) {
       const time = minutesToTime_(minute);
       if (isSlotAvailable_(day, time, visitMinutes, '')) slots.push(time);
     }
