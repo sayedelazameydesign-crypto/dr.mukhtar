@@ -37,6 +37,7 @@ brand.svg                   الهوية البصرية
 manifest.webmanifest        إضافة إلى الشاشة الرئيسية (PWA-lite)
 docs/map/                   خريطة معمّرة: project.json + ARCHITECTURE.md + gaps.json (project-map.md)
 docs/google-setup.md        جسر Google: خطوات المتصفح، البروفايل، تبديل الحساب، جدول الأعطال
+docs/publish.md             النشر على GitHub Pages: المساران، التحقق، ما لا يُنشر
 scripts/google/             gateway.js + profile/auth/bootstrap/selftest/migrate (المحوّل المحلي هو الافتراضي)
 config/google.profile.example.json  قالب البروفايل (بلا معرّفات ولا بريد) — الحقيقي مستبعَد من Git
 Code.gs                     خادم Google Apps Script
@@ -45,7 +46,7 @@ scripts/preview.py             خادم معاينة محلي بلا ملفات 
 scripts/build-gas-package.py   بناء gas/Index.html + gas/Fonts.html
 scripts/test-gas-simulated.js  محاكاة Sheets/Calendar/Lock دون شبكة
 scripts/test-ui-smoke.js       فحص DOM لمسار الحجز ولوحة العيادة
-.github/workflows/pages.yml    نشر الواجهة على GitHub Pages
+.github/workflows/pages.yml    نشر الواجهة على GitHub Pages (يحتاج تفعيلًا مرة واحدة: docs/publish.md)
 ```
 
 المجلد `gas/` **مُولَّد ولا يُحفظ في Git**؛ أعِد بناءه بأمر البناء أدناه.

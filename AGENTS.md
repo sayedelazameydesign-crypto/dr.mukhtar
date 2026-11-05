@@ -69,6 +69,7 @@ node scripts/test-google-bridge.js          # Google gateway + adapters, offline
 node scripts/google/selftest.js --local     # five-step probe on the local adapter
 node scripts/google/bootstrap.js --dry-run  # what the Drive layout bootstrap would create (needs a live token)
 sh scripts/pre-commit.sh                    # local gate: secrets + contract (+ actionlint if installed)
+sh scripts/enable-pages.sh [--dry-run]      # owner-only: first-run Pages enablement (docs/publish.md)
 python3 scripts/build-gas-package.py        # build gas/ bundle (Index.html, Fonts.html, Code.gs, Llm.gs)
 ```
 

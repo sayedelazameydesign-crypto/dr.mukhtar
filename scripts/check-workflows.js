@@ -118,6 +118,8 @@ jobs:
     fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'config', 'google.profile.example.json'),
       JSON.stringify({ profile: 'dev', account_label: 'label', auth_mode: 'oauth_user', scopes: ['drive.file'], root_folder_name: 'r', fallback: 'local', layout: { 'memory/long': null }, function_map: { 'memory.long': 'drive' } }));
+    fs.writeFileSync(path.join(dir, 'scripts', 'enable-pages.sh'),
+      '#!/usr/bin/env sh\n# --dry-run\ngh secret set PAGES_TOKEN\ngh secret delete PAGES_TOKEN\n');
     fs.writeFileSync(path.join(dir, 'scripts', 'bootstrap-github.sh'),
       '#!/usr/bin/env sh\n# --dry-run supported\ngit status >/dev/null\n');
     fs.writeFileSync(path.join(dir, '.github', 'workflows', 'test.yml'), testCase.workflow || GOOD_WORKFLOW);
@@ -477,6 +479,23 @@ if (!fs.existsSync(MAP_DIR)) {
   const mapped = project && project.meta && project.meta.commit;
   if (head && mapped && !head.startsWith(mapped) && !mapped.startsWith(head.slice(0, 7))) {
     warn(`docs/map/ is stale — meta.commit ${mapped} but HEAD is ${head.slice(0, 7)}; refresh per project-map.md §8`);
+  }
+}
+
+/* -------------------------------------------------- pages enablement script */
+const ENABLE_PAGES = path.join(ROOT, 'scripts', 'enable-pages.sh');
+if (!fs.existsSync(ENABLE_PAGES)) {
+  fail('scripts/enable-pages.sh is missing (first-run Pages enablement path)');
+} else {
+  const script = fs.readFileSync(ENABLE_PAGES, 'utf8');
+  if (/gh secret set [^\n]*--body/.test(script)) fail('scripts/enable-pages.sh — never pass --body to gh secret set');
+  if (!/--dry-run/.test(script)) fail('scripts/enable-pages.sh — must support --dry-run');
+  // The token it stores is single-purpose and short-lived: the script must remove it again.
+  if (!/gh secret delete PAGES_TOKEN/.test(script)) fail('scripts/enable-pages.sh — must delete PAGES_TOKEN after a successful deploy');
+  try {
+    require('node:child_process').execFileSync('sh', ['-n', ENABLE_PAGES], { stdio: 'pipe' });
+  } catch (error) {
+    fail('scripts/enable-pages.sh — shell syntax error');
   }
 }
 

@@ -9,6 +9,9 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # configure-pages needs administration:write to CREATE the Pages site on the
+  # first run; pages:write alone cannot enable it (it fails with "Not Found").
+  administration: write
 
 concurrency:
   group: pages
@@ -54,7 +57,16 @@ jobs:
       - name: Verify Apps Script bundle builds
         run: python3 scripts/build-gas-package.py
 
-      - uses: actions/configure-pages@v5
+      - name: Enable Pages site if missing (owner PAT only)
+        if: ${{ vars.PAGES_AUTO_ENABLE == 'true' }}
+        continue-on-error: true
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+          token: ${{ secrets.PAGES_TOKEN }}
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
