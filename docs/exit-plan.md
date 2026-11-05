@@ -11,6 +11,7 @@
 | Google Calendar | `getCalendar_`, `findCalendarEvent_`, `isSlotAvailable_`, `makeDate_` | CalDAV أو مزوّد تقويم آخر بنفس الواجهات (getEvents/createEvent/deleteEvent/setTime) | 1 يوم | التزامن المفاجئ مع تقويم الطبيب |
 | Gemini | `Llm.gs` فقط (`LLM.PROVIDERS`) | إضافة مزوّد جديد (`groq` مثلاً) وتغيير `LLM_CHAIN`؛ لا تغيير في `Code.gs` | 1–2 ساعة | حدود المزوّد المجانية |
 | WhatsApp (يدوي) | `whatsappLink()` في `app.js` | تبديل صيغة الرابط أو فتح تطبيق آخر | 15 دقيقة | لا شيء |
+| WhatsApp Cloud API | `WhatsApp.gs` وحده (`whatsappNotify_`) | إرجاع `WHATSAPP_MODE=off` (يعود الرابط اليدوي فورًا) أو استبداله بمزوّد BSP بنفس الواجهة | 30 دقيقة | الإشعارات الآلية فقط؛ الحجز لا يتأثر |
 
 ## خطوات الانتقال الآمنة
 

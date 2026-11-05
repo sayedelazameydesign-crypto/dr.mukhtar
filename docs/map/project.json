@@ -868,6 +868,39 @@
       "lang": "env",
       "layer": "infra",
       "role": "Variable name: gated first-run Pages creation"
+    }
+    ,
+    {
+      "id": "backend.whatsapp",
+      "kind": "module",
+      "path": "WhatsApp.gs",
+      "lang": "gs",
+      "layer": "domain",
+      "role": "WhatsApp adapter; off by default, dry-run sends nothing, notify never throws"
+    },
+    {
+      "id": "env.WHATSAPP_MODE",
+      "kind": "env",
+      "path": ".env.example:50",
+      "lang": "env",
+      "layer": "infra",
+      "role": "off | dry-run | live; default off, never needed by CI"
+    },
+    {
+      "id": "env.WHATSAPP_TOKEN",
+      "kind": "env",
+      "path": ".env.example:51",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Secret name only: Meta runtime token, never used by CI"
+    },
+    {
+      "id": "env.WHATSAPP_PHONE_NUMBER_ID",
+      "kind": "env",
+      "path": ".env.example:52",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Provider phone id, used only inside WhatsApp.gs"
     },
     {
       "id": "tool.enable-pages",

@@ -114,6 +114,11 @@ jobs:
       - name: LLM adapter + config tests
         run: node scripts/test-llm-adapter.js
 
+      # WhatsApp is off by default: this suite proves off/dry-run perform no network call and
+      # that a notification failure can never reach the booking path.
+      - name: WhatsApp adapter (off / dry-run, no network)
+        run: node scripts/test-whatsapp-adapter.js
+
       - name: Google bridge (offline, local adapter)
         run: |
           node scripts/test-google-bridge.js
