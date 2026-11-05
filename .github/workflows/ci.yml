@@ -60,6 +60,9 @@ jobs:
       - name: Python syntax gate
         run: python3 -m py_compile scripts/build-gas-package.py scripts/preview.py
 
+      - name: Settings parity (live catalog vs demo mirror)
+        run: node scripts/check-settings-parity.js
+
       - name: Backend simulation tests
         run: node scripts/test-gas-simulated.js
 
