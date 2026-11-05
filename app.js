@@ -26,12 +26,16 @@
   };
 
   const DEMO_PIN = '2468';
+  const DEMO_PIN_KEY = 'celia-kids-staff-pin-v1';
   const FALLBACK_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00'];
   const WORK_DAYS = [0, 1, 2, 3, 4];
   // One source of truth for visit duration — the site, the demo backend and the
   // copy all read this table (Code.gs visitDuration_ is the live equivalent).
+  // Rebuilt from the clinic's configured services (settings), never hardcoded in markup.
   const VISIT_MINUTES = { 'كشف جديد': 60, 'متابعة': 30 };
-  const visitMinutes = (type) => VISIT_MINUTES[type] || VISIT_MINUTES['كشف جديد'];
+  let SERVICES = [{ label: 'كشف جديد', minutes: 60 }, { label: 'متابعة', minutes: 30 }];
+  const visitMinutes = (type) => VISIT_MINUTES[type]
+    || (SERVICES[0] && SERVICES[0].minutes) || 60;
   const arabicDigits = (value) => String(value).replace(/[0-9]/g, (digit) => '٠١٢٣٤٥٦٧٨٩'[Number(digit)]);
   const minutesLabel = (minutes) => `${arabicDigits(minutes)} دقيقة`;
   const statusText = {
@@ -89,6 +93,154 @@
     toast.timer = setTimeout(() => node.classList.remove('show'), 3600);
   }
 
+  /* ---------------- staff credentials ---------------- */
+  // The PIN is never stored in clear text: the browser keeps a SHA-256 hash and
+  // sends the hash, exactly like the Apps Script backend (Settings.gs).
+  async function sha256Hex(text) {
+    const value = String(text || '');
+    // TextEncoder is looked up globally on purpose: jsdom and some older WebViews
+    // expose it there rather than on `window`.
+    const Encoder = (typeof TextEncoder !== 'undefined') ? TextEncoder : (window.TextEncoder || null);
+    if (window.crypto && window.crypto.subtle && Encoder) {
+      const digest = await window.crypto.subtle.digest('SHA-256', new Encoder().encode(value));
+      return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    // Fallback for non-secure contexts: a small synchronous SHA-256.
+    return sha256Fallback(value);
+  }
+  function sha256Fallback(text) {
+    const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+    const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    const Encoder = (typeof TextEncoder !== 'undefined') ? TextEncoder : (window.TextEncoder || null);
+    const bytes = Encoder
+      ? Array.from(new Encoder().encode(String(text)))
+      : Array.from(unescape(encodeURIComponent(String(text)))).map((ch) => ch.charCodeAt(0));
+    const bitLength = bytes.length * 8;
+    bytes.push(0x80);
+    while (bytes.length % 64 !== 56) bytes.push(0);
+    for (let i = 7; i >= 0; i -= 1) bytes.push((bitLength / Math.pow(2, 8 * i)) & 0xff);
+    const rot = (x, n) => ((x >>> n) | (x << (32 - n))) >>> 0;
+    for (let chunk = 0; chunk < bytes.length; chunk += 64) {
+      const w = new Array(64).fill(0);
+      for (let i = 0; i < 16; i += 1) w[i] = (bytes[chunk + i * 4] << 24) | (bytes[chunk + i * 4 + 1] << 16) | (bytes[chunk + i * 4 + 2] << 8) | bytes[chunk + i * 4 + 3];
+      for (let i = 16; i < 64; i += 1) {
+        const s0 = (rot(w[i - 15], 7) ^ rot(w[i - 15], 18) ^ (w[i - 15] >>> 3)) >>> 0;
+        const s1 = (rot(w[i - 2], 17) ^ rot(w[i - 2], 19) ^ (w[i - 2] >>> 10)) >>> 0;
+        w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+      }
+      let [a, b, c, d, e, f, g, h] = H;
+      for (let i = 0; i < 64; i += 1) {
+        const S1 = (rot(e, 6) ^ rot(e, 11) ^ rot(e, 25)) >>> 0;
+        const ch = ((e & f) ^ (~e & g)) >>> 0;
+        const t1 = (h + S1 + ch + K[i] + w[i]) >>> 0;
+        const S0 = (rot(a, 2) ^ rot(a, 13) ^ rot(a, 22)) >>> 0;
+        const mj = ((a & b) ^ (a & c) ^ (b & c)) >>> 0;
+        const t2 = (S0 + mj) >>> 0;
+        h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+      }
+      H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+      H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+    }
+    return H.map((x) => x.toString(16).padStart(8, '0')).join('');
+  }
+  function demoPinHash() {
+    try { return localStorage.getItem(DEMO_PIN_KEY) || ''; } catch (_) { return ''; }
+  }
+  let sessionHash = '';
+  // SHA-256 of the documented demo PIN, so the "temporary PIN" banner is exercised
+  // in the demo exactly as in a freshly initialised deployment.
+  const BOOTSTRAP_HASH = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
+  // Accepts the raw PIN (typed by the user) and turns it into the session hash.
+  async function staffSession(rawPin) {
+    const hash = await sha256Hex(rawPin);
+    sessionHash = hash;
+    return hash;
+  }
+  function configuredPinHash() { return demoPinHash(); }
+
+  /* ---------------- settings catalog (demo mirror) ---------------- */
+  // In the live deployment the catalog comes from getClinicSettings (Settings.gs).
+  // The demo keeps the same shape so the screen is identical, and a saved value
+  // behaves like the real one: it changes the page immediately.
+  const SETTINGS_KEY = 'celia-kids-settings-v1';
+  const DEMO_CATALOG = [
+    { group: 'clinic', title: 'هوية العيادة', help: 'تظهر أعلى الصفحة وفي نتائج البحث.', fields: [
+      { key: 'CLINIC_NAME', label: 'اسم العيادة', type: 'text', max: 60, required: true, help: 'كما يظهر لولي الأمر' },
+      { key: 'CLINIC_PHONE', label: 'هاتف العيادة', type: 'phone', max: 22, help: 'اتركوه فارغًا إن لم يكن هناك رقم معلن' },
+      { key: 'CLINIC_ADDRESS', label: 'العنوان', type: 'text', max: 120, help: 'العنوان الذي يظهر لولي الأمر' },
+      { key: 'CLINIC_TIMELINE', label: 'سطر تعريفي قصير', type: 'text', max: 80, help: 'مثال: نخدم أطفال الجيزة منذ ٢٠١٤' }
+    ] },
+    { group: 'doctor', title: 'هوية الطبيب', help: 'أي حقل فارغ يُعرض على الصفحة كـ«غير منشور».', fields: [
+      { key: 'DOCTOR_NAME', label: 'الاسم واللقب العلمي', type: 'text', max: 80 },
+      { key: 'DOCTOR_TITLE', label: 'اللقب الوظيفي', type: 'text', max: 80, help: 'مثال: استشاري طب الأطفال وحديثي الولادة' },
+      { key: 'DOCTOR_SUBSPECIALTY', label: 'التخصص الدقيق', type: 'text', max: 80 },
+      { key: 'DOCTOR_LICENSE', label: 'رقم ترخيص مزاولة المهنة', type: 'text', max: 40, help: 'عند تعبئته تختفي شارة «لم يُتحقق بعد»' }
+    ] },
+    { group: 'hours', title: 'الدوام والمواعيد', help: 'ساعات العرض على الصفحة تُبنى من هذه القيم.', fields: [
+      { key: 'WORK_DAYS', label: 'أيام العمل', type: 'weekdays', help: 'الأحد = ٠ … السبت = ٦' },
+      { key: 'WEEKEND_DAYS', label: 'أيام الإغلاق الأسبوعي', type: 'weekdays', help: 'لا تتقاطع مع أيام العمل' },
+      { key: 'WORK_START', label: 'بداية الدوام', type: 'time' },
+      { key: 'WORK_END', label: 'نهاية الدوام', type: 'time' },
+      { key: 'SLOT_MINUTES', label: 'الفاصل بين بدايات المواعيد', type: 'int', min: 5, max: 120, help: 'بالدقائق' }
+    ] },
+    { group: 'services', title: 'أنواع الزيارات ومدتها', help: 'تُبنى منها قائمة «نوع الزيارة» على الصفحة ومدة كل موعد.', fields: [
+      { key: 'VISIT_SERVICES', label: 'أنواع الزيارات', type: 'services', help: 'سطر لكل نوع بالصيغة: الاسم = المدة بالدقائق' }
+    ] },
+    { group: 'security', title: 'رمز الدخول', help: 'لا يُخزَّن الرمز كما هو: يُخزَّن بصمته فقط.', fields: [
+      { key: 'STAFF_PIN', label: 'رمز دخول جديد', type: 'pin', secret: true, help: '16 حرفًا على الأقل؛ لا يُعرض الرمز الحالي أبدًا' }
+    ] }
+  ];
+  const SETTINGS_DEFAULTS = {
+    CLINIC_NAME: 'Celia Kids', CLINIC_PHONE: '', CLINIC_ADDRESS: '', CLINIC_TIMELINE: '',
+    DOCTOR_NAME: '', DOCTOR_TITLE: '', DOCTOR_SUBSPECIALTY: '', DOCTOR_LICENSE: '',
+    WORK_DAYS: '0,1,2,3,4', WEEKEND_DAYS: '5,6', WORK_START: '09:00', WORK_END: '14:00', SLOT_MINUTES: '30',
+    VISIT_SERVICES: 'كشف جديد = 60\nمتابعة = 30'
+  };
+  function readSettingsStore() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      return Object.assign({}, SETTINGS_DEFAULTS, raw && typeof raw === 'object' ? raw : {});
+    } catch (_) { return Object.assign({}, SETTINGS_DEFAULTS); }
+  }
+  function writeSettingsStore(values) {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(values)); } catch (_) { /* private mode */ }
+  }
+  function parseServices(text) {
+    return String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+      const match = /^(.{1,40}?)\s*[=\-–—:]\s*(\d{1,3})$/.exec(line);
+      return match ? { label: match[1].trim(), minutes: Number(match[2]) } : null;
+    }).filter(Boolean);
+  }
+  function servicesFromSettings(values) {
+    const parsed = parseServices(values.VISIT_SERVICES);
+    return parsed.length ? parsed : parseServices(SETTINGS_DEFAULTS.VISIT_SERVICES);
+  }
+  function formatServicesText(services) {
+    return services.map((item) => `${item.label} = ${item.minutes}`).join('\n');
+  }
+  function demoProfile() {
+    const values = readSettingsStore();
+    return {
+      ok: true,
+      name: values.CLINIC_NAME,
+      phone: values.CLINIC_PHONE,
+      address: values.CLINIC_ADDRESS,
+      license: values.DOCTOR_LICENSE,
+      licenseVerified: !!values.DOCTOR_LICENSE,
+      doctorName: values.DOCTOR_NAME,
+      doctorRole: values.DOCTOR_TITLE,
+      subspecialty: values.DOCTOR_SUBSPECIALTY,
+      timeline: values.CLINIC_TIMELINE,
+      services: servicesFromSettings(values),
+      hours: {
+        workDays: values.WORK_DAYS.split(',').filter(Boolean).map(Number),
+        weekendDays: values.WEEKEND_DAYS.split(',').filter(Boolean).map(Number),
+        start: values.WORK_START,
+        end: values.WORK_END
+      }
+    };
+  }
+
   /* ---------------- demo store ---------------- */
   function seedDemo() {
     try {
@@ -121,21 +273,30 @@
       } catch (error) { reject(error); }
     });
   }
+  function isStaffSession(pin) {
+    const configured = demoPinHash();
+    return !!configured && String(pin || '') === configured;
+  }
   async function api(method, ...args) {
     if (IS_GAS) return callServer(method, ...args);
+    if (method === 'getClinicProfile') { /* handled below, keep the demo honest */ }
+    if (method === 'getClinicProfile') return demoProfile();
     const store = demoStore();
     if (method === 'getAvailableSlots') {
       const day = args[0];
       // Work in whole minutes: `visitType` here is the *service* visit type.
-      const visitType = args[1] || 'كشف جديد';
+      const values = readSettingsStore();
+      const visitType = args[1] || servicesFromSettings(values)[0].label;
       const visitDuration = visitMinutes(visitType);
       if (store.closures.some((item) => item.day === day)) return { ok: true, slots: [] };
       const parts = String(day).split('-').map(Number);
       const weekday = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
-      if (!WORK_DAYS.includes(weekday)) return { ok: true, slots: [] };
-      const start = 9 * 60;
-      const end = 14 * 60;
-      const step = 30;
+      const workDays = values.WORK_DAYS.split(',').filter(Boolean).map(Number);
+      if (!workDays.includes(weekday)) return { ok: true, slots: [] };
+      const toMin = (t) => Number(String(t).split(':')[0]) * 60 + Number(String(t).split(':')[1]);
+      const start = toMin(values.WORK_START);
+      const end = toMin(values.WORK_END);
+      const step = Number(values.SLOT_MINUTES) || 30;
       const duration = visitDuration;
       const toTime = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
       const toMinutes = (time) => { const [h, m] = String(time).split(':').map(Number); return h * 60 + m; };
@@ -166,11 +327,11 @@
         : { ok: false, message: 'لم نعثر على طلب بهذا الرقم.' };
     }
     if (method === 'getDashboard') {
-      if (args[0] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      if (!isStaffSession(args[0])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       return { ok: true, bookings: store.bookings, closures: store.closures, warnings: [] };
     }
     if (method === 'approveRequest') {
-      if (args[1] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      if (!isStaffSession(args[1])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       const booking = store.bookings.find((item) => item.reference === args[0]);
       if (!booking || !['REQUESTED', 'PENDING_APPROVAL', 'RESCHEDULED'].includes(booking.status)) return { ok: false, message: 'تعذر اعتماد هذا الطلب.' };
       const collision = store.bookings.some((item) => item.reference !== booking.reference && item.day === booking.day && item.time === booking.time && item.status === 'CONFIRMED');
@@ -181,7 +342,7 @@
       return { ok: true, booking };
     }
     if (method === 'proposeAlternative') {
-      if (args[3] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      if (!isStaffSession(args[3])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       const booking = store.bookings.find((item) => item.reference === args[0]);
       const conflict = store.bookings.some((item) => item.reference !== args[0] && item.day === args[1] && item.time === args[2] && item.status === 'CONFIRMED');
       if (!booking || conflict) return { ok: false, message: conflict ? 'الوقت البديل مشغول.' : 'الطلب غير موجود.' };
@@ -190,7 +351,7 @@
       return { ok: true, booking };
     }
     if (method === 'cancelRequest') {
-      if (args[2] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      if (!isStaffSession(args[2])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       const booking = store.bookings.find((item) => item.reference === args[0]);
       if (!booking) return { ok: false, message: 'الطلب غير موجود.' };
       booking.status = 'CANCELLED'; booking.updatedAt = new Date().toISOString();
@@ -198,7 +359,7 @@
       return { ok: true, booking };
     }
     if (method === 'completeRequest') {
-      if (args[1] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      if (!isStaffSession(args[1])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       const booking = store.bookings.find((item) => item.reference === args[0]);
       if (!booking) return { ok: false, message: 'الطلب غير موجود.' };
       booking.status = 'COMPLETED'; booking.updatedAt = new Date().toISOString();
@@ -206,7 +367,7 @@
       return { ok: true, booking };
     }
     if (method === 'moveConfirmedAppointment') {
-      if (args[4] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      if (!isStaffSession(args[4])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       const booking = store.bookings.find((item) => item.reference === args[0]);
       const conflict = store.bookings.some((item) => item.reference !== args[0] && item.day === args[1] && item.time === args[2] && item.status === 'CONFIRMED');
       if (!booking || conflict) return { ok: false, message: conflict ? 'الوقت البديل مشغول.' : 'الطلب غير موجود.' };
@@ -215,17 +376,87 @@
       return { ok: true, booking };
     }
     if (method === 'closeDay') {
-      if (args[2] !== DEMO_PIN) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      if (!isStaffSession(args[2])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       if (!store.closures.some((item) => item.day === args[0])) store.closures.push({ day: args[0], label: args[1] || 'إغلاق يوم' });
       saveDemo(store);
       return { ok: true };
     }
-    if (method === 'getClinicProfile') {
-      // The demo build reports the same shape but no verified credential of any kind.
-      return {
-        ok: true, name: 'Celia Kids', phone: '', address: '', license: '', licenseVerified: false,
-        hours: { workDays: WORK_DAYS.slice(), weekendDays: [5, 6], start: '09:00', end: '14:00' }
-      };
+
+    if (method === 'getClinicSettings') {
+      if (!isStaffSession(args[0])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      const values = readSettingsStore();
+      const catalog = DEMO_CATALOG.map((group) => ({ group: group.group, title: group.title, help: group.help,
+        fields: group.fields.map((field) => Object.assign({}, field)) }));
+      return { ok: true, version: 1, catalog, values: Object.assign({}, values, { STAFF_PIN: '' }),
+        meta: { staffPinConfigured: !!demoPinHash(), staffPinHashed: true, minPinLength: 16, demo: true,
+          mustChangePin: demoPinHash() === BOOTSTRAP_HASH } };
+    }
+    if (method === 'saveClinicSettings') {
+      if (!isStaffSession(args[1])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      const payload = args[0] || {};
+      const input = payload.values || {};
+      const known = {};
+      DEMO_CATALOG.forEach((group) => group.fields.forEach((field) => { known[field.key] = field; }));
+      const unknown = Object.keys(input).filter((key) => !known[key]);
+      if (unknown.length) return { ok: false, message: 'حقول غير معروفة: ' + unknown.join(', ') };
+      const values = readSettingsStore();
+      const problems = [];
+      Object.keys(input).forEach((key) => {
+        const field = known[key];
+        const raw = String(input[key] === null || input[key] === undefined ? '' : input[key]).trim();
+        if (field.type === 'pin') { problems.push('تغيير الرمز له مسار منفصل.'); return; }
+        if (field.type === 'text' || field.type === 'phone') {
+          if (!raw && field.required) problems.push(field.label + ' مطلوب.');
+          else if (raw.length > (field.max || 80)) problems.push(field.label + ' أطول من المسموح.');
+          values[key] = field.type === 'phone' ? raw.replace(/[^0-9+]/g, '') : raw;
+          return;
+        }
+        if (field.type === 'time') { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(raw)) problems.push(field.label + ' يجب أن تكون بصيغة HH:MM.'); else values[key] = raw; return; }
+        if (field.type === 'int') {
+          const number = Number(raw);
+          if (!Number.isInteger(number) || number < (field.min || 1) || number > (field.max || 999)) problems.push(field.label + ' يجب أن يكون رقمًا بين ' + (field.min || 1) + ' و' + (field.max || 999) + '.');
+          else values[key] = String(number);
+          return;
+        }
+        if (field.type === 'weekdays') { values[key] = raw.split(',').map((v) => Number(v.trim())).filter((v) => Number.isInteger(v) && v >= 0 && v <= 6).sort().join(','); return; }
+        if (field.type === 'services') {
+          const parsed = parseServices(raw);
+          if (!parsed.length) problems.push('أضيفوا نوع زيارة واحدًا على الأقل بالصيغة: الاسم = المدة.');
+          else if (parsed.some((item) => item.minutes < 5 || item.minutes > 240)) problems.push('مدة الزيارة يجب أن تكون بين ٥ و٢٤٠ دقيقة.');
+          else values[key] = formatServicesText(parsed);
+          return;
+        }
+      });
+      if (problems.length) return { ok: false, message: problems.join(' ') };
+      const start = values.WORK_START; const end = values.WORK_END;
+      const toMinutes = (t) => Number(t.split(':')[0]) * 60 + Number(t.split(':')[1]);
+      if (toMinutes(start) >= toMinutes(end)) return { ok: false, message: 'بداية الدوام يجب أن تسبق نهايته.' };
+      const work = values.WORK_DAYS.split(',').filter(Boolean);
+      if (!work.length) return { ok: false, message: 'اختاروا يوم عمل واحدًا على الأقل.' };
+      const overlap = work.filter((day) => values.WEEKEND_DAYS.split(',').includes(day));
+      if (overlap.length) return { ok: false, message: 'أيام العمل وأيام الإغلاق تتقاطع.' };
+      const longest = servicesFromSettings(values).reduce((max, item) => Math.max(max, item.minutes), 0);
+      if (longest > toMinutes(end) - toMinutes(start)) return { ok: false, message: 'أطول زيارة أطول من نافذة الدوام.' };
+      writeSettingsStore(values);
+      applyClinicProfile(demoProfile());
+      refreshVisitTypes();
+      return { ok: true, saved: Object.keys(input), warning: '', settings: null };
+    }
+    if (method === 'saveStaffPin') {
+      if (!isStaffSession(args[2])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      if (!isStaffSession(args[0])) return { ok: false, message: 'الرمز الحالي غير صحيح.' };
+      const next = String(args[1] || '');
+      if (next.length < 16) return { ok: false, message: 'الرمز الجديد يجب أن يكون 16 حرفًا على الأقل.' };
+      try { localStorage.setItem(DEMO_PIN_KEY, next); } catch (_) { return { ok: false, message: 'تعذر حفظ الرمز في هذا المتصفح.' }; }
+      return { ok: true, warning: '' };
+    }
+    if (method === 'resetClinicSettings') {
+      if (!isStaffSession(args[1])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      const values = Object.assign({}, SETTINGS_DEFAULTS);
+      writeSettingsStore(values);
+      applyClinicProfile(demoProfile());
+      refreshVisitTypes();
+      return { ok: true, settings: null };
     }
     if (method === 'askGeneralQuestion') {
       return { ok: true, answer: 'هذا وضع عرض تجريبي بلا مساعد حقيقي: فريق العيادة هو من يجيب عن خطوات الحجز وتعديل الطلب. لا تُقدَّم هنا معلومات طبية ولا تشخيص.' };
@@ -328,6 +559,8 @@
     if (profile.doctorRole) setFact('doctorRole', profile.doctorRole);
     if (profile.subspecialty) setFact('subspecialty', profile.subspecialty);
     if (profile.hours) setFact('hours', typeof profile.hours === 'string' ? profile.hours : formatHours(profile.hours));
+    if (profile.name) setFact('clinicName', profile.name);
+    if (profile.timeline) setFact('timeline', profile.timeline);
     // The licence is a regulated credential: show it only when the clinic set it,
     // and say so plainly when it is still unverified.
     setLicence(profile.license, !!profile.licenseVerified);
@@ -351,6 +584,292 @@
       const profile = await api('getClinicProfile');
       applyClinicProfile(profile);
     } catch (_) { /* placeholders stay; they never claim facts */ }
+  }
+
+  /* ---------------- visit types (from settings) ---------------- */
+  function renderVisitTypes() {
+    const grid = $('.choice-grid');
+    const form = $('#bookingForm');
+    if (!grid || !form || !form.elements.visitType) return;
+    const current = form.elements.visitType.value;
+    grid.replaceChildren();
+    SERVICES.forEach((service, index) => {
+      VISIT_MINUTES[service.label] = service.minutes;
+      const card = document.createElement('label');
+      card.className = 'choice-card';
+      card.dataset.choice = `service-${index}`;
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'visitType';
+      input.value = service.label;
+      input.checked = service.label === current || (!current && index === 0);
+      const icon = document.createElement('span');
+      icon.className = 'choice-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.innerHTML = `<svg><use href="#${index === 1 ? 'i-visit' : 'i-steth'}"/></svg>`;
+      const text = document.createElement('span');
+      text.className = 'choice-text';
+      const strong = document.createElement('strong');
+      strong.textContent = service.label;
+      const small = document.createElement('small');
+      small.textContent = `${minutesLabel(service.minutes)} للزيارة`;
+      text.append(strong, small);
+      const radio = document.createElement('span');
+      radio.className = 'radio-indicator';
+      radio.setAttribute('aria-hidden', 'true');
+      card.append(input, icon, text, radio);
+      card.classList.toggle('selected', input.checked);
+      grid.appendChild(card);
+    });
+    syncSummary();
+    syncProgress();
+  }
+  function applyServices(services) {
+    if (!Array.isArray(services) || !services.length) return;
+    SERVICES = services
+      .map((item) => ({ label: String(item.label || '').trim(), minutes: Number(item.minutes) }))
+      .filter((item) => item.label && Number.isFinite(item.minutes) && item.minutes > 0);
+    if (!SERVICES.length) return;
+    Object.keys(VISIT_MINUTES).forEach((key) => { delete VISIT_MINUTES[key]; });
+    SERVICES.forEach((item) => { VISIT_MINUTES[item.label] = item.minutes; });
+    renderVisitTypes();
+  }
+  async function refreshVisitTypes() {
+    try {
+      const profile = IS_GAS ? await api('getClinicProfile') : demoProfile();
+      if (profile && profile.ok) { applyClinicProfile(profile); if (profile.services) applyServices(profile.services); }
+    } catch (_) { /* keep the last known services */ }
+  }
+
+  /* ---------------- settings screen (catalog-driven) ---------------- */
+  const DAY_NAMES = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const settingsState = { catalog: [], values: {}, meta: {}, group: 'clinic', loaded: false, busy: false };
+
+  function settingsFieldNode(field, value) {
+    const wrap = document.createElement('label');
+    wrap.className = 'settings-field';
+    wrap.dataset.key = field.key;
+    const label = document.createElement('span');
+    label.className = 'settings-label';
+    label.textContent = field.label;
+    wrap.appendChild(label);
+    let input;
+    if (field.type === 'weekdays') {
+      input = document.createElement('div');
+      input.className = 'weekday-picker';
+      const selected = String(value || '').split(',').filter(Boolean);
+      DAY_NAMES.forEach((name, index) => {
+        const chip = document.createElement('label');
+        chip.className = 'weekday-chip';
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.value = String(index);
+        box.checked = selected.includes(String(index));
+        const text = document.createElement('span');
+        text.textContent = name;
+        chip.append(box, text);
+        input.appendChild(chip);
+      });
+    } else if (field.type === 'services') {
+      input = document.createElement('textarea');
+      input.rows = 4;
+      input.value = value || '';
+      input.placeholder = 'كشف جديد = 60';
+      input.spellcheck = false;
+    } else if (field.type === 'pin') {
+      input = document.createElement('input');
+      input.type = 'password';
+      input.autocomplete = 'new-password';
+      input.minLength = 16;
+      input.placeholder = 'اتركوه فارغًا للإبقاء على الرمز الحالي';
+    } else {
+      input = document.createElement('input');
+      input.type = field.type === 'time' ? 'time' : field.type === 'int' ? 'number' : field.type === 'phone' ? 'tel' : 'text';
+      if (field.type === 'int') { input.min = field.min || 1; input.max = field.max || 999; input.step = 1; }
+      if (field.max) input.maxLength = field.max;
+      input.value = value || '';
+      if (field.type === 'phone' || field.type === 'time') input.dir = 'ltr';
+    }
+    input.id = `setting-${field.key}`;
+    input.name = field.key;
+    if (field.required) input.required = true;
+    wrap.appendChild(input);
+    if (field.help) {
+      const help = document.createElement('span');
+      help.className = 'settings-help';
+      help.textContent = field.help;
+      wrap.appendChild(help);
+    }
+    if (field.type === 'pin') {
+      const extra = document.createElement('div');
+      extra.className = 'settings-field settings-field-inline';
+      const extraLabel = document.createElement('span');
+      extraLabel.className = 'settings-label';
+      extraLabel.textContent = 'الرمز الحالي (مطلوب للتغيير)';
+      const current = document.createElement('input');
+      current.type = 'password';
+      current.id = 'setting-CURRENT_PIN';
+      current.autocomplete = 'current-password';
+      const help = document.createElement('span');
+      help.className = 'settings-help';
+      help.textContent = 'لا يمكن قراءة الرمز الحالي من الواجهة؛ يُطلب للتأكد قبل التغيير.';
+      extra.append(extraLabel, current, help);
+      wrap.dataset.pin = 'true';
+      wrap.appendChild(extra);
+    }
+    return wrap;
+  }
+
+  function renderSettingsGroup(groupKey) {
+    settingsState.group = groupKey;
+    $$('#settingsGroups .settings-group').forEach((chip) => {
+      const active = chip.dataset.group === groupKey;
+      chip.classList.toggle('active', active);
+      if (active) chip.setAttribute('aria-current', 'true'); else chip.removeAttribute('aria-current');
+    });
+    const group = settingsState.catalog.find((item) => item.group === groupKey);
+    const fields = $('#settingsFields');
+    if (!group || !fields) return;
+    fields.replaceChildren();
+    const head = document.createElement('p');
+    head.className = 'settings-group-help';
+    head.textContent = group.help || '';
+    fields.appendChild(head);
+    group.fields.forEach((field) => fields.appendChild(settingsFieldNode(field, settingsState.values[field.key])));
+    const form = $('#settingsForm');
+    if (form) form.hidden = false;
+    hideSettingsMessages();
+  }
+  function hideSettingsMessages() {
+    const error = $('#settingsError');
+    if (error) { error.hidden = true; error.textContent = ''; }
+    const saved = $('#settingsSaved');
+    if (saved) saved.hidden = true;
+  }
+  function renderSettings(payload) {
+    settingsState.catalog = payload.catalog || [];
+    settingsState.values = payload.values || {};
+    settingsState.meta = payload.meta || {};
+    settingsState.loaded = true;
+    const container = $('#settingsGroups');
+    if (!container) return;
+    container.replaceChildren();
+    settingsState.catalog.forEach((group) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'settings-group';
+      chip.dataset.group = group.group;
+      chip.textContent = group.title;
+      chip.addEventListener('click', () => renderSettingsGroup(group.group));
+      container.appendChild(chip);
+    });
+    const version = $('#settingsVersion');
+    if (version) version.textContent = settingsState.meta.demo ? 'وضع تجريبي' : 'مرتبط بالعيادة';
+    showPinBanner(!!settingsState.meta.mustChangePin);
+    renderSettingsGroup(settingsState.group);
+  }
+  function readSettingsForm() {
+    const values = {};
+    const fields = $('#settingsFields');
+    if (!fields) return values;
+    settingsState.catalog.forEach((group) => group.fields.forEach((field) => {
+      const node = fields.querySelector(`#setting-${field.key}`);
+      if (!node) return;
+      if (field.type === 'weekdays') {
+        values[field.key] = Array.from(node.querySelectorAll('input[type="checkbox"]'))
+          .filter((box) => box.checked).map((box) => Number(box.value)).sort((a, b) => a - b).join(',');
+        return;
+      }
+      values[field.key] = node.value;
+    }));
+    return values;
+  }
+  async function saveSettings(event) {
+    event.preventDefault();
+    if (settingsState.busy) return;
+    const values = readSettingsForm();
+    const pinField = values.STAFF_PIN;
+    const currentPin = ($('#setting-CURRENT_PIN') || {}).value || '';
+    delete values.STAFF_PIN;
+    settingsState.busy = true;
+    const button = $('#settingsSave');
+    if (button) { button.disabled = true; button.textContent = 'جارٍ الحفظ…'; }
+    hideSettingsMessages();
+    try {
+      if (pinField) {
+        if (pinField.length < 16) throw new Error('الرمز الجديد يجب أن يكون 16 حرفًا على الأقل.');
+        const newHash = await sha256Hex(pinField);
+        const currentHash = currentPin ? await sha256Hex(currentPin) : '';
+        const result = await api('saveStaffPin', currentHash, newHash, state.staffPin);
+        if (!result || !result.ok) throw new Error(result && result.message ? result.message : 'تعذر تغيير الرمز.');
+        state.staffPin = newHash;
+        sessionHash = newHash;
+        showPinBanner(false);
+      }
+      const result = await api('saveClinicSettings', { values, reason: ($('#settingsReason') || {}).value || '' }, state.staffPin);
+      if (!result || !result.ok) throw new Error(result && result.message ? result.message : 'تعذر حفظ الإعدادات.');
+      await refreshVisitTypes();
+      const reload = await api('getClinicSettings', state.staffPin);
+      if (reload && reload.ok) renderSettings(reload);
+      const saved = $('#settingsSaved');
+      if (saved) { saved.hidden = false; saved.textContent = result.warning || 'تم الحفظ وتطبيقه على الصفحة.'; }
+      const reason = $('#settingsReason');
+      if (reason) reason.value = '';
+      toast(result.warning || 'تم حفظ الإعدادات وتطبيقها.');
+    } catch (error) {
+      const box = $('#settingsError');
+      if (box) { box.textContent = error.message; box.hidden = false; }
+    } finally {
+      settingsState.busy = false;
+      if (button) { button.disabled = false; button.textContent = 'حفظ التغييرات'; }
+    }
+  }
+  async function resetGroup() {
+    const group = settingsState.catalog.find((item) => item.group === settingsState.group);
+    if (!group) return;
+    if (!window.confirm(`استعادة القيم الافتراضية لمجموعة «${group.title}»؟`)) return;
+    hideSettingsMessages();
+    try {
+      const result = await api('resetClinicSettings', settingsState.group, state.staffPin);
+      if (!result || !result.ok) throw new Error(result && result.message ? result.message : 'تعذرت الاستعادة.');
+      await refreshVisitTypes();
+      const reload = await api('getClinicSettings', state.staffPin);
+      if (reload && reload.ok) renderSettings(reload);
+      toast(result.warning || 'تمت استعادة القيم الافتراضية.');
+    } catch (error) {
+      const box = $('#settingsError');
+      if (box) { box.textContent = error.message; box.hidden = false; }
+    }
+  }
+  async function openSettings() {
+    if (!settingsState.loaded) {
+      const result = await api('getClinicSettings', state.staffPin);
+      if (!result || !result.ok) {
+        const container = $('#settingsGroups');
+        if (container) container.innerHTML = '<p class="settings-loading">تعذر تحميل الإعدادات. أعد تحميل الصفحة أو أعد الدخول.</p>';
+        return;
+      }
+      renderSettings(result);
+      return;
+    }
+    const result = await api('getClinicSettings', state.staffPin);
+    if (result && result.ok) renderSettings(result);
+  }
+  function showPinBanner(show) {
+    const banner = $('#pinBanner');
+    if (banner) banner.hidden = !show;
+  }
+  function setStaffTab(tab) {
+    const board = $('#staffBoard');
+    const settings = $('#staffSettings');
+    if (board) board.hidden = tab !== 'board';
+    if (settings) settings.hidden = tab !== 'settings';
+    $$('[data-staff-tab]').forEach((button) => {
+      const active = button.dataset.staffTab === tab;
+      button.classList.toggle('active', active);
+      if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+    });
+    if (tab === 'settings') openSettings();
   }
 
   /* ---------------- progress + summary ---------------- */
@@ -679,12 +1198,19 @@
 
   async function loginStaff(event) {
     event.preventDefault();
-    const pin = $('#staffPin').value.trim();
+    const typed = $('#staffPin').value.trim();
     $('#staffLoginError').hidden = true;
     try {
+      // The browser sends the hash, never the PIN itself (matches Settings.gs).
+      if (!IS_GAS && !demoPinHash()) {
+        // First run of the demo: the documented demo PIN becomes the initial hash.
+        try { localStorage.setItem(DEMO_PIN_KEY, await sha256Hex(DEMO_PIN)); } catch (_) { /* private mode */ }
+      }
+      const pin = await sha256Hex(typed);
       const response = await api('getDashboard', pin);
       if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر فتح لوحة الموظف.');
       state.staffPin = pin;
+      sessionHash = pin;
       $('#staffLogin').hidden = true;
       $('#staffDashboard').hidden = false;
       renderDashboard(response);
@@ -837,6 +1363,17 @@
     $('#weekList').addEventListener('click', (event) => { const button = event.target.closest('[data-action]'); if (button) staffAction(button); });
     $('#closureForm').addEventListener('submit', closeDay);
     $('#faqForm').addEventListener('submit', askQuestion);
+    $$('[data-staff-tab]').forEach((button) => button.addEventListener('click', () => setStaffTab(button.dataset.staffTab)));
+    if ($('#settingsForm')) $('#settingsForm').addEventListener('submit', saveSettings);
+    if ($('#settingsCancel')) $('#settingsCancel').addEventListener('click', () => renderSettingsGroup(settingsState.group));
+    if ($('#settingsReset')) $('#settingsReset').addEventListener('click', resetGroup);
+    if ($('#pinBannerGo')) $('#pinBannerGo').addEventListener('click', () => {
+      setStaffTab('settings');
+      const group = settingsState.catalog.find((item) => item.group === 'security');
+      if (group) renderSettingsGroup('security');
+      const field = $('#setting-STAFF_PIN');
+      if (field) field.focus();
+    });
     $('#trackReference').addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden && state.view === 'staff' && state.staffPin) refreshDashboard(); });
 
@@ -848,6 +1385,12 @@
       // Honest defaults first (no credential implied), then the clinic's own facts.
       setLicence(CLINIC_FALLBACK.license, false);
       setFact('hours', formatHours(CLINIC_FALLBACK.hours));
+      if (!IS_GAS) {
+        // Demo: the page reflects the values saved in the settings screen.
+        const demo = demoProfile();
+        applyClinicProfile(demo);
+        applyServices(demo.services);
+      }
       syncSummary();
       syncProgress();
       loadAvailability(state.selectedDay);

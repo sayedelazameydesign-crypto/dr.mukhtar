@@ -51,7 +51,7 @@ jobs:
       - name: Syntax gate (JS)
         run: |
           node --check app.js
-          node -e "new Function(require('fs').readFileSync('Code.gs','utf8')); new Function(require('fs').readFileSync('Llm.gs','utf8')); console.log('Apps Script sources parse');"
+          node -e "['Code.gs','Llm.gs','Settings.gs'].forEach((f)=>new Function(require('fs').readFileSync(f,'utf8'))); console.log('Apps Script sources parse');"
 
       - name: Python syntax gate
         run: python3 -m py_compile scripts/build-gas-package.py scripts/preview.py
@@ -86,7 +86,7 @@ jobs:
 
       - name: Bundle self-containment guard
         run: |
-          test -f gas/Index.html && test -f gas/Fonts.html && test -f gas/Llm.gs
+          test -f gas/Index.html && test -f gas/Fonts.html && test -f gas/Llm.gs && test -f gas/Settings.gs
           if grep -rn "http://localhost\|127.0.0.1\|fonts.googleapis\|fonts.gstatic\|<script src=\"\./app\.js\"" gas/Index.html; then
             echo "::error::GAS bundle must not reference local preview assets or external font CDNs."
             exit 1

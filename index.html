@@ -77,7 +77,7 @@
     <div class="topbar-inner">
       <a class="brand" href="#top" aria-label="Celia Kids — عيادة أطفال">
         <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><use href="#i-mark"/></svg></span>
-        <span class="brand-text"><strong>Celia Kids</strong><small>عيادة أطفال · طلب المواعيد</small></span>
+        <span class="brand-text"><strong data-config="clinicName">Celia Kids</strong><small>عيادة أطفال · طلب المواعيد</small></span>
       </a>
       <nav class="top-nav" aria-label="أقسام الصفحة">
         <a class="nav-button" href="#bookingView" data-view="booking">طلب موعد</a>
@@ -108,7 +108,7 @@
             <li><svg aria-hidden="true"><use href="#i-check"/></svg> تأكيد من العيادة قبل الموعد</li>
             <li><svg aria-hidden="true"><use href="#i-calendar"/></svg> متوافق مع تقويم الطبيب</li>
             <li><svg aria-hidden="true"><use href="#i-shield"/></svg> النموذج لا يجمع بيانات طبية</li>
-            <li><svg aria-hidden="true"><use href="#i-clock"/></svg> الزيارة الأولى ٦٠ دقيقة والمتابعة ٣٠</li>
+            <li><svg aria-hidden="true"><use href="#i-clock"/></svg> مدة الزيارة تظهر قبل الحجز</li>
           </ul>
         </div>
 
@@ -340,6 +340,17 @@
 
         <div id="staffDashboard" hidden>
           <div id="staffAlerts" class="staff-alerts" hidden></div>
+          <div id="pinBanner" class="pin-banner" hidden role="status">
+            <svg aria-hidden="true"><use href="#i-alert"/></svg>
+            <p><strong>الرمز الحالي مؤقت.</strong> غيّروه الآن من «إعدادات العيادة ← رمز الدخول» حتى لا يبقى رمز التهيئة معروفًا.</p>
+            <button type="button" class="secondary-button" id="pinBannerGo">اذهب إلى رمز الدخول</button>
+          </div>
+          <nav class="staff-tabs" aria-label="أقسام لوحة العيادة">
+            <button type="button" class="staff-tab active" data-staff-tab="board" aria-current="page">الطلبات والجدول</button>
+            <button type="button" class="staff-tab" data-staff-tab="settings">إعدادات العيادة</button>
+          </nav>
+
+          <div id="staffBoard" class="staff-panel">
           <div id="dashboardStats" class="stats-grid"></div>
           <div class="dashboard-columns">
             <section class="dashboard-card">
@@ -360,6 +371,33 @@
             </form>
             <p class="privacy-reminder">تذكير: استخدموا بيانات وهمية في العروض التجريبية. لا تؤكدوا موعدًا قبل التحقق من الجدول وحفظه في التقويم.</p>
           </section>
+          </div>
+
+          <!-- Settings are rendered from the server-side catalog (Settings.gs):
+               adding a field there is the only change needed to grow this screen. -->
+          <div id="staffSettings" class="staff-panel" hidden>
+            <section class="dashboard-card settings-card">
+              <div class="dashboard-title">
+                <div><p class="section-kicker">بدون برمجة</p><h3>إعدادات العيادة</h3></div>
+                <span class="settings-version" id="settingsVersion">—</span>
+              </div>
+              <p class="settings-intro">كل ما يظهر على الصفحة يُدار من هنا: هوية العيادة والطبيب، ساعات الدوام، أنواع الزيارات ومدتها. تُطبَّق التغييرات فور الحفظ دون إعادة نشر. الحقول السرية (مفاتيح الخدمات ومعرّفات الأنظمة) لا تظهر هنا إطلاقًا.</p>
+              <div id="settingsGroups" class="settings-groups" aria-live="polite">
+                <p class="settings-loading">جارٍ تحميل الإعدادات…</p>
+              </div>
+              <form id="settingsForm" class="settings-form" hidden>
+                <div id="settingsFields" class="settings-fields"></div>
+                <label class="settings-reason"><span>سبب التعديل (اختياري، يظهر في سجل التدقيق)</span><input id="settingsReason" type="text" maxlength="60" placeholder="مثال: تحديث رقم الهاتف"></label>
+                <div class="settings-actions">
+                  <button class="primary-button" type="submit" id="settingsSave">حفظ التغييرات</button>
+                  <button class="secondary-button" type="button" id="settingsCancel">إلغاء</button>
+                  <button class="link-button" type="button" id="settingsReset">استعادة الافتراضي لهذه المجموعة</button>
+                </div>
+                <p id="settingsError" class="inline-error" hidden></p>
+              </form>
+              <p id="settingsSaved" class="settings-saved" hidden>تم الحفظ وتطبيقه على الصفحة.</p>
+            </section>
+          </div>
         </div>
       </section>
     </div>
@@ -369,7 +407,7 @@
     <div class="app-shell footer-inner">
       <div class="footer-brand">
         <span class="footer-mark" aria-hidden="true"><svg><use href="#i-mark"/></svg></span>
-        <div><strong>Celia Kids — عيادة أطفال</strong><small>طلب مواعيد مع تأكيد من العيادة</small></div>
+        <div><strong><span data-config="clinicName">Celia Kids</span> — عيادة أطفال</strong><small>طلب مواعيد مع تأكيد من العيادة</small></div>
       </div>
       <p class="footer-note">هذه الصفحة لطلب المواعيد غير العاجلة. في الحالات الطارئة اتصلوا بخدمات الطوارئ المحلية (١٢٣ — الإسعاف في مصر) فورًا.</p>
       <div class="footer-links">

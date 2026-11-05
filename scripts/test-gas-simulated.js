@@ -85,9 +85,14 @@ class FakeCalendar {
   getEventById(id) { return this.events.find((event) => event.id === id && !event.deleted) || null; }
 }
 
+// The real deployment stores a SHA-256 hash and the browser sends the same hash.
+const crypto = require('node:crypto');
+const staffPinFixture = 'fake-admin-secret-32-characters-long';
+function hashPin(pin) { return crypto.createHash('sha256').update(String(pin)).digest('hex'); }
+const staffHash = hashPin(staffPinFixture);
 const propertyValues = new Map([
   ['CELIA_SHEET_ID', 'fake-sheet'], ['CALENDAR_ID', 'primary'],
-  ['ADMIN_PIN', 'fake-admin-secret-32-characters-long'], ['TIMEZONE', 'Africa/Cairo'],
+  ['ADMIN_PIN_HASH', hashPin(staffPinFixture)], ['TIMEZONE', 'Africa/Cairo'],
   ['WORK_START', '09:00'], ['WORK_END', '14:00'], ['SLOT_MINUTES', '30'],
   ['NEW_VISIT_MINUTES', '60'], ['FOLLOWUP_MINUTES', '30'], ['WORK_DAYS', '0,1,2,3,4']
 ]);
@@ -131,7 +136,25 @@ const context = {
     getCalendarById() { return calendarUp ? calendar : null; }
   },
   Session: { getScriptTimeZone: () => 'Africa/Cairo' },
+  CacheService: {
+    getScriptCache() {
+      const store = new Map();
+      return {
+        get: (key) => (store.has(key) ? store.get(key) : null),
+        put: (key, value) => { store.set(key, value); },
+        remove: (key) => { store.delete(key); },
+        removeAll: (keys) => { (keys || []).forEach((key) => store.delete(key)); }
+      };
+    }
+  },
   Utilities: {
+    computeDigest(algorithm, text) {
+      const name = algorithm === 'SHA_256' || algorithm === 1 || algorithm === 'SHA-256' ? 'sha256' : 'sha256';
+      return Array.from(crypto.createHash(name).update(String(text), 'utf8').digest())
+        .map((byte) => (byte > 127 ? byte - 256 : byte));
+    },
+    DigestAlgorithm: { SHA_256: 'SHA_256' },
+    Charset: { UTF_8: 'UTF_8' },
     getUuid() { return `00000000-0000-4000-8000-${String(uuidSequence++).padStart(12, '0')}`; },
     formatDate(date, timezone, pattern) {
       const p = dateParts(date, timezone);
@@ -144,9 +167,18 @@ const context = {
 };
 
 vm.createContext(context);
-const backendPath = ['gas/Code.gs', 'Code.gs'].find((candidate) => fs.existsSync(candidate));
-if (!backendPath) throw new Error('Apps Script backend not found (gas/Code.gs or Code.gs)');
-vm.runInContext(fs.readFileSync(backendPath, 'utf8'), context, { filename: backendPath });
+// Apps Script concatenates every .gs file into one global scope; the offline test
+// must reproduce that, including Settings.gs and Llm.gs.
+const BACKEND_FILES = ['Code.gs', 'Settings.gs', 'Llm.gs'];
+BACKEND_FILES.forEach((file) => {
+  const target = ['gas/' + file, file].find((candidate) => fs.existsSync(candidate));
+  if (!target) {
+    if (file === 'Code.gs') throw new Error('Apps Script backend not found (gas/Code.gs or Code.gs)');
+    if (file === 'Llm.gs') throw new Error('Llm.gs not found; it is part of the Apps Script bundle');
+    return; // Settings.gs is optional in very old checkouts
+  }
+  vm.runInContext(fs.readFileSync(target, 'utf8'), context, { filename: target });
+});
 
 function nextWorkday() {
   const date = new Date(); date.setHours(12, 0, 0, 0);
@@ -157,10 +189,12 @@ function nextWorkday() {
   throw new Error('Could not find a future workday');
 }
 const day = nextWorkday();
-const pin = propertyValues.get('ADMIN_PIN');
+// Every staff call now sends the hash, exactly as the browser does.
+const pin = staffHash;
 function request(time, visitType = 'كشف جديد') {
   return context.createRequest({ visitType, guardianName: 'ولي أمر تجريبي', phone: '0000000000', day, time, consent: true });
 }
+function isHashRow(value) { return /^[a-f0-9]{64}$/.test(String(value || '')); }
 function assertSaved(result, label) {
   assert.equal(result.ok, true, `${label}: ${result.message || 'request failed'}`);
   return result.booking;
@@ -275,6 +309,73 @@ googleUp = false;
 const fullQueue = request('09:30', 'متابعة');
 assert.equal(fullQueue.ok, false, 'full queue rejects rather than falsely accepting');
 googleUp = true;
-console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, and a secret-free clinic profile.')
+// Settings: the catalog is the allowlist, a legacy plain PIN is migrated, and the
+// page follows the saved values (scenario L: settings edited from the dashboard).
+const settings = context.getClinicSettings(pin);
+assert.equal(settings.ok, true, 'settings load with a staff session');
+assert.ok(settings.catalog.length >= 4, 'the catalog drives the dashboard form');
+assert.equal(settings.values.STAFF_PIN, '', 'the PIN is never returned to the browser');
+assert.equal(settings.values.CLINIC_NAME || '', '', 'unset clinic name reports empty, not invented');
+assert.equal(settings.meta.staffPinHashed, true, 'the fixture uses a hashed PIN');
+assert.equal(Object.keys(settings.values).some((key) => /KEY|TOKEN|CALENDAR_ID|SHEET_ID/.test(key)), false, 'no secret or internal id is exposed');
+
+const savedSettings = context.saveClinicSettings({
+  reason: 'offline test',
+  values: {
+    CLINIC_NAME: 'عيادة اختبار', CLINIC_PHONE: '0100 000 0000', DOCTOR_NAME: 'د. اختبار',
+    DOCTOR_LICENSE: 'EG-0000', WORK_START: '10:00', WORK_END: '16:00',
+    VISIT_SERVICES: 'كشف أول = 45\nمتابعة = 20\nاستشارة قصيرة = 15'
+  }
+}, pin);
+assert.equal(savedSettings.ok, true, savedSettings.message);
+assert.equal(savedSettings.settings.values.CLINIC_PHONE, '01000000000', 'a phone number is normalised');
+assert.match(savedSettings.settings.values.VISIT_SERVICES, /كشف أول = 45/, 'services round-trip through the UI');
+assert.equal(context.visitDuration_('استشارة قصيرة'), 15, 'a new service becomes bookable without code');
+// Calendar availability for the new hours is asserted on a fresh day: `day` is
+// already fully booked by the approval scenarios above.
+const settingsDay = (() => {
+  const probe = new Date(); probe.setHours(12, 0, 0, 0);
+  for (let offset = 2; offset < 20; offset += 1) {
+    const candidate = new Date(probe); candidate.setDate(probe.getDate() + offset);
+    if (![0, 1, 2, 3, 4].includes(candidate.getDay())) continue;
+    const iso = candidate.toISOString().slice(0, 10);
+    if (!calendar.events.some((event) => !event.deleted && event.start.getDate() === candidate.getDate())) return iso;
+  }
+  return day;
+})();
+const savedSlots = context.getAvailableSlots(settingsDay, 'كشف أول');
+assert.equal(savedSlots.ok, true);
+assert.equal(savedSlots.slots[0], '10:00', 'availability follows the saved hours: ' + JSON.stringify(savedSlots.slots));
+assert.match(context.getClinicProfile().hours, /١٠:٠٠ ص/, 'the public page follows the saved hours');
+// A 60-minute visit must still be offered at an off-grid half hour when slots are
+// spaced 30 minutes apart (the old modulo test hid 09:30 for 60-minute visits).
+assert.equal(context.saveClinicSettings({ values: { WORK_START: '09:00', WORK_END: '14:00', SLOT_MINUTES: '30', VISIT_SERVICES: 'كشف جديد = 60' } }, pin).ok, true);
+assert.equal(context.isSlotAvailable_(settingsDay, '09:30', 60, ''), true, 'a 60-minute visit is offered at 09:30, not only on the hour');
+assert.equal(context.isSlotAvailable_(settingsDay, '09:15', 60, ''), false, 'off-grid times stay unavailable');
+
+// Validation is the server's job, not the form's.
+assert.equal(context.saveClinicSettings({ values: { WORK_START: '18:00', WORK_END: '09:00' } }, pin).ok, false, 'inverted hours are refused');
+assert.equal(context.saveClinicSettings({ values: { WEEKEND_DAYS: '0,1' } }, pin).ok, false, 'overlapping weekend is refused');
+assert.equal(context.saveClinicSettings({ values: { VISIT_SERVICES: 'زيارة بلا مدة' } }, pin).ok, false, 'malformed services are refused');
+assert.equal(context.saveClinicSettings({ values: { GEMINI_API_KEY: 'x' } }, pin).ok, false, 'unknown/secret keys are refused');
+assert.equal(context.saveClinicSettings({ values: { CLINIC_NAME: 'x' } }, 'not-the-pin-000000').ok, false, 'settings need a valid session');
+
+// The PIN itself is only ever stored as a hash, and a change needs the current one.
+const newPin = 'another-long-staff-passphrase-2026';
+assert.equal(context.saveStaffPin('wrong-current-pin-0000', hashPin(newPin), pin).ok, false, 'a wrong current PIN is refused');
+assert.equal(context.saveStaffPin(staffPinFixture, hashPin(newPin), pin).ok, true, 'the PIN can be rotated');
+assert.equal(propertyValues.get('ADMIN_PIN_HASH'), hashPin(newPin), 'only the hash is stored');
+assert.equal(propertyValues.has('ADMIN_PIN'), false, 'no plain PIN remains');
+assert.equal(context.getClinicSettings(pin).ok, false, 'the old PIN stops working');
+assert.equal(context.getClinicSettings(hashPin(newPin)).ok, true, 'the new PIN works');
+
+// A legacy plain ADMIN_PIN is upgraded to a hash on first successful login.
+propertyValues.delete('ADMIN_PIN_HASH');
+propertyValues.set('ADMIN_PIN', 'legacy-plain-pin-value-32-chars');
+assert.equal(context.getClinicSettings('legacy-plain-pin-value-32-chars').ok, true, 'a legacy PIN still logs in');
+assert.equal(isHashRow(propertyValues.get('ADMIN_PIN_HASH')), true, 'the legacy PIN was hashed');
+assert.equal(propertyValues.has('ADMIN_PIN'), false, 'the plain PIN was deleted after migration');
+
+console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, a secret-free clinic profile, and dashboard-editable settings (validation, services, PIN hashing and migration).')
 ;
 console.log('Reminder: these mocked-service tests do not establish Google quotas, permissions, live deployment behavior, or legal readiness.');

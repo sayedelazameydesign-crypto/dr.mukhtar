@@ -85,7 +85,7 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   const jsonLd = JSON.parse($('script[type="application/ld+json"]').textContent);
   const types = (jsonLd['@graph'] || []).map((node) => node['@type']);
   check('structured data declares clinic + physician', types.includes('MedicalClinic') && types.includes('Physician'), types.join(','));
-  check('one visit duration per type (60/30)', /٦٠ دقيقة/.test(pageText) && /٣٠ دقيقة/.test(pageText) && !/٣٠ دقيقة للزيارة/.test(pageText));
+  check('visit types come from settings, each with its own duration', $$('.choice-card').length === 2 && /٦٠ دقيقة/.test($('.choice-grid').textContent) && /٣٠ دقيقة/.test($('.choice-grid').textContent));
 
   // ---- progress is real, not a static badge ----
   check('progress starts on step 2 (type is pre-selected)', $('.booking-progress li[data-step="2"]').dataset.state === 'current');
@@ -120,7 +120,7 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   $$('.nav-button').find((button) => button.dataset.view === 'staff').click();
   $('#staffPin').value = '2468';
   submit('#staffLoginForm');
-  await wait(240);
+  await wait(400);
   check('dashboard unlocked', !$('#staffDashboard').hidden);
   check('stats rendered', $$('#dashboardStats .stat-card').length === 3);
   check('pending list populated', $$('#pendingList .request-item').length >= 1);
@@ -133,6 +133,67 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   } else {
     failures.push('no pending request to approve');
   }
+
+  // ---- dashboard settings (owner-editable, no code) ----
+  $$('[data-staff-tab]').find((button) => button.dataset.staffTab === 'settings').click();
+  await wait(260);
+  check('settings tab opens', !$('#staffSettings').hidden && $('#staffBoard').hidden);
+  check('temporary PIN is flagged in the dashboard', !$('#pinBanner').hidden);
+  check('settings groups come from the catalog', $$('#settingsGroups .settings-group').length >= 4);
+  check('settings fields render for the first group', $$('#settingsFields .settings-field').length >= 3);
+  check('secret fields are never shown', $$('#settingsFields #setting-GEMINI_API_KEY').length === 0 && $$('#settingsFields #setting-ADMIN_PIN').length === 0);
+  $$('#settingsGroups .settings-group').find((chip) => chip.dataset.group === 'doctor').click();
+  await wait(120);
+  check('licence is editable by the doctor', $('#setting-DOCTOR_LICENSE') !== null);
+  $$('#settingsGroups .settings-group').find((chip) => chip.dataset.group === 'clinic').click();
+  await wait(120);
+
+  $('#setting-CLINIC_NAME').value = 'عيادة النور';
+  $('#setting-CLINIC_PHONE').value = '0100 123 4567';
+  submit('#settingsForm');
+  await wait(320);
+  check('settings save reports success', !$('#settingsSaved').hidden, $('#settingsError').textContent);
+  check('saved phone is normalised', $('#setting-CLINIC_PHONE').value === '01001234567', $('#setting-CLINIC_PHONE').value);
+  check('the public page follows the saved name', /عيادة النور/.test($('.brand-text').textContent), $('.brand-text').textContent);
+  check('the public page follows the saved phone', /01001234567/.test($('[data-config="phone"]').textContent));
+
+  $$('#settingsGroups .settings-group').find((chip) => chip.dataset.group === 'hours').click();
+  await wait(120);
+  $('#setting-WORK_START').value = '18:00';
+  $('#setting-WORK_END').value = '09:00';
+  submit('#settingsForm');
+  await wait(260);
+  check('invalid hours are refused', !$('#settingsError').hidden && /تسبق/.test($('#settingsError').textContent), $('#settingsError').textContent);
+
+  $$('#settingsGroups .settings-group').find((chip) => chip.dataset.group === 'services').click();
+  await wait(120);
+  check('services field is a plain text area', $('#setting-VISIT_SERVICES').tagName === 'TEXTAREA');
+  $('#setting-VISIT_SERVICES').value = 'كشف أول = 45\nمتابعة = 20';
+  submit('#settingsForm');
+  await wait(360);
+  check('a new service becomes bookable', $$('.choice-card').length === 2 && /كشف أول/.test($('.choice-grid').textContent), $('.choice-grid').textContent);
+  check('the new duration is used in the summary', /٤٥/.test($('[data-summary="duration"]').textContent), $('[data-summary="duration"]').textContent);
+
+  // ---- change the staff PIN from the UI (no Script Properties, no code) ----
+  $$('#settingsGroups .settings-group').find((chip) => chip.dataset.group === 'security').click();
+  await wait(120);
+  check('the current PIN is required to change it', $('#setting-CURRENT_PIN') !== null);
+  check('the stored PIN is never displayed', $('#setting-STAFF_PIN').value === '');
+  $('#setting-STAFF_PIN').value = 'a-new-long-staff-passphrase';
+  $('#setting-CURRENT_PIN').value = 'wrong-current-pin';
+  submit('#settingsForm');
+  await wait(260);
+  check('a wrong current PIN is refused', !$('#settingsError').hidden, $('#settingsError').textContent);
+  $('#setting-CURRENT_PIN').value = '2468';
+  submit('#settingsForm');
+  await wait(320);
+  check('the PIN can be rotated from the UI', $('#settingsError').hidden, $('#settingsError').textContent);
+  check('the temporary-PIN banner disappears after the change', $('#pinBanner').hidden);
+  check('the new PIN is stored as a hash only', /^[a-f0-9]{64}$/.test(window.localStorage.getItem('celia-kids-staff-pin-v1') || ''));
+
+  $$('[data-staff-tab]').find((button) => button.dataset.staffTab === 'board').click();
+  await wait(120);
+  check('board tab returns', !$('#staffBoard').hidden && $('#staffSettings').hidden);
 
   // ---- admin question ----
   $('#faqQuestion').value = 'كيف أغيّر الموعد؟';
