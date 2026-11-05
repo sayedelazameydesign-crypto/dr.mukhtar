@@ -563,7 +563,30 @@ if (fs.existsSync(BRIDGE_DIR)) {
   warn('scripts/google/ is absent — the Google bridge is not wired in this repo');
 }
 
-// 5. The shipped site must not grow a Google dependency: no SDKs, no direct API hosts.
+// 5. No real email address anywhere in the repo: a personal address is an
+//    account hint (google-bridge.md §0) and belongs in a profile, never in Git.
+const EMAIL_ALLOWED = /@(example\.(com|org|net)|example|localhost|invalid|schema\.org|github\.com)$/i;
+const SCANNED_EXTENSIONS = /\.(js|json|md|ya?ml|sh|py|html|ts|example)$/;
+const walkRepo = (dir, out = []) => {
+  fs.readdirSync(dir, { withFileTypes: true }).forEach((entry) => {
+    if (['.git', 'node_modules', 'gas', '_site', '.local-store', '.secrets'].includes(entry.name)) return;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walkRepo(full, out);
+    else if (SCANNED_EXTENSIONS.test(entry.name)) out.push(full);
+  });
+  return out;
+};
+walkRepo(ROOT).forEach((file) => {
+  const relative = path.relative(ROOT, file);
+  fs.readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
+    for (const match of line.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)) {
+      if (EMAIL_ALLOWED.test(match[0])) continue;
+      fail(`${relative}:${index + 1} — real email address in the repo; keep accounts in a profile, not in Git`);
+    }
+  });
+});
+
+// 6. The shipped site must not grow a Google dependency: no SDKs, no direct API hosts.
 const clientFiles = ['index.html', 'app.js', 'app.css'];
 clientFiles.forEach((file) => {
   const target = path.join(ROOT, file);

@@ -124,7 +124,7 @@ function fakeGoogle({ layout, responses = [], onRequest } = {}) {
   });
 
   ok('profile: an email in account_label is rejected', () => {
-    const problems = profileModule.validateProfile({ profile: 'x', account_label: 'someone@gmail.com', auth_mode: 'oauth_user', scopes: ['drive.file'], root_folder_name: 'r', fallback: 'local', function_map: { 'memory.long': 'drive' } });
+    const problems = profileModule.validateProfile({ profile: 'x', account_label: 'bad@example.com', auth_mode: 'oauth_user', scopes: ['drive.file'], root_folder_name: 'r', fallback: 'local', function_map: { 'memory.long': 'drive' } });
     assert.ok(problems.some((problem) => /email/.test(problem)));
   });
 
@@ -173,7 +173,7 @@ function fakeGoogle({ layout, responses = [], onRequest } = {}) {
   });
 
   ok('auth: emails are masked when echoed', () => {
-    assert.equal(maskEmail('sayedelazameydesign@gmail.com'), 's***@gmail.com');
+    assert.equal(maskEmail('owner@example.com'), 'o***@example.com');
     assert.equal(maskEmail('not-an-email'), 'unknown');
   });
 
