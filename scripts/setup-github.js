@@ -22,10 +22,9 @@ const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'secrets-man
 const repo = process.env.GITHUB_REPOSITORY || manifest.repo;
 const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
 
-if (!token) {
-  console.error('No GH_TOKEN/GITHUB_TOKEN in the environment. Run: gh auth login (or export GH_TOKEN).');
-  process.exit(2);
-}
+// NOTE: requiring this module (for tests) must never exit the process. Token
+// checks happen inside the CLI branch only — a module that calls process.exit
+// on import silently kills any consumer, including test runners without a token.
 
 const api = async (endpoint) => {
   const response = await fetch(`https://api.github.com/repos/${repo}${endpoint}`, {
@@ -79,6 +78,10 @@ const isCli = require.main === module;
 if (!isCli) {
   module.exports = { compare };
 } else (async () => {
+  if (!token) {
+    console.error('No GH_TOKEN/GITHUB_TOKEN in the environment. Run: gh auth login (or export GH_TOKEN).');
+    process.exit(2);
+  }
   const declaredSecrets = (manifest.secrets || []).filter((entry) => entry.level === 'repo').map((entry) => entry.name);
   const declaredEnvSecrets = (manifest.secrets || []).filter((entry) => entry.level.startsWith('environment:'));
   const declaredVars = (manifest.variables || []).map((entry) => entry.name);
