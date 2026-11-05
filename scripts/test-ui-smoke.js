@@ -51,6 +51,16 @@ const document = window.document;
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const submit = (selector) => $(selector).dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+// How the page itself decides: skip closed days (Sunday..Thursday are open by default).
+const nextOpenAfter = (iso) => {
+  const date = new Date(`${iso}T12:00:00Z`);
+  for (let step = 0; step < 7; step += 1) {
+    const weekday = date.getUTCDay();
+    if (weekday >= 0 && weekday <= 4) return date.toISOString().slice(0, 10);
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+  return iso;
+};
 const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
 
 (async () => {
@@ -65,9 +75,20 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   const chipDays = $$('#dayChips .day-chip').map((chip) => chip.dataset.day);
   check('each quick day chip is a different day', new Set(chipDays).size === 5);
   check('quick day chips skip closed days', chipDays.every((iso) => {
-    const weekday = new Date(`${iso}T12:00:00`).getDay();
+    const weekday = new Date(`${iso}T12:00:00Z`).getUTCDay();
     return weekday >= 0 && weekday <= 4;
   }));
+  // The clinic is in Cairo: the first chip must be the clinic's tomorrow, whatever the
+  // visitor's device thinks today is.
+  const cairoToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const cairoTomorrow = (() => {
+    const d = new Date(`${cairoToday}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
+  check('the first chip is the clinic tomorrow, not the device tomorrow',
+    chipDays[0] === cairoTomorrow || chipDays[0] === nextOpenAfter(cairoTomorrow), `${chipDays[0]} vs ${cairoTomorrow}`);
+  check('the date input cannot offer a past day', $('#visitDate').min === cairoToday, `${$('#visitDate').min} vs ${cairoToday}`);
   check('clinic clock filled', $('#heroClock') === null || $('#heroClock').textContent.trim() !== '—');
   check('slots offered', $$('#slotsGrid .slot-button').length > 0);
 

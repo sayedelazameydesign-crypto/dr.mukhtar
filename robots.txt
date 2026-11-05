@@ -1,0 +1,7 @@
+# The appointment page is public; the staff dashboard lives on the same URL behind a PIN,
+# so it cannot be excluded by path. Nothing here is confidential by design.
+User-agent: *
+Allow: /
+
+# Update the host if the site ever moves to a custom domain.
+Sitemap: https://sayedelazameydesign-crypto.github.io/dr.mukhtar/sitemap.xml

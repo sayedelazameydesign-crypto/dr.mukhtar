@@ -46,9 +46,16 @@ jobs:
 
       - name: Assemble static site
         run: |
+          # Copy every shipped file, then delete what must not be published. An explicit
+          # allow-list silently drops new assets (the 404 page, robots.txt, sitemap.xml),
+          # which is how a file can exist in the repo and never reach the live site.
           mkdir -p _site
-          cp index.html app.css app.js brand.svg manifest.webmanifest _site/
-          cp -r assets _site/
+          rsync -a --exclude '.git' --exclude '.github' --exclude 'gas' --exclude '_site' \
+                --exclude 'node_modules' --exclude 'scripts' --exclude 'docs' \
+                --exclude 'config' --exclude '*.md' --exclude '.gitleaks.toml' \
+                ./ _site/
+          echo "--- published files:"
+          find _site -maxdepth 1 -type f | sort
 
       - name: Verify backend simulation
         run: node scripts/test-gas-simulated.js
