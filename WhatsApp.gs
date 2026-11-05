@@ -24,7 +24,14 @@ const WHATSAPP = {
   PHONE_ID_PROPERTY: 'WHATSAPP_PHONE_NUMBER_ID',
   MODES: ['off', 'dry-run', 'live'],
   DEFAULT_MODE: 'off',
-  GRAPH_VERSION: 'v21.0',
+  // E.164 needs the clinic's country code. This is the CLINIC's code (Egypt), not the parent's:
+  // every number the clinic will message is Egyptian.
+  COUNTRY_CODE: '20',
+  GRAPH_VERSION_PROPERTY: 'WHATSAPP_GRAPH_VERSION',
+  // Meta's own send-message example uses v23.0; override per account without a code change.
+  // The version that was hard-coded here (v21.0) is older than every example in Meta's current
+  // documentation, and Meta publishes no support window for it — see docs/free-tiers.json.
+  GRAPH_VERSION: 'v23.0',
   GRAPH_HOST: 'https://graph.facebook.com',
   SENT_PREFIX: 'WHATSAPP_SENT_',
   SENT_TTL_MS: 7 * 24 * 60 * 60 * 1000,
@@ -72,6 +79,7 @@ function whatsappStatus() {
   }
   return {
     mode: mode,
+    graphVersion: whatsappGraphVersion_(props),
     configured: configured,
     // Live sending is deliberately unreachable until the Zero-Card decision is reversed.
     canSendLive: mode === 'live' && configured,
@@ -90,6 +98,29 @@ function whatsappNormalizePhone_(value) {
   if (digits.indexOf('0020') === 0) digits = digits.slice(4);
   else if (digits.indexOf('20') === 0 && digits.length >= 12) digits = digits.slice(2);
   return digits ? '0' + digits.replace(/^0+/, '') : '';
+}
+
+/**
+ * The number in the form Meta expects: E.164 with the country calling code and a plus sign.
+ *
+ * Meta's phone-number documentation is explicit: if the plus sign is omitted, the *business*
+ * number's country calling code is prepended to what you sent. Sending the local Egyptian form
+ * `01113593643` therefore becomes `+2001113593643` — an extra zero, i.e. a misdelivered message.
+ * @param {*} value
+ * @return {string} +<country><number>, or '' when the input has no digits
+ */
+function whatsappE164_(value) {
+  const local = whatsappNormalizePhone_(value);
+  if (!local) return '';
+  if (local.charAt(0) === '0') return '+' + WHATSAPP.COUNTRY_CODE + local.slice(1);
+  return '+' + local;
+}
+
+/** Graph version, validated: an unparsable override must not build a nonsense URL. */
+function whatsappGraphVersion_(props) {
+  const raw = String((props || PropertiesService.getScriptProperties()).getProperty(WHATSAPP.GRAPH_VERSION_PROPERTY) || '').trim();
+  if (!raw) return WHATSAPP.GRAPH_VERSION;
+  return /^v[0-9]{1,2}\.[0-9]{1,2}$/.test(raw) ? raw : WHATSAPP.GRAPH_VERSION;
 }
 
 /** Logs and results never carry a full number: keep the last three digits. */
@@ -133,6 +164,9 @@ function whatsappText_(kind, record, clinicName) {
 function whatsappPlan_(kind, record) {
   const phone = whatsappNormalizePhone_(record && record.phone);
   if (!phone) throw whatsappError_('WHATSAPP_MISSING_PHONE', 'لا يوجد رقم تواصل صالح في الطلب.');
+  // Meta requires the country calling code and the plus sign on the wire; the local form stays
+  // the display/validation form used by the rest of the system.
+  const wirePhone = whatsappE164_(phone);
   if (!String(record.reference || '').trim()) throw whatsappError_('WHATSAPP_MISSING_REFERENCE', 'لا يمكن إرسال إشعار بلا رقم مرجعي.');
   const props = PropertiesService.getScriptProperties();
   // The clinic name is display-only configuration: a missing value never becomes an invented brand.
@@ -141,12 +175,13 @@ function whatsappPlan_(kind, record) {
   if (text.length > WHATSAPP.MAX_TEXT_CHARS) throw whatsappError_('WHATSAPP_TEXT_TOO_LONG', 'نص الرسالة يتجاوز الحد.');
   const phoneId = String(props.getProperty(WHATSAPP.PHONE_ID_PROPERTY) || '').trim();
   return {
-    to: phone,
-    url: WHATSAPP.GRAPH_HOST + '/' + WHATSAPP.GRAPH_VERSION + '/' + (phoneId || '{WHATSAPP_PHONE_NUMBER_ID}') + '/messages',
+    to: wirePhone,
+    local: phone,
+    url: WHATSAPP.GRAPH_HOST + '/' + whatsappGraphVersion_(props) + '/' + (phoneId || '{WHATSAPP_PHONE_NUMBER_ID}') + '/messages',
     body: {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
-      to: phone,
+      to: wirePhone,
       type: 'text',
       text: { preview_url: false, body: text }
     },
@@ -194,7 +229,7 @@ function whatsappSend_(kind, record) {
   const target = whatsappRedact_(plan.to);
 
   if (mode === 'dry-run') {
-    return { sent: false, mode: mode, reason: 'dry-run', dryRun: true, target: target, url: plan.url, body: plan.body };
+    return { sent: false, mode: mode, reason: 'dry-run', dryRun: true, target: target, local: plan.local, url: plan.url, body: plan.body };
   }
 
   // live — unreachable while the Zero-Card decision holds; kept correct so the switch is one line.

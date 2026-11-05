@@ -105,13 +105,19 @@ const RECORD = {
   const result = api.whatsappSend_('confirmation', RECORD);
   check('dry-run reports itself', result.dryRun === true && result.sent === false && result.reason === 'dry-run');
   check('dry-run performs no network call', calls.length === 0);
-  check('dry-run exposes the URL that live would use', /graph\.facebook\.com\/v21\.0\/1234\/messages/.test(result.url), result.url);
-  check('dry-run body targets the normalised local form', result.body.to === '01012345678', result.body.to);
+  check('dry-run exposes the URL that live would use', /graph\.facebook\.com\/v23\.0\/1234\/messages/.test(result.url), result.url);
+  // Meta prepends the *business* country code when the plus sign is missing, which turned the
+  // local form into +2001113593643. The wire format must be E.164.
+  check('the payload carries E.164, not the local form', result.body.to === '+201012345678', result.body.to);
+  check('the local form is still available for display', result.local === '01012345678', result.local);
   check('message carries the reference and the slot, not the diagnosis or free text',
     result.body.text.body.includes('CK-2K6Q-8M2') && result.body.text.body.includes('10:30') && !result.body.text.body.includes('كشف جديد'),
     result.body.text.body.replace(/\n/g, ' | '));
   check('clinic name comes from configuration', result.body.text.body.includes('عيادة تجريبية'));
-  check('the phone is redacted in the result payload', !JSON.stringify({ ...result, body: null }).includes('01012345678'),
+  // The request body carries the number by definition, and `local` is the deliberate display
+  // field; everything else the adapter returns (the routing label) must be redacted.
+  check('the routing label is redacted in the result',
+    !JSON.stringify({ ...result, body: null, local: null }).includes('01012345678'),
     JSON.stringify(result.target));
 }
 
@@ -132,11 +138,11 @@ const RECORD = {
   });
   const result = api.whatsappSend_('confirmation', RECORD);
   check('one network call per notification', calls.length === 1, String(calls.length));
-  check('endpoint is the phone-id messages endpoint', calls[0].url.endsWith('/v21.0/9876/messages'), calls[0].url);
+  check('endpoint is the phone-id messages endpoint', calls[0].url.endsWith('/v23.0/9876/messages'), calls[0].url);
   check('token travels in the Authorization header, never the URL',
     calls[0].params.headers.Authorization === 'Bearer test-token-value' && !calls[0].url.includes('test-token-value'));
-  check('the sent body is JSON with the local number',
-    JSON.parse(calls[0].params.payload).to === '01012345678');
+  check('the sent body is JSON with the E.164 number',
+    JSON.parse(calls[0].params.payload).to === '+201012345678', JSON.parse(calls[0].params.payload).to);
   check('the result reports a send', result.sent === true && result.status === 200);
   check('no full phone number leaks into the result', !JSON.stringify(result).includes('01012345678'), JSON.stringify(result));
 }
@@ -205,6 +211,17 @@ const RECORD = {
   check('sample never sends', calls.length === 0);
   check('sample names the mode it ran under', sample.mode === 'dry-run', JSON.stringify(sample).slice(0, 120));
   check('sample redacts the number it would use', sample.wouldSendTo === '•••••000', sample.wouldSendTo);
+}
+
+// 12 — the Graph version is configuration, and a bad value never reaches the URL.
+{
+  const { api } = load({ props: { WHATSAPP_MODE: 'dry-run', WHATSAPP_PHONE_NUMBER_ID: '1234', WHATSAPP_GRAPH_VERSION: 'v25.0' } });
+  check('an explicit Graph version is honoured', api.whatsappSend_('confirmation', RECORD).url.includes('/v25.0/'));
+  check('status reports the version in use', api.whatsappStatus().graphVersion === 'v25.0', api.whatsappStatus().graphVersion);
+
+  const bad = load({ props: { WHATSAPP_MODE: 'dry-run', WHATSAPP_PHONE_NUMBER_ID: '1234', WHATSAPP_GRAPH_VERSION: 'vNext' } });
+  check('an unparsable version falls back to the default', bad.api.whatsappSend_('confirmation', RECORD).url.includes('/v23.0/'));
+  check('the default version is reported when unset', load().api.whatsappStatus().graphVersion === 'v23.0');
 }
 
 console.log(`WhatsApp adapter suite passed: ${passed} checks (off/dry-run send nothing, live is typed, failures never reach booking).`);

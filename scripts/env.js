@@ -32,6 +32,7 @@ const ENV_SPECS = [
   { name: 'WHATSAPP_MODE', secret: false, required: false, pattern: /^(off|dry-run|live)$/, hint: 'off | dry-run | live (default off)' },
   { name: 'WHATSAPP_TOKEN', secret: true, required: false, pattern: /^[A-Za-z0-9_-]{20,}$/, hint: 'Meta WhatsApp Cloud API runtime token; Script Properties only' },
   { name: 'WHATSAPP_PHONE_NUMBER_ID', secret: false, required: false, pattern: /^[0-9]{5,25}$/, hint: 'digits only, from the Meta dashboard' }
+  { name: 'WHATSAPP_GRAPH_VERSION', secret: false, required: false, pattern: /^v[0-9]{1,2}\.[0-9]{1,2}$/, hint: 'e.g. v23.0; blank means the adapter default' }
 ];
 
 class EnvValidationError extends Error {

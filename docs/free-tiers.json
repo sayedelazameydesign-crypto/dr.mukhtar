@@ -169,26 +169,25 @@
     },
     {
       "service": "whatsapp-cloud-api (sending to real numbers)",
-      "reason": "business-initiated messages are billed per delivery and Meta requires a payment method; adopted here only as an off/dry-run adapter — see docs/prd/whatsapp-cloud-api.md",
+      "reason": "billed per delivered message, and without a payment method delivery stops once a number's 1,000 free service messages for the month are used; adopted here only as an off/dry-run adapter — see docs/prd/whatsapp-cloud-api.md",
       "checked": "2026-11-05",
       "sources": [
         {
           "url": "https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing",
           "page_updated": "2026-09-30",
-          "verified": "Since 2026-10-01 service messages are billed per message; each business phone number gets 1,000 free service messages per month (no roll-over), charged from the 1,001st. Utility templates are billed per delivered message."
+          "verified": "Since 2026-10-01 service messages are billed per message; each business phone number gets 1,000 free service messages per month (no roll-over), charged from the 1,001st. Every template (marketing, utility, authentication) is billed per delivered message; service messages are the non-template replies. Billing happens on delivery only. Without a payment method on the account, service messages are still delivered inside the 1,000-message monthly allowance and are NOT delivered after it — so a card-free account works for replies up to that ceiling and for nothing else."
         },
         {
           "url": "https://developers.facebook.com/documentation/business-messaging/whatsapp/business-phone-numbers/phone-numbers",
           "page_updated": "2026-05-21",
-          "verified": "A test business phone number is generated and registered automatically by the Get Started flow; a number already in use with WhatsApp cannot be registered unless it is deleted first; the number must be able to receive SMS or voice calls."
+          "verified": "A test business phone number is generated and registered automatically by the Get Started flow; a number already in use with WhatsApp cannot be registered unless it is deleted first (and deletion is blocked while paid messages were sent in the last 30 days); registration requires a two-step-verification PIN plus an SMS or voice code. Recipients must be in E.164 form: if the leading plus sign is omitted, Meta prepends the BUSINESS number's country calling code — the documented example turns (631) 555-1234 into +916315551234 — so a local form such as 01113593643 would become +2001113593643 and be misrouted. A new business portfolio is initially capped at two registered business phone numbers, rising to 20 after business verification (or at the 2,000-number limit)."
         }
       ],
       "unverified": [
-        "the maximum number of recipients a test number may message (not stated on the pages read)",
-        "whether a payment method is required even to stay inside the 1,000 free service messages",
-        "whether Graph API v21.0 (used in WhatsApp.gs) is still served; Meta's current examples use v23.0"
+        "the maximum number of recipients a test number may message (not stated on the pages read; the two-number figure on the phone-numbers page is a cap on registered business numbers per portfolio, not on recipients)",
+        "whether a given Graph API version is still served, and for how long: neither page states a support window; their examples use v23.0 and v27.0, while WhatsApp.gs previously pinned v21.0 — the version is now a validated setting with a v23.0 default"
       ],
-      "note": "Access to Cloud API itself is free; messages are billed. This entry exists because the adapter is adopted in dry-run only."
+      "note": "Access to Cloud API itself is free; messages are billed. This entry exists because the adapter is adopted in dry-run only. Two consequences recorded 2026-11-05: replies inside the monthly 1,000 are deliverable without a card, and the recipient format is E.164 on the wire (fixed in WhatsApp.gs, which now also takes the Graph version from a validated setting)."
     }
   ]
 }
