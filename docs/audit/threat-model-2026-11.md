@@ -1,5 +1,7 @@
 # نموذج التهديد — dr.mukhtar · دفعة ٢٠٢٦‑١١
 
+> آخر تصحيح: 2026-11-06 — أُعيدت كتابة صفّي T-09 وT-10 وقسم ٤ بعد التحقق من الكود والفحوص: كانت الوثيقة تُظهرهما كقابلتين للاستغلال بعد إغلاقهما فعليًا على `main`. كل ادعاء في هذه الوثيقة يتبع الكود، لا نيةً سابقة.
+
 > **الطريقة:** STRIDE على حدود الثقة، بسطور من الكود لا بوصف عام. كل صف يحمل **دليلًا** على شكل
 > `ملف:سطر`؛ البوابة `scripts/check-audit-doc.js` ترفض أي دليل لا وجود له في المستودع.
 >
@@ -38,8 +40,8 @@
 | T-06 | Repudiation | لا يُعرف أي موظف فعل ماذا | `Audit` | `staffActor_()` — لكن الهوية رمز مشترك | `Code.gs:646` | **مُسيطَر جزئيًا** |
 | T-07 | Info disclosure | تسريب بيانات ولي الأمر في السجلات | `logEvent_` | السجلات تحمل أحداثًا وعدّادات فقط | `Code.gs:124` | **مُسيطَر** — مثبت باختبار · 'health is green on a healthy clinic and carries no personal data' | 
 | T-08 | Info disclosure | بيانات ولي الأمر في التقويم | `createEvent` | الوصف يحمل المرجع فقط + «بيانات طبية: غير محفوظة» | `Code.gs:646` | **مُسيطَر** · 'result never claims confirmation' | 
-| T-09 | Info disclosure | نقطة الصحة تُسرّب قائمة الطلبات | `doGetHealth` | رمز إلزامي + مقارنة ثابتة الزمن + عدّادات فقط | `Code.gs:537`, `Code.gs:992` | **ثغرة مؤكدة** — انظر T-10 |
-| T-10 | **Spoofing — ثغرة مؤكدة** | **مقارنة ثابتة الزمن لا تقارن الطول**: بادئة صحيحة تُقبل | `constantTimeEquals_` | لا شيء | `Code.gs:992` | **حرج** — يفتح `doGetHealth` بادئة الرمز، و`verifyStaffPin_` ببادئة البصمة (انظر §4) |
+| T-09 | Info disclosure | نقطة الصحة تُسرّب قائمة الطلبات | `doGetHealth` | رمز إلزامي + مقارنة كاملة ثابتة الزمن + عدّادات فقط | `Code.gs:537`, `Code.gs:999` | **مُسيطَر** — مثبت باختبار 'a prefix of the health token does not open the uptime endpoint' |
+| T-10 | Spoofing | مقارنة ثابتة الزمن لا تقارن الطول — بادئة صحيحة تُقبل (تاريخيًا) | `constantTimeEquals_` | مقارنة الطول أولًا (غير سرّية: بصمة PIN دائمًا ٦٤ حرفًا) ثم حلقة كاملة ثابتة الزمن | `Code.gs:999`, `scripts/test-privacy-health.js:454` | **مُسيطَر** — مثبت باختبار 'a prefix of the secret is not accepted' و'a prefix of the staff PIN digest does not unlock the dashboard' · الإغلاق G25 |
 | T-11 | DoS | إغراق بوابة الحجز بطلبات | `createRequest` | سقف ٣ طلبات/رقم/يوم | `Code.gs:305` | **مُسيطَر جزئيًا** — لا حدّ على عدد الأرقام |
 | T-12 | DoS | استنزاف حصة Gemini | `llmBudgetReserve_` | حصة يومية وساعية + دائرة قطع | `Llm.gs:161` | **مُسيطَر** · 'a hung slot read falls back instead of spinning' | 
 | T-13 | Elevation | استدعاء دالة موظف من الصفحة العامة | `google.script.run` | كل دالة موظف تتحقق من الرمز أولًا | `Code.gs:626` | **مُسيطَر** — لكن `deleteOwnRequestData` بلا رمز عن قصد (تصميم) · 'the correct PIN is refused while the lock is armed' | 
@@ -60,34 +62,28 @@
 
 ---
 
-## ٤. الثغرة المؤكدة — تفصيل
+## ٤. الثغرة المؤكدة — أُغلقت قبل هذا التحديث
 
-```
-Code.gs:992
+**الاكتشاف الأصلي** (أثناء كتابة هذا النموذج، G25): الحلقة كانت تدور على **طول المرشّح `a`** فقط. إن كان `a` بادئة صحيحة لـ`b`، لا تُفحص بقية `b` إطلاقًا، والنتيجة `true`.
+
+```js
+// الشكل القديم (تاريخي) — Code.gs قبل الإصلاح
 function constantTimeEquals_(a, b) { let result = 0; for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i); return result === 0; }
 ```
 
-الحلقة تدور على **طول `a`** فقط. إن كان `a` بادئة صحيحة لـ`b`، لا تُفحص بقية `b` إطلاقًا، والنتيجة `true`.
+**الأثر الأصلي (تاريخي):**
+1. `doGetHealth` (`Code.gs:537`) — بادئة `HEALTH_TOKEN` كانت تكفي لقراءة عدّادات نقطة الصحة.
+2. `verifyStaffPin_` (`Settings.gs:163`) — بادئة من ٣٢ حرفًا من ٦٤ (بصمة الرمز) كانت تفتح بوابة الموظف.
 
-**إثبات (نُفِّذ فعلًا):**
+**الإغلاق الفعلي (موجود على `main` الآن):**
+1. المقارنة الآن **تُقارن الأطوال أولًا** (طول بصمة PIN ثابت ٦٤ حرفًا — لا يفشي السر) ثم تُدور الحلقة على **كامل السلسلة** — `Code.gs:999`.
+2. ثلاثة فحوص تفشل على الكود القديم وتنجح على الجديد (`scripts/test-privacy-health.js:454`، `:464`، `:472`):
+   - `a prefix of the secret is not accepted`
+   - `a prefix of the health token does not open the uptime endpoint`
+   - `a prefix of the staff PIN digest does not unlock the dashboard`
+3. **G25 → محلول** في السجل بأدلته (`docs/map/gaps.json`) — وهذا التحديث يُصحّح الوثيقة التي ظنت نفسها تفصّل ثغرة مفتوحة.
 
-```
-$ node -e "… same function …"
-prefix of real accepted? true
-equal accepted? true
-wrong shorter than stored? false
-```
-
-**الأثر:**
-1. `doGetHealth` (`Code.gs:540`): من يعرف بادئة `HEALTH_TOKEN` يحصل على عدّادات الصحة.
-2. `verifyStaffPin_` (`Settings.gs:163`): إن كان `candidate` بصمةً مُدخلة (64 حرفًا) فالبادئة تُقبل —
-   أي أن أي بادئة صحيحة لبصمة الرمز تفتح بوابة الموظف. والرمز الحقيقي ١٦+ حرفًا، فالفضاء لا يزال
-   كبيرًا، لكن هذا **يتجاوز الحماية كلها** إن تسرّبت أي بادئة.
-
-**السيطرة المقترحة:** مقارنة الطول أولًا ثم حلقة على طول ثابت، مع اختبار يفشل قبل الإصلاح:
-`'a prefix of the secret is not accepted'` في `scripts/test-privacy-health.js`.
-
-**الحالة:** مفتوحة كـ**G25** بانتظار إصلاح + اختبار.
+**ما يبقى قائمًا:** الرمز في رابط URL للصحة (T-15) — موثق وقائم كما هو.
 
 ---
 

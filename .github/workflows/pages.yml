@@ -61,6 +61,8 @@ jobs:
           mkdir -p _site assets
           cp index.html privacy.html app.css app.js brand.svg manifest.webmanifest \
              robots.txt sitemap.xml 404.html clinic.json _site/
+          # Evidence Lab — generated, self-contained, safe to publish (approved for the public site)
+          cp -r evidence/ _site/evidence/
           # No masking: a missing assets/ used to publish a site with no fonts and no error.
           cp -r assets/. _site/assets/
           echo "--- published files:"
@@ -125,7 +127,7 @@ jobs:
       - name: Configure Pages
         if: ${{ github.event_name != 'pull_request' }}
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: _site
 

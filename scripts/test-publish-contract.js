@@ -55,7 +55,7 @@ const assembly = (step ? step[0] : '')
 // Paths the running site requests. `clinic.json` is stage-A configuration and public by design.
 const SHIPPED = [
   'index.html', 'privacy.html', 'app.css', 'app.js', 'brand.svg', 'manifest.webmanifest',
-  'robots.txt', 'sitemap.xml', '404.html', 'clinic.json', 'assets'
+  'robots.txt', 'sitemap.xml', '404.html', 'clinic.json', 'assets', 'evidence'
 ];
 
 SHIPPED.forEach((file) => {

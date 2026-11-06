@@ -7,6 +7,8 @@
     "test": "node scripts/test-privacy-health.js && node scripts/test-gas-simulated.js && node scripts/test-ui-smoke.js",
     "gates": "node scripts/check-workflows.js && node scripts/check-script-syntax.js && node scripts/check-audit-doc.js && node scripts/scan-secrets.js",
     "readiness": "node scripts/readiness-report.js --offline --require-jsdom",
+    "evidence": "node scripts/build-evidence-page.js",
+    "evidence:check": "node scripts/build-evidence-page.js --check",
     "e2e": "playwright test"
   },
   "devDependencies": {
