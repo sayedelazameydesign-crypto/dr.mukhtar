@@ -81,7 +81,7 @@
 | G20 | unobservable_failure | high | **resolved** | node scripts/test-privacy-health.js -> health payload without name/phone/reference, red on Sheets outage, red on temporary PIN, red on full queue, public endpoint closed without HEALTH_TOKEN |
 | G21 | architecture_doc_invisible_on_site | low | **resolved** | node scripts/check-workflows.js (map parses, no undeclared/dead ids); grep of _site assembly in pages.yml shows the docs kept internal by allow-list |
 | G22 | silent_breakage | high | **OPEN** | scripts/env.js:35 — a missing comma between ENV_SPECS entries; no gate parsed the file |
-| G23 | unverified_behaviour | med | **OPEN** | .github/workflows/ai-repair.yml, .github/workflows/ci-error-triage.yml — never executed on GitHub |
+| G23 | unverified_behaviour | med | **OPEN** | .github/workflows/ai-repair.yml and ci-error-triage.yml exist only on the PR branch; GitHub refuses `gh workflow run` for a workflow absent from the default branch (HTTP 404), so neither can be executed before merge |
 
 ## نتيجة تشغيل التقرير
 

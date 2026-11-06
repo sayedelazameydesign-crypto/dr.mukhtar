@@ -292,8 +292,8 @@
       "type": "unverified_behaviour",
       "status": "open",
       "severity": "med",
-      "evidence": ".github/workflows/ai-repair.yml, .github/workflows/ci-error-triage.yml — never executed on GitHub",
-      "fix": "run the triage workflow once on a real failed run and confirm the report artifact; run ai-repair with dry_run=true against a seeded failure",
+      "evidence": ".github/workflows/ai-repair.yml and ci-error-triage.yml exist only on the PR branch; GitHub refuses `gh workflow run` for a workflow absent from the default branch (HTTP 404), so neither can be executed before merge",
+      "fix": "after merge: dispatch ci-error-triage once against a real failed run and confirm the artifact; then dispatch ai-repair with dry_run=true",
       "evidence_needed": "a workflow run URL with a completed scan job"
     }
   ],
