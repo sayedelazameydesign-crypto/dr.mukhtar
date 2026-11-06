@@ -101,6 +101,7 @@
         <a class="nav-button" href="#about">عن الطبيب</a>
         <a class="nav-button" href="#faq">أسئلة شائعة</a>
         <a class="nav-button" href="#trackCard">متابعة طلب</a>
+        <a class="nav-button" href="./privacy.html">الخصوصية</a>
         <button class="nav-button" type="button" data-view="staff">دخول العيادة</button>
       </nav>
       <div class="status-cluster">
@@ -252,7 +253,7 @@
 
             <section class="side-card privacy-card">
               <svg aria-hidden="true"><use href="#i-shield"/></svg>
-              <div><strong>خصوصية الأسرة أولًا</strong><p>نجمع الاسم ورقم التواصل فقط لإدارة الطلب. لا نطلب ولا نخزّن أي بيانات صحية في هذا النموذج.</p></div>
+              <div><strong>خصوصية الأسرة أولًا</strong><p>نجمع الاسم ورقم التواصل فقط لإدارة الطلب. لا نطلب ولا نخزّن أي بيانات صحية في هذا النموذج. <a href="./privacy.html">التفاصيل وحق الحذف</a></p></div>
             </section>
 
             <section class="side-card helper-card">
@@ -267,8 +268,9 @@
 
         <section class="lower-tools" aria-label="المتابعة والمساعدة">
           <div id="trackCard" class="tool-card tracking-card">
-            <div class="tool-head"><p class="section-kicker">طلب سابق</p><h3>تابعوا حالة الطلب</h3><p>استخدموا الرقم المرجعي الذي ظهر بعد الإرسال.</p></div>
-            <form id="trackForm" class="track-form"><label class="sr-only" for="trackReference">الرقم المرجعي</label><input id="trackReference" type="text" maxlength="40" placeholder="CK-XXXXXXXX" autocomplete="off" spellcheck="false"><button class="secondary-button" type="submit">عرض الحالة</button></form>
+            <div class="tool-head"><p class="section-kicker">طلب سابق</p><h3>تابعوا حالة الطلب</h3><p>استخدموا الرقم المرجعي الذي ظهر بعد الإرسال، ورقم الهاتف الذي أرسلتم به الطلب.</p></div>
+            <form id="trackForm" class="track-form"><label class="sr-only" for="trackReference">الرقم المرجعي</label><input id="trackReference" type="text" maxlength="40" placeholder="CK-XXXXXXXX" autocomplete="off" spellcheck="false"><label class="sr-only" for="trackPhone">هاتف ولي الأمر</label><input id="trackPhone" type="tel" inputmode="tel" maxlength="22" placeholder="هاتف ولي الأمر" autocomplete="tel"><button class="secondary-button" type="submit">عرض الحالة</button></form>
+            <p class="privacy-reminder">الرقم المرجعي وحده لا يُظهر تفاصيل الطلب: يلزم تطابق هاتف ولي الأمر أيضًا. ويمكنكم من هنا حذف بيانات طلبكم.</p>
             <div id="trackResult" class="track-result" hidden aria-live="polite"></div>
           </div>
 
@@ -425,11 +427,42 @@
               </form>
               <p id="settingsSaved" class="settings-saved" hidden>تم الحفظ وتطبيقه على الصفحة.</p>
             </section>
+
+            <!-- Health is read from the backend (healthCheck_), never computed in the page:
+                 a report that says "fine" because the browser cannot see the failure is worse
+                 than no report. -->
+            <section class="dashboard-card health-card" aria-labelledby="healthTitle">
+              <div class="dashboard-title">
+                <div><p class="section-kicker">فحص سريع</p><h3 id="healthTitle">حالة النظام</h3></div>
+                <button type="button" class="secondary-button" id="healthRefresh">إعادة الفحص</button>
+              </div>
+              <p class="settings-intro">يجيب هذا الفحص عن سؤال واحد: هل يستطيع النظام استقبال طلب الآن؟ لا يُرسل أي بيانات تواصل، ويُقرأ من الخادم فقط.</p>
+              <div id="healthBody" class="health-body" aria-live="polite"><p class="settings-loading">افتحوا الفحص لعرض الحالة.</p></div>
+            </section>
           </div>
         </div>
       </section>
     </div>
   </main>
+
+    <!-- The published privacy notice (privacy.html) is re-pointed here inside the Apps Script
+         bundle, where a second HTML file is not deployed. The text is a summary: the full
+         notice stays one click away on the public site. -->
+    <section id="privacyNotice" class="app-shell" aria-labelledby="privacyNoticeTitle" style="padding-block:26px 6px">
+      <div class="notice" data-privacy-notice>
+        <h2 id="privacyNoticeTitle">الخصوصية وحقوق البيانات — باختصار</h2>
+        <p>نجمع <strong>اسم ولي الأمر ورقم هاتفه</strong> ونوع الزيارة والوقت المطلوب فقط لإدارة طلب الموعد.
+          لا نطلب ولا نخزّن أي بيانات صحية: لا أعراض ولا تشخيص ولا أدوية ولا اسم الطفل.</p>
+        <ul>
+          <li>الطلب يُحفظ كما يُرسل، والموعد لا يُضاف إلى تقويم العيادة قبل موافقة فريقها.</li>
+          <li>عرض حالة الطلب يحتاج <strong>الرقم المرجعي + هاتف ولي الأمر</strong> معًا.</li>
+          <li>يمكنكم <strong>حذف اسمكم ورقمكم</strong> من «متابعة طلب» ← «حذف بياناتي».</li>
+          <li>تُحذف بيانات التواصل من الطلبات المنتهية بعد <strong data-notice-retention>١٢ شهرًا</strong>.</li>
+          <li>للحذف هاتفيًا أو لأي استفسار: <a data-notice-phone href="./">هاتف العيادة المنشور</a>.</li>
+        </ul>
+        <p>النص الكامل: صفحة «الخصوصية وحقوق البيانات» على الموقع المنشور.</p>
+      </div>
+    </section>
 
   <footer class="site-footer">
     <div class="app-shell footer-inner">
@@ -443,6 +476,7 @@
         <a href="#trackCard">متابعة طلب</a>
         <a href="#clinic">العيادة</a>
         <a href="#faq">أسئلة شائعة</a>
+        <a href="./privacy.html">الخصوصية وحقوق البيانات</a>
         <button type="button" class="link-button" data-view="staff">لوحة العيادة</button>
       </div>
     </div>

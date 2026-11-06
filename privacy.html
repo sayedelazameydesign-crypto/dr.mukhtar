@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="سياسة الخصوصية وحقوق البيانات في صفحة طلب مواعيد عيادة الأطفال: ما نجمع، ولماذا، وكم يُحفظ، وكيف يُحذف.">
+  <title>الخصوصية وحقوق البيانات — عيادة أطفال</title>
+  <link rel="icon" href="./brand.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./brand.svg">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./app.css?v=2026">
+  <script src="./app.js?v=2026" defer></script>
+  <style>
+    /* The notice must read correctly even if the stylesheet fails: the rules below are the
+       minimum for legibility, and app.css refines them when it loads. */
+    .notice{max-width:72ch}
+    .notice h1{font-size:clamp(24px,3vw,32px);line-height:1.35;margin:0 0 10px}
+    .notice h2{font-size:18px;margin:28px 0 8px}
+    .notice p,.notice li{font-size:14.5px;line-height:1.9}
+    .notice ul{padding-inline-start:20px}
+    .notice table{width:100%;border-collapse:collapse;margin:10px 0 4px;font-size:13.5px}
+    .notice th,.notice td{border:1px solid var(--line,#e2e6e0);padding:8px 10px;text-align:start;vertical-align:top}
+    .notice th{background:var(--mint-2,#f6faf7);font-weight:700}
+    .notice .callout{margin:16px 0;padding:14px 16px;border:1px solid var(--note-line,#eee0be);background:var(--note-bg,#fdf8ec);border-radius:10px;font-size:13.5px;line-height:1.8}
+    .notice .pending{color:var(--note,#7a5a17)}
+    .notice .back{margin-top:26px;font-size:13px}
+  </style>
+</head>
+<body>
+  <!--
+    WHY THIS PAGE IS STATIC FIRST
+    A privacy notice that depends on JavaScript, a PIN or a Google deployment is a notice
+    nobody can read at the moment they need it. Everything here is true without a server;
+    only the two configuration facts (clinic name/phone) and the retention window are filled
+    in from the backend when one is connected. Empty stays empty — no placeholder is dressed
+    up as a real clinic detail.
+  -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="./" aria-label="العودة إلى صفحة طلب المواعيد">
+        <span class="brand-mark" aria-hidden="true">✚</span>
+        <span class="brand-text"><strong data-notice-clinic>عيادة أطفال</strong><small>الخصوصية وحقوق البيانات</small></span>
+      </a>
+      <nav class="top-nav" aria-label="روابط الصفحة">
+        <a class="nav-button" href="./">طلب موعد</a>
+        <a class="nav-button" href="./#trackCard">متابعة طلب</a>
+        <a class="nav-button" href="./#faq">أسئلة شائعة</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="app-shell" style="padding-block:28px 40px">
+    <article class="notice" data-privacy-notice>
+      <h1>ما نجمعه، ولماذا، وكيف يُحذف</h1>
+      <p>هذه الصفحة مكتوبة لولي الأمر، لا للمحامين. إن بقي سؤال واحد بلا جواب، فالصفحة ناقصة ونريد أن نعرفه.</p>
+
+      <div class="callout">
+        <strong>باختصار:</strong> نجمع <strong>اسم ولي الأمر ورقم هاتفه</strong> ونوع الزيارة والوقت المطلوب فقط
+        لإدارة طلب الموعد. <strong>لا نطلب ولا نخزّن أي بيانات صحية</strong> — لا أعراض، ولا تشخيص، ولا أدوية،
+        ولا اسم الطفل. ولا نطلب الدفع عبر هذه الصفحة.
+      </div>
+
+      <h2>١) ما الذي يُجمع بالضبط</h2>
+      <table>
+        <thead><tr><th>البيان</th><th>لماذا</th><th>إلزامي؟</th></tr></thead>
+        <tbody>
+          <tr><td>اسم ولي الأمر</td><td>لمناداة الأسرة ومطابقة الطلب</td><td>نعم</td></tr>
+          <tr><td>رقم الهاتف</td><td>التواصل لتأكيد الموعد أو تعديله، وهو أيضًا مفتاح متابعة الطلب وحذفه</td><td>نعم</td></tr>
+          <tr><td>نوع الزيارة واليوم والوقت المطلوب</td><td>مراجعة الجدول قبل التأكيد</td><td>نعم</td></tr>
+          <tr><td>موافقة إدارة بيانات التواصل</td><td>إثبات أنكم وافقتم على هذا الاستخدام</td><td>نعم (مربع اختيار)</td></tr>
+          <tr><td>سجل إداري (الرقم المرجعي، الحالة، من اتخذ القرار ومتى)</td><td>متابعة الطلب والمساءلة داخل العيادة</td><td>يُسجَّل تلقائيًا</td></tr>
+        </tbody>
+      </table>
+      <p><strong>ما لا يُجمع إطلاقًا:</strong> الأعراض والشكوى الطبية، التشخيص، التحاليل، الأدوية، ملف طبي،
+        بيانات دفع، أو صور. إن كتبتم أي شيء من هذا في ملاحظة، فالنموذج لا يطلبه والصفحة لا تحتفظ به؛
+        لا ترسلوا بيانات صحية عبر هذه الصفحة.</p>
+
+      <h2>٢) أين تُحفظ البيانات</h2>
+      <ul>
+        <li><strong>وضع العرض التجريبي:</strong> يبقى كل شيء في <em>متصفح جهازكم</em> فقط، ولا يصل إلى العيادة
+          ولا إلى أي خادم. يمكنكم مسحه من إعدادات المتصفح.</li>
+        <li><strong>الوضع المتصل بالعيادة:</strong> يُحفظ الطلب في جدول Google Sheets تملكه العيادة، ويُضاف
+          الموعد إلى تقويم Google الخاص بالعيادة <em>فقط بعد أن يوافق عليه فريق العيادة</em>. الطلب لا يُعد
+          حجزًا قبل ذلك.</li>
+        <li>لا نستخدم أدوات تحليل زوار، ولا إعلانات، ولا نبيع بيانات لأي طرف.</li>
+      </ul>
+
+      <h2>٣) من يرى الطلب</h2>
+      <p>فريق العيادة فقط، بعد الدخول برمز الموظف. متابعة الطلب من صفحتكم تحتاج
+        <strong>الرقم المرجعي + رقم الهاتف</strong> معًا؛ فالرقم المرجعي وحده لا يكشف تفاصيل أحد.</p>
+
+      <h2>٤) مدة الاحتفاظ</h2>
+      <p>تُحذف بيانات التواصل (الاسم والهاتف) من الطلبات المنتهية بعد
+        <strong data-notice-retention>١٢ شهرًا</strong> من تاريخ الطلب، وتُطبَّق القاعدة تلقائيًا من داخل النظام
+        عند فتح لوحة العيادة. يبقى بعد ذلك سجل إداري بلا بيانات تواصل (الرقم المرجعي والحالة والتواريخ) لأن
+        العيادة تحتاجه للمساءلة. الموعد المؤكد لا تُحذف بياناته ما دام قائمًا في التقويم.</p>
+      <p class="pending">القيمة أعلاه تُقرأ من إعداد العيادة نفسه، فتغييرها في لوحة العيادة يغيّر هذه الصفحة —
+        ولا توجد نسخة ثانية من السياسة في الكود.</p>
+
+      <h2>٥) حقّكم في الحذف</h2>
+      <p>يمكنكم حذف اسمكم ورقم هاتفكم من الطلب بأنفسكم، دون انتظار:</p>
+      <ol>
+        <li>افتحوا الصفحة الرئيسية ثم «متابعة طلب».</li>
+        <li>أدخلوا الرقم المرجعي ورقم الهاتف الذي أرسلتم به الطلب.</li>
+        <li>اضغطوا «حذف بياناتي» ثم أكّدوا.</li>
+      </ol>
+      <p>يُحذف الاسم والهاتف فورًا، ويصبح الطلب في حالة «محذوف». لا يمكن التراجع، والسبب أن الحذف يجب أن يكون
+        حذفًا حقيقيًا لا إخفاءً. وإذا كان الموعد مؤكدًا فلا بأس: «حذف بياناتي» يطلب منكم إلغاء الموعد أولًا،
+        حتى لا يبقى وقت محجوز باسم لا نعرفه.</p>
+      <p>وإن تعذّر الوصول إلى الإنترنت أو أردتم الحذف هاتفيًا: اتصلوا بالعيادة على
+        <a data-notice-phone href="./">الرقم المنشور</a> واطلبوا حذف بيانات طلبكم بالرقم المرجعي.</p>
+
+      <h2>٦) الموافقة والحد الأدنى من العمر</h2>
+      <p>هذه الصفحة موجّهة لولي الأمر أو من ينوب عنه قانونًا. لا تُنشئ حسابًا ولا تطلب بريدًا إلكترونيًا،
+        لكنها تفترض أن من يرسل الطلب هو الشخص المسؤول عن بيانات الطفل.</p>
+
+      <h2>٧) ما لم يُغطَّ هنا بعد</h2>
+      <p class="pending">هذه السياسة مسوّدة تشغيلية للنسخة الأولى. قبل استخدامها في عيادة حقيقية يبقى مطلوبًا:
+        مراجعة متطلبات حماية البيانات الشخصية المصرية (قانون ١٥١ لسنة ٢٠٢٠ ولائحته) مع مختص، وتحديد أساس
+        قانوني مكتوب للمعالجة، وتسمية مسؤول عن الخصوصية، ومراجعة مكان التخزين وشروط Google.
+        <strong>لا تُستخدم بيانات مرضى حقيقيين قبل إغلاق هذه البنود.</strong></p>
+
+      <p class="back"><a href="./">← العودة إلى صفحة طلب المواعيد</a></p>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="app-shell footer-inner">
+      <p class="footer-note">في الحالات الطارئة لا تنتظروا هذه الصفحة: اتصلوا بخدمات الطوارئ المحلية (١٢٣ — الإسعاف في مصر).</p>
+    </div>
+  </footer>
+</body>
+</html>

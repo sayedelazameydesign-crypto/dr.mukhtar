@@ -30,6 +30,11 @@ const CK_MIN_PIN_LENGTH = 16;
 // minutes (not seconds) keeps a human owner unaffected and makes guessing useless.
 const CK_PIN_MAX_FAILURES = 5;
 const CK_PIN_LOCK_SECONDS = 900;
+// How long contact data lives. A month count, not a date, so the page can state the rule
+// without a second copy of it: getPrivacyNotice() reads this same value.
+const CK_DEFAULT_RETENTION_MONTHS = 12;
+const CK_MIN_RETENTION_MONTHS = 1;
+const CK_MAX_RETENTION_MONTHS = 60;
 
 /** The single source of truth for what an owner can edit in the UI. */
 const CK_SETTINGS_CATALOG = [
@@ -73,6 +78,14 @@ const CK_SETTINGS_CATALOG = [
     help: 'تُبنى منها قائمة «نوع الزيارة» على الصفحة ومدة كل موعد والتحقق من السعة.',
     fields: [
       { key: 'VISIT_SERVICES', label: 'أنواع الزيارات وأسعارها', type: 'services', help: 'سطر لكل نوع: الاسم = المدة بالدقائق = السعر (السعر اختياري، واتركوه فارغًا إن لم يكن معلنًا)' }
+    ]
+  },
+  {
+    group: 'retention',
+    title: 'الخصوصية والاحتفاظ',
+    help: 'تُعرض على صفحة الخصوصية المنشورة؛ تغييرها هنا يغيّر ما يقرأه ولي الأمر.',
+    fields: [
+      { key: 'RETENTION_MONTHS', label: 'مدة الاحتفاظ ببيانات الطلبات (بالأشهر)', type: 'int', min: 1, max: 60, help: 'بعدها تُحذف بيانات التواصل من الطلبات القديمة. القيمة نفسها تظهر على صفحة الخصوصية.' }
     ]
   },
   {
@@ -336,6 +349,7 @@ function getClinicSettings(pin) {
       if (key === 'WORK_START') { values[key] = readSetting_(props, key) || CK.DEFAULT_START; return; }
       if (key === 'WORK_END') { values[key] = readSetting_(props, key) || CK.DEFAULT_END; return; }
       if (key === 'SLOT_MINUTES') { values[key] = readSetting_(props, key) || String(CK.DEFAULT_MINUTES); return; }
+      if (key === 'RETENTION_MONTHS') { values[key] = String(readRetentionMonths_(props)); return; }
       values[key] = readSetting_(props, key);
     });
     const pinState = staffPinState_();
@@ -349,7 +363,8 @@ function getClinicSettings(pin) {
         staffPinHashed: pinState.hashed,
         calendarConfigured: !!props.getProperty('CALENDAR_ID'),
         mustChangePin: props.getProperty('CK_MUST_CHANGE_PIN') === '1',
-        minPinLength: CK_MIN_PIN_LENGTH
+        minPinLength: CK_MIN_PIN_LENGTH,
+        retentionMonths: readRetentionMonths_(props)
       }
     };
   } catch (error) {
@@ -515,6 +530,165 @@ function saveStaffPin(currentPin, newPin, pin) {
   invalidateSlotCache_();
   const auditStored = auditBestEffort_('', staffActor_(), 'STAFF_PIN_CHANGED', '', '', 'updated from the clinic dashboard');
   return { ok: true, warning: auditStored ? '' : 'تم تغيير الرمز لكن تعذر تسجيله في سجل التدقيق.' };
+}
+
+/* ------------------------------------------- retention + guardian data rights -- */
+
+/**
+ * Months of contact data the clinic keeps. Read in one place so the owner's setting and
+ * the published privacy page cannot disagree; an out-of-range value falls back to the
+ * default rather than silently inventing a policy the owner never chose.
+ */
+function readRetentionMonths_(props) {
+  const raw = Number(String((props && props.getProperty('RETENTION_MONTHS')) || '').trim());
+  if (!Number.isFinite(raw) || Math.round(raw) !== raw) return CK_DEFAULT_RETENTION_MONTHS;
+  if (raw < CK_MIN_RETENTION_MONTHS || raw > CK_MAX_RETENTION_MONTHS) return CK_DEFAULT_RETENTION_MONTHS;
+  return raw;
+}
+
+/**
+ * What the published privacy page says. Public (no PIN): it is the notice a guardian must
+ * be able to read *before* sending anything. It carries no contact detail, no secret and
+ * no PII — only the policy and where to exercise the rights.
+ */
+function getPrivacyNotice() {
+  try {
+    const config = getConfig_();
+    const props = PropertiesService.getScriptProperties();
+    return {
+      ok: true,
+      clinicName: config.clinicName || '',
+      phone: config.clinicPhone || '',
+      address: config.clinicAddress || '',
+      retentionMonths: readRetentionMonths_(props),
+      // Without a published phone number the page must not claim a deletion channel that
+      // does not exist; it says so in plain words instead.
+      deletionChannels: config.clinicPhone
+        ? ['phone']
+        : []
+    };
+  } catch (error) {
+    return { ok: false, message: 'تعذر قراءة سياسة الخصوصية.' };
+  }
+}
+
+/** Reference prefixes are random; the phone digits are the ownership credential. */
+function samePhone_(a, b) {
+  const left = digits_(a);
+  const right = digits_(b);
+  if (left.length < 8 || right.length < 8) return false;
+  return constantTimeEquals_(left.slice(-11), right.slice(-11));
+}
+
+/** The guardian's view of their own request. Deliberately narrower than a staff row. */
+function lookupOwnRequest(reference, phone) {
+  if (!String(phone || '').trim()) return { ok: false, message: 'أدخلوا رقم الهاتف المسجل في الطلب.' };
+  try {
+    const result = findOwnedRequest_(reference, phone);
+    if (!result.ok) return result;
+    if (!result.record) return { ok: false, message: 'لا يوجد طلب مطابق لهذا الرقم المرجعي وهذا الهاتف.' };
+    const record = result.record;
+    return {
+      ok: true,
+      booking: {
+        reference: record.reference,
+        status: record.status,
+        visitType: record.visitType,
+        day: record.day,
+        time: record.time,
+        slotVerified: !!record.slotVerified,
+        retentionMonths: readRetentionMonths_(PropertiesService.getScriptProperties())
+      }
+    };
+  } catch (error) {
+    return { ok: false, message: 'تعذر قراءة الطلب الآن. حاولوا مرة أخرى بعد قليل.' };
+  }
+}
+
+/**
+ * Locate a request the caller can prove is theirs.
+ *
+ * A phone match is checked FIRST, and that is a safety decision, not an optimisation:
+ * findRequest_() falls back to the outage queue (a Script Property, where rows that could
+ * not reach Sheets wait), and the erasure path must never rewrite that queue from the
+ * public web app. So the ownership check runs without touching Sheets, and the row is
+ * located separately afterwards.
+ */
+function findOwnedRequest_(reference, phone) {
+  const ref = String(reference || '').trim().toUpperCase();
+  if (!/^CK-[A-Z0-9-]{6,40}$/.test(ref)) return { ok: true, record: null };
+  const inQueue = (function () {
+    try {
+      const raw = PropertiesService.getScriptProperties().getProperty(CK.QUEUE_PREFIX + ref);
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      logEvent_('error', 'guardian_lookup_queue_unreadable', { code: 'QUEUE_READ' });
+      return { unreadable: true };
+    }
+  })();
+  if (inQueue && inQueue.unreadable) return { ok: false, message: 'تعذر قراءة الطلب الآن. حاولوا مرة أخرى بعد قليل.' };
+  if (inQueue && samePhone_(inQueue.phone, phone)) {
+    return { ok: false, message: 'الطلب محفوظ مؤقتًا أثناء انقطاع السجل؛ حاولوا لاحقًا أو تواصلوا هاتفيًا مع العيادة.' };
+  }
+  const record = findRequest_(ref);
+  if (!record) return { ok: true, record: null };
+  // A DELETED row keeps its phone empty: nobody can prove ownership of it again, and the
+  // answer to a repeat request is an honest "nothing left under this reference".
+  return { ok: true, record: samePhone_(record.phone, phone) ? record : null };
+}
+
+/**
+ * Erase the contact data of one request: the name and the phone become empty, the status
+ * becomes DELETED, and only the administrative audit trail (reference, dates, statuses,
+ * who) survives. A live appointment is refused here because it is still a clinic
+ * obligation — cancel it first, then delete.
+ */
+function deleteOwnRequestData(reference, phone, reason) {
+  if (!String(phone || '').trim()) return { ok: false, message: 'أدخلوا رقم الهاتف المسجل في الطلب.' };
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(25000)) return { ok: false, message: 'هناك طلب آخر قيد المعالجة. حاولوا بعد لحظات.' };
+  try {
+    const owned = findOwnedRequest_(reference, phone);
+    if (!owned.ok) return owned;
+    if (!owned.record) return { ok: false, message: 'لا يوجد طلب مطابق لهذا الرقم المرجعي وهذا الهاتف.' };
+    const ref = owned.record.reference;
+    if (owned.record.status === 'DELETED') {
+      return { ok: true, alreadyDeleted: true, booking: { reference: ref, status: 'DELETED' } };
+    }
+    const located = findRequestLocation_(ref);
+    if (!located) return { ok: false, message: 'لا يوجد طلب مطابق لهذا الرقم المرجعي وهذا الهاتف.' };
+    if (located.queueKey) return { ok: false, message: 'الطلب محفوظ مؤقتًا أثناء انقطاع السجل؛ حاولوا لاحقًا.' };
+    const record = located.record;
+    // A confirmed appointment that still sits in the clinic calendar is a commitment, not
+    // a record: deleting the contact details would leave a slot reserved for nobody.
+    let liveEvent = null;
+    try {
+      liveEvent = findCalendarEvent_(getCalendar_(), record.reference, record.day, record.time);
+    } catch (error) {
+      return { ok: false, message: 'تعذر الوصول إلى تقويم العيادة للتحقق من الموعد؛ حاولوا لاحقًا.' };
+    }
+    if (liveEvent) {
+      return { ok: false, message: 'هذا الموعد ما زال محفوظًا في تقويم العيادة. اطلبوا إلغاءه أولًا ثم احذفوا البيانات.' };
+    }
+    const oldStatus = record.status;
+    record.guardianName = '';
+    record.phone = '';
+    record.status = 'DELETED';
+    record.updatedAt = new Date().toISOString();
+    updateRequestRow_(located.row, record);
+    const auditStored = auditBestEffort_(record.reference, 'guardian', 'GUARDIAN_DATA_DELETED', oldStatus, 'DELETED',
+      String(reason || 'طلب ولي الأمر حذف بياناته').slice(0, 80));
+    logEvent_('info', 'guardian_data_deleted', { audit_stored: auditStored });
+    return {
+      ok: true,
+      booking: { reference: record.reference, status: 'DELETED' },
+      warning: auditStored ? '' : 'حُذفت البيانات، لكن تعذر تسجيل الحذف في سجل التدقيق. أبلغوا مسؤول النظام.'
+    };
+  } catch (error) {
+    return { ok: false, message: error.message || 'تعذر حذف البيانات.' };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /* --------------------------------------------------------- reset / export --- */

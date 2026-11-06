@@ -370,6 +370,11 @@ function lookupBooking(reference) {
   try {
     const record = findRequest_(ref);
     if (!record) return { ok: false, message: 'لم نعثر على طلب بهذا الرقم.' };
+    // A deleted request must not answer as if it were still open: the guardian is told the
+    // record was erased, not shown a status that implies an appointment still exists.
+    if (record.status === 'DELETED') {
+      return { ok: false, deleted: true, message: 'حُذفت بيانات هذا الطلب بناءً على طلب ولي الأمر. للاستفسار تواصلوا مع العيادة هاتفيًا.' };
+    }
     return { ok: true, booking: { reference: record.reference, day: record.day, time: record.time, status: record.status } };
   } catch (error) {
     return { ok: false, message: 'تعذر قراءة حالة الطلب حالياً. احتفظوا بالرقم المرجعي وتواصلوا مع العيادة.' };
@@ -381,6 +386,9 @@ function lookupBooking(reference) {
 function getDashboard(pin) {
   if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح أو لم يُضبط بعد.' };
   const warnings = [];
+  // Freshness, not a log line: healthCheck_() answers "has a human looked at this clinic
+  // lately?" without reading the Audit sheet (which may be exactly what is broken).
+  markStaffSeen_();
   try { syncOutageQueue_(); }
   catch (error) { warnings.push('تعذر مزامنة سجل الطلبات مع Sheets؛ الطلبات الاحتياطية محفوظة للمراجعة عند عودة الخدمة.'); }
   let bookings = [];
@@ -400,6 +408,15 @@ function getDashboard(pin) {
   const llm = llmStatus();
   if (!llm.enabled) warnings.push('المساعد الاختياري غير مفعّل (لا يؤثر على الحجز).');
   else if (llm.circuitOpen) warnings.push('المساعد الاختياري في فترة تبريد بعد أعطال متكررة.');
+  // Retention is enforced from the same place the queues are drained: the staff dashboard
+  // is the only screen a human is guaranteed to open, and a policy nobody runs is a slogan.
+  try {
+    const purge = purgeExpiredRequests_();
+    if (purge.purged) warnings.push('حُذفت بيانات ' + purge.purged + ' طلبًا قديمًا وفق مدة الاحتفاظ المعلنة.');
+    if (purge.failed) warnings.push('تعذر حذف بيانات ' + purge.failed + ' طلبًا قديمًا؛ راجعوا سجل التدقيق.');
+  } catch (error) {
+    warnings.push('تعذر تشغيل قاعدة الاحتفاظ بالبيانات؛ راجعوا السجلات.');
+  }
   const queued = readOutageQueue_();
   if (queued.length) warnings.push('توجد طلبات محفوظة مؤقتاً في طابور الانقطاع ولم تُزامن بعد. لا تؤكدوا هذه الطلبات حتى عودة Sheets.');
   const pendingAuditCount = Object.keys(PropertiesService.getScriptProperties().getProperties()).filter((key) => key.indexOf(CK.AUDIT_QUEUE_PREFIX) === 0).length;
@@ -407,6 +424,180 @@ function getDashboard(pin) {
   queued.forEach((item) => { if (!bookings.some((b) => b.reference === item.reference)) bookings.push(item); });
   bookings.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   return { ok: true, bookings: bookings, closures: closures, warnings: warnings };
+}
+
+/* ------------------------------------------------------------------ health ---- */
+
+/** Record that a staff member actually opened the dashboard (no PII, one key). */
+function markStaffSeen_() {
+  try { PropertiesService.getScriptProperties().setProperty('CK_LAST_STAFF_ACTION', new Date().toISOString()); }
+  catch (error) { /* freshness is best effort; it must never block the dashboard */ }
+}
+
+
+/**
+ * One machine-readable answer to "is this deployment fit to take a request right now?".
+ *
+ * It exists because the alternative is finding out from a parent's phone call. It is
+ * deliberately narrow: booleans, counters and timestamps — no name, no phone, no free
+ * text, so the same payload can be read by staff, logged, or polled by an uptime check.
+ */
+function healthCheck_() {
+  const started = new Date().toISOString();
+  const now = Date.now();
+  const checks = [];
+  const add = function (id, ok, detail) { checks.push({ id: id, ok: !!ok, detail: detail || '' }); };
+
+  let config = null;
+  try { config = getConfig_(); add('config', true, ''); }
+  catch (error) { add('config', false, error.message || 'إعداد غير صالح'); }
+
+  let requestRows = 0;
+  let sheetOk = false;
+  try {
+    const sheet = getSpreadsheet_().getSheetByName(CK.REQUESTS);
+    if (!sheet) add('sheets', false, 'ورقة Requests غير موجودة؛ شغّلوا initializeCeliaKids().');
+    else {
+      sheetOk = true;
+      requestRows = Math.max(0, sheet.getLastRow() - 1);
+      add('sheets', true, '');
+    }
+  } catch (error) { add('sheets', false, error.message || 'تعذر الوصول إلى Sheets'); }
+
+  let calendarOk = false;
+  try { calendarOk = !!getCalendar_(); add('calendar', calendarOk, calendarOk ? '' : 'تعذر العثور على تقويم العيادة'); }
+  catch (error) { add('calendar', false, error.message || 'تعذر الوصول إلى Calendar'); }
+
+  let pendingAudit = 0;
+  let queuedRequests = 0;
+  try {
+    queuedRequests = readOutageQueue_().length;
+    pendingAudit = Object.keys(PropertiesService.getScriptProperties().getProperties())
+      .filter(function (key) { return key.indexOf(CK.AUDIT_QUEUE_PREFIX) === 0; }).length;
+    // Half-full queues are the early warning; a full queue is in the detail text, not a
+    // second boolean, so the payload stays one shape.
+    const queueOk = queuedRequests < CK.MAX_OUTAGE_REQUESTS && pendingAudit < CK.MAX_OUTAGE_AUDITS;
+    add('queues', queueOk, queuedRequests + '/' + CK.MAX_OUTAGE_REQUESTS + ' · ' + pendingAudit + '/' + CK.MAX_OUTAGE_AUDITS);
+  } catch (error) { add('queues', false, 'تعذر قراءة طوابير الانقطاع'); }
+
+  const pinState = staffPinState_();
+  const pinOk = pinState.configured && PropertiesService.getScriptProperties().getProperty(CK.MUST_CHANGE_FLAG) !== '1';
+  add('staff_pin', pinOk, pinOk ? '' : pinState.configured ? 'الرمز المؤقت ما زال مستخدمًا' : 'لا يوجد رمز دخول');
+
+  const retentionMonths = (typeof readRetentionMonths_ === 'function')
+    ? readRetentionMonths_(PropertiesService.getScriptProperties()) : 0;
+  add('retention', retentionMonths >= 1, retentionMonths + ' شهر');
+
+  // The two failures that made this function worth writing: a write that silently did
+  // not land (stuck queue) and a dashboard nobody opened for days (no purge).
+  const lastPurge = PropertiesService.getScriptProperties().getProperty('CK_LAST_PURGE') || '';
+  const lastAction = PropertiesService.getScriptProperties().getProperty('CK_LAST_STAFF_ACTION') || '';
+  const ageDays = function (iso) {
+    if (!iso) return null;
+    const then = Date.parse(iso);
+    return Number.isFinite(then) ? Math.floor((now - then) / 86400000) : null;
+  };
+  add('last_purge', ageDays(lastPurge) === null || ageDays(lastPurge) <= 8, lastPurge || 'لم يُسجل بعد');
+
+  return {
+    ok: checks.every(function (check) { return check.ok; }),
+    started: started,
+    checks: checks,
+    counters: {
+      requests: requestRows,
+      queued_requests: queuedRequests,
+      queued_audits: pendingAudit,
+      retention_months: retentionMonths
+    },
+    last_staff_action: lastAction,
+    staff_action_age_days: ageDays(lastAction)
+  };
+}
+
+/** Staff-facing health report (same payload, PIN required). */
+function getHealthReport(pin) {
+  if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  try {
+    const report = healthCheck_();
+    logEvent_('info', 'health_check', { ok: report.ok, queued: report.counters.queued_requests });
+    return { ok: true, report: report };
+  } catch (error) {
+    logEvent_('error', 'health_check_failed', { code: 'HEALTH' });
+    return { ok: false, message: 'تعذر تشغيل فحص الصحة.' };
+  }
+}
+
+/**
+ * Public uptime endpoint for an external monitor (freshness, not security).
+ *
+ * Publishing it must be an explicit act, not a default: without the secret
+ * `HEALTH_TOKEN` set in Script Properties this returns 404 and reveals nothing.
+ * With it, `?token=…` returns the same counters — never the request list.
+ */
+function doGetHealth(event) {
+  const token = String(PropertiesService.getScriptProperties().getProperty('HEALTH_TOKEN') || '');
+  const provided = String((event && event.parameter && event.parameter.token) || '');
+  if (!token || !constantTimeEquals_(provided, token)) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false })).setMimeType(ContentService.MimeType.JSON);
+  }
+  return ContentService.createTextOutput(JSON.stringify(healthCheck_())).setMimeType(ContentService.MimeType.JSON);
+}
+
+/* --------------------------------------------------------------- retention ---- */
+
+/** Statuses whose contact data may be erased once the retention window has passed. */
+const CK_PURGEABLE_STATUSES = ['CANCELLED', 'COMPLETED', 'DELETED'];
+const CK_PURGE_INTERVAL_MS = 22 * 60 * 60 * 1000;
+
+function retentionCutoff_(months) {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - months);
+  return cutoff.getTime();
+}
+
+/**
+ * Erase contact data from old, settled requests. Two safety rules:
+ *  - only terminal statuses are touched (a pending or confirmed visit is a live promise),
+ *  - a row that still has a calendar event keeps its details, because the appointment is
+ *    still real even if the sheet says otherwise.
+ * The rest of the row (reference, dates, statuses) stays for the Clinic's own audit.
+ */
+function purgeExpiredRequests_() {
+  const props = PropertiesService.getScriptProperties();
+  const last = Date.parse(props.getProperty('CK_LAST_PURGE') || '');
+  if (Number.isFinite(last) && Date.now() - last < CK_PURGE_INTERVAL_MS) return { purged: 0, failed: 0, skipped: true };
+  const months = (typeof readRetentionMonths_ === 'function') ? readRetentionMonths_(props) : 12;
+  const cutoff = retentionCutoff_(months);
+  const sheet = requestsSheet_();
+  let purged = 0;
+  let failed = 0;
+  if (sheet.getLastRow() >= 2) {
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, CK.REQUEST_HEADERS.length).getValues();
+    const calendar = (function () { try { return getCalendar_(); } catch (error) { return null; } })();
+    for (let index = 0; index < rows.length; index += 1) {
+      const record = rowToRequest_(rows[index]);
+      if (!record.phone && !record.guardianName) continue;
+      if (CK_PURGEABLE_STATUSES.indexOf(record.status) === -1) continue;
+      const created = Date.parse(record.createdAt);
+      if (!Number.isFinite(created) || created > cutoff) continue;
+      try {
+        if (calendar && findCalendarEvent_(calendar, record.reference, record.day, record.time)) continue;
+        record.guardianName = '';
+        record.phone = '';
+        if (record.status !== 'DELETED') record.status = 'DELETED';
+        record.updatedAt = new Date().toISOString();
+        sheet.getRange(index + 2, 1, 1, CK.REQUEST_HEADERS.length).setValues([requestToRow_(record)]);
+        auditBestEffort_(record.reference, 'retention', 'RETENTION_PURGE', 'TERMINAL', 'DELETED', 'reached ' + months + ' months');
+        purged += 1;
+      } catch (error) {
+        failed += 1;
+        logEvent_('error', 'retention_purge_failed', { code: 'PURGE' });
+      }
+    }
+  }
+  props.setProperty('CK_LAST_PURGE', new Date().toISOString());
+  if (purged || failed) logEvent_(failed ? 'warn' : 'info', 'retention_purge_complete', { purged: purged, failed: failed, months: months });
+  return { purged: purged, failed: failed };
 }
 
 /**
@@ -462,6 +653,7 @@ function approveRequest(reference, pin) {
     // The 30-second read cache is now wrong for this day: it still offers a time the
     // calendar has just taken. A guardian could be shown a slot that is already sold.
     invalidateSlotCacheFor_(record.day);
+    markStaffSeen_();
     notifyWhatsapp_('confirmation', record);
     return { ok: true, booking: publicBooking_(record), warning: auditStored ? '' : 'تم حفظ الموعد لكن تعذر حفظ سجل التدقيق؛ أُبلغوا مسؤول النظام.' };
   } catch (error) {

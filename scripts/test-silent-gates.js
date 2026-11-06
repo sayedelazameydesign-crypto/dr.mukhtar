@@ -111,9 +111,9 @@ const run = (script, args = [], opts = {}) => spawnSync(process.execPath, [path.
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(path.join(ROOT, rel), target);
   };
-  ['.github/workflows/pages.yml', 'scripts/test-publish-contract.js', 'index.html', 'app.css', 'app.js',
-    'brand.svg', 'manifest.webmanifest', 'robots.txt', 'sitemap.xml', '404.html', 'clinic.json',
-    'config/.env.example'].forEach(copy);
+  ['.github/workflows/pages.yml', 'scripts/test-publish-contract.js', 'index.html', 'privacy.html',
+    'app.css', 'app.js', 'brand.svg', 'manifest.webmanifest', 'robots.txt', 'sitemap.xml', '404.html',
+    'clinic.json', 'config/.env.example'].forEach(copy);
   fs.mkdirSync(path.join(sandbox, 'assets', 'fonts'), { recursive: true });
   fs.readdirSync(path.join(ROOT, 'assets', 'fonts')).forEach((font) =>
     fs.copyFileSync(path.join(ROOT, 'assets', 'fonts', font), path.join(sandbox, 'assets', 'fonts', font)));

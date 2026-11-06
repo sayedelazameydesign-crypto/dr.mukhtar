@@ -134,6 +134,11 @@ jobs:
       - name: WhatsApp adapter (off / dry-run, no network)
         run: node scripts/test-whatsapp-adapter.js
 
+      # Privacy erasure, retention and the health payload. Offline; it fails (never skips)
+      # when a piece it depends on disappears.
+      - name: Privacy, retention and health
+        run: node scripts/test-privacy-health.js
+
       - name: Google bridge (offline, local adapter)
         run: |
           node scripts/test-google-bridge.js

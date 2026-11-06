@@ -54,7 +54,7 @@ const assembly = (step ? step[0] : '')
 /* --------------------------------------------------- 2. everything must ship */
 // Paths the running site requests. `clinic.json` is stage-A configuration and public by design.
 const SHIPPED = [
-  'index.html', 'app.css', 'app.js', 'brand.svg', 'manifest.webmanifest',
+  'index.html', 'privacy.html', 'app.css', 'app.js', 'brand.svg', 'manifest.webmanifest',
   'robots.txt', 'sitemap.xml', '404.html', 'clinic.json', 'assets'
 ];
 

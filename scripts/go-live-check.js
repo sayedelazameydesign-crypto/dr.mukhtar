@@ -203,6 +203,9 @@ function checkGates() {
   runGate('تطابق الإعدادات (حيّ/تجريبي)', process.execPath, ['scripts/check-settings-parity.js'], 'gate.parity');
   runGate('محاكاة الخادم', process.execPath, ['scripts/test-gas-simulated.js'], 'gate.backend');
   runGate('الواجهة في متصفح', process.execPath, ['scripts/test-ui-smoke.js'], 'gate.ui');
+  // Privacy/retention/health: the parts a guardian and an owner rely on when something has
+  // already gone wrong. Cheap, offline, and it fails loudly if a piece disappears.
+  runGate('الخصوصية والاحتفاظ وفحص الصحة', process.execPath, ['scripts/test-privacy-health.js'], 'gate.privacy');
 }
 
 /* --------------------------------------------- 4. what only a human can close */

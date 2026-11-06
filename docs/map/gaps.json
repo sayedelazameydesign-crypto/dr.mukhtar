@@ -235,6 +235,34 @@
         "evidence": "scripts/test-ui-smoke.js drives a real Apps Script-shaped runner whose callback never fires: the slot read falls back to the documented preference list, the submit button returns to enabled with its label restored, and the toast says the response did not arrive. Removing the wrapper (mutation) fails 4 assertions.",
         "note": "Copy differs by method: a timed-out write never invites an immediate resend; staff actions re-read the dashboard because the write may have landed. window.CELIA_CALL_TIMEOUT_MS raises the 45 s default."
       }
+    },
+    {
+      "id": "G19",
+      "type": "missing_data_rights",
+      "evidence": "index.html:253 privacy card + a consent checkbox only; no erasure path, no retention setting, no guardian-visible notice | before this change",
+      "impact": "A guardian could not withdraw or erase contact data, and a request could keep a name and phone forever on a free-tier Sheet",
+      "fix": "privacy.html + Settings.gs lookupOwnRequest/deleteOwnRequestData + RETENTION_MONTHS purge on the staff dashboard + scripts/test-privacy-health.js",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "node scripts/test-privacy-health.js -> 21 checks (reference+phone ownership, erasure blanks name/phone but keeps audit trail, live-event and outage-queue refusals, retention window + throttle)",
+        "note": "Legal review under Egyptian law 151/2020 is still open and is not claimed as closed by this gap."
+      }
+    },
+    {
+      "id": "G20",
+      "type": "unobservable_failure",
+      "evidence": "docs/production-readiness.md P-OBSERVABILITY: Audit sheet + logEvent_ only; no health check, no alert for the operator",
+      "impact": "A silent Sheets/Calendar failure is discovered by a parent's phone call, and an unopened dashboard looks identical to a healthy clinic",
+      "fix": "Code.gs healthCheck_/getHealthReport/doGetHealth (HEALTH_TOKEN-gated) + staff health panel + staff freshness stamp",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "node scripts/test-privacy-health.js -> health payload without name/phone/reference, red on Sheets outage, red on temporary PIN, red on full queue, public endpoint closed without HEALTH_TOKEN",
+        "note": "No external monitor is wired yet; the endpoint exists and stays closed until an owner sets HEALTH_TOKEN deliberately."
+      }
     }
   ],
   "questions": [

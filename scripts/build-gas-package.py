@@ -149,6 +149,11 @@ def main() -> None:
     # HtmlService renders inside a sandboxed iframe: keep links inside it.
     html = html.replace("</title>", "</title>\n  <base target=\"_top\">", 1)
 
+    # The published privacy notice lives in its own file (privacy.html) and is not part of the
+    # Apps Script bundle. Inside HtmlService that link would open a 404, so it is re-pointed at
+    # the bottom "الخصوصية وحقوق البيانات" section, which is the same text embedded above.
+    html = re.sub(r'href="\./privacy\.html"', 'href="#privacyNotice"', html)
+
     (OUT / "Index.html").write_text(html, encoding="utf-8")
 
     for name in COPIED_FILES:
