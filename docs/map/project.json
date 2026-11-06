@@ -1324,6 +1324,13 @@
       "path": "release-please-config.json",
       "layer": "infra",
       "role": "node release-type, manifest 1.0.0"
+    },
+    {
+      "id": "doc.plan-2026-finish",
+      "kind": "doc",
+      "path": "docs/plan-2026-finish.md",
+      "layer": "docs",
+      "role": "8-week plan to close G1/G2/G14/G23/G26 with dating evidence and stop rules"
     }
   ],
   "edges": [
