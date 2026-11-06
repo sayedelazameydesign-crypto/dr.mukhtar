@@ -140,7 +140,8 @@ test('the page is Arabic RTL, keyboard-skippable, and names no model provider', 
     await expect(credit).toBeVisible();
     await expect(credit).toContainText('ليس رقم العيادة');
     await expect(credit.locator(`a[href="tel:${developerDigits}"]`)).toHaveCount(1);
-    await expect(page.locator('[data-config="phone"] a')).toHaveAttribute('href', `tel:${digits}`);
+    // `data-config="phone"` appears twice (clinic card + access section): strict mode needs .first().
+    await expect(page.locator('[data-config="phone"] a').first()).toHaveAttribute('href', `tel:${digits}`);
   }
 });
 
