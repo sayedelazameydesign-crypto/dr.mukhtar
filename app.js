@@ -2034,8 +2034,42 @@
       loadAvailability(state.selectedDay);
       loadClinicProfile();
       requestAnimationFrame(revealOnScroll);
+      setupInstall();
     } catch (error) {
       console.error('Celia Kids failed to start', error);
+    }
+  }
+
+  /* ---------------- install as an app (static site only) ---------------- */
+  // The service worker keeps the page shell so it opens from the home screen. It is never
+  // registered inside the Apps Script deployment (no scope there) and never on http.
+  // A browser that does not offer installation simply keeps the button hidden.
+  function setupInstall() {
+    if (IS_GAS) return;
+    const button = $('[data-install]');
+    let deferred = null;
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      deferred = event;
+      if (button) button.hidden = false;
+    });
+    window.addEventListener('appinstalled', () => {
+      deferred = null;
+      if (button) button.hidden = true;
+    });
+    if (button) {
+      button.addEventListener('click', async () => {
+        if (!deferred) return;
+        deferred.prompt();
+        try { await deferred.userChoice; } catch (_) { /* dismissed */ }
+        deferred = null;
+        button.hidden = true;
+      });
+    }
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => { /* enhancement only */ });
+      }, { once: true });
     }
   }
 

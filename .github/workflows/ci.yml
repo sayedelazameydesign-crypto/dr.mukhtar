@@ -194,6 +194,9 @@ jobs:
       - name: Privacy, retention and health
         run: node scripts/test-privacy-health.js
 
+      - name: PWA install contract
+        run: node scripts/test-pwa.js
+
       - name: Google bridge (offline, local adapter)
         run: |
           node scripts/test-google-bridge.js
