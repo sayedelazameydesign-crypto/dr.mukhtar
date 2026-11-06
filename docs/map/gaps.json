@@ -295,6 +295,15 @@
       "evidence": ".github/workflows/ai-repair.yml and ci-error-triage.yml exist only on the PR branch; GitHub refuses `gh workflow run` for a workflow absent from the default branch (HTTP 404), so neither can be executed before merge",
       "fix": "after merge: dispatch ci-error-triage once against a real failed run and confirm the artifact; then dispatch ai-repair with dry_run=true",
       "evidence_needed": "a workflow run URL with a completed scan job"
+    },
+    {
+      "id": "G24",
+      "type": "docs_drift",
+      "status": "open",
+      "severity": "med",
+      "evidence": "docs/ai-repair.md §7 'لا مراجعة أمنية خارجية، ولا مراجعة قانونية' — docs/audit/ holds no threat model",
+      "fix": "produce docs/audit/threat-model-2026-11.md with grim-prompter, gate it with a checker that requires every threat row to cite a file:line that exists",
+      "evidence_needed": "docs/audit/threat-model-*.md present and passing its gate"
     }
   ],
   "questions": [

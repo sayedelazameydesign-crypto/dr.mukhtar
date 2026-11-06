@@ -1191,6 +1191,13 @@
       "path": ".github/workflows/ai-repair.yml",
       "layer": "infra",
       "role": "manual, human-gated repair"
+    },
+    {
+      "id": "doc.tooling-plan",
+      "kind": "doc",
+      "path": "docs/tooling-adoption-plan.md",
+      "layer": "docs",
+      "role": "which agent tools we adopt, and why we refuse others"
     }
   ],
   "edges": [
@@ -2829,6 +2836,22 @@
         [
           "tool.llm-smoke-probe",
           "env.GEMINI_API_KEY"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "docs/tooling-adoption-plan.md §1 cites docs/map/gaps.json G1/G2/G14/G23 and docs/production-readiness.md",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "doc.tooling-plan",
+          "doc.readme"
+        ],
+        [
+          "doc.tooling-plan",
+          "doc.code-logic"
         ]
       ]
     }
