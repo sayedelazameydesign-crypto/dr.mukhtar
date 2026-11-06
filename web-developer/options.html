@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web Developer — Options</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body data-page="options">
+  <div class="wd-app">
+    <header class="wd-header">
+      <div class="wd-brand">
+        <span class="wd-logo" aria-hidden="true">WD</span>
+        <div><h1>Web Developer — Options</h1><p id="wd-mode-label">Extension options</p></div>
+      </div>
+      <div class="wd-header-actions">
+        <span class="wd-status-chip" id="wd-status-js">JS: on</span>
+        <span class="wd-status-chip" id="wd-status-quirks">Standards</span>
+        <span class="wd-status-chip" id="wd-active-count">0 active</span>
+        <button type="button" class="wd-btn" id="wd-dark-toggle">◐ Dark</button>
+        <button type="button" class="wd-btn" id="wd-ack">✓ Saved</button>
+        <button type="button" class="wd-btn" id="wd-close">✕ Close</button>
+        <a class="wd-btn" href="index.html">Open dashboard</a>
+      </div>
+    </header>
+
+    <main class="wd-options-shell">
+      <section class="wd-options-block">
+        <h2>Options</h2>
+        <p class="wd-note">Saved to <code>chrome.storage.sync</code> when the extension is installed, or to localStorage in this standalone preview. Changes are mirrored to other open tabs.</p>
+        <div id="wd-options-form" class="wd-options-form"></div>
+        <div class="wd-panel-actions">
+          <button type="button" class="wd-btn wd-btn-primary" id="wd-options-save">Save options</button>
+          <button type="button" class="wd-btn" id="wd-options-reset">Reset to defaults</button>
+          <button type="button" class="wd-btn" id="wd-options-export">Export JSON</button>
+          <button type="button" class="wd-btn" id="wd-options-copy">Copy JSON</button>
+          <label class="wd-btn wd-file-label">Import JSON<input type="file" id="wd-options-import" accept="application/json,.json" hidden></label>
+        </div>
+      </section>
+
+      <section class="wd-options-block">
+        <h2>Feature templates</h2>
+        <p class="wd-note">Save and load sets of activated features.</p>
+        <div class="wd-inline-form">
+          <input type="text" id="wd-template-name" class="wd-input" placeholder="Template name">
+          <button type="button" class="wd-btn wd-btn-primary" id="wd-template-save">Save current set</button>
+        </div>
+        <div id="wd-template-list" class="wd-list-cards"></div>
+      </section>
+
+      <section class="wd-options-block">
+        <h2>Keyboard shortcuts</h2>
+        <p class="wd-note">Bind a feature to a combination such as <code>Alt+Shift+D</code>.</p>
+        <div class="wd-inline-form">
+          <input type="search" id="wd-shortcut-search" class="wd-input" placeholder="Filter features…">
+          <button type="button" class="wd-btn wd-btn-primary" id="wd-shortcut-save">Save shortcuts</button>
+          <button type="button" class="wd-btn" id="wd-shortcut-reset">Clear all</button>
+        </div>
+        <div id="wd-shortcut-list" class="wd-shortcut-list"></div>
+      </section>
+
+      <section class="wd-options-block">
+        <h2>Custom tools</h2>
+        <p class="wd-note"><code>%s</code> → full page URL; <code>%d</code> → domain.</p>
+        <div class="wd-inline-form">
+          <button type="button" class="wd-btn" id="wd-tool-add">+ Add tool</button>
+          <button type="button" class="wd-btn wd-btn-primary" id="wd-tool-save">Save tools</button>
+        </div>
+        <div id="wd-tool-list" class="wd-list-cards"></div>
+      </section>
+
+      <section class="wd-options-block">
+        <h2>Menus</h2>
+        <p class="wd-note">Rename, hide or reorder the dashboard menus here.</p>
+        <div id="wd-menu-settings" class="wd-options-form"></div>
+        <button type="button" class="wd-btn wd-btn-primary" id="wd-menu-save">Save menus</button>
+      </section>
+    </main>
+    <div id="wd-toast" class="wd-toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="engine/core.js"></script>
+  <script src="engine/features.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web Developer — Demo Page</title>
+  <link rel="canonical" href="https://example.com/web-developer/demo.html">
+  <link rel="stylesheet" href="demo.css">
+  <style>
+    .card { border-radius: 14px; box-shadow: 0 10px 30px rgba(15,23,42,.15); padding: 14px; }
+    .gradient { background: linear-gradient(90deg, #7c3aed, #ec4899 60%, #f59e0b); color: #fff; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .animated { transition: transform .3s ease; }
+    .animated:hover { transform: scale(1.02); }
+    @keyframes pulse { from { opacity: 1; } to { opacity: .6; } }
+    .pulse { animation: pulse 2s infinite alternate; }
+  </style>
+</head>
+<body>
+  <h1>Web Developer demo page</h1>
+  <p class="lead">This page exists so every feature in the dashboard has something real to inspect.
+     It contains teh occasional recieve-able typo, ARIA attributes, a form, an image map,
+     gradients, CSS3 styles and a custom element.</p>
+
+  <section class="card gradient" id="hero" style="color:#ffffff;border:2px solid #4338ca">
+    <h2>Colour, contrast and gradients</h2>
+    <p><b>Bold</b>, <i>italic</i>, <em>emphasis</em>, <mark>marked</mark> and <small>small</small> text,
+       plus <span style="color:#fde68a">an inline-coloured span</span>.</p>
+  </section>
+
+  <section class="card grid" id="links">
+    <div>
+      <h3>Links</h3>
+      <ul>
+        <li><a href="#hero" title="Jump to the hero">Internal link</a></li>
+        <li><a href="https://example.com/" target="_blank" title="Example domain">External link</a></li>
+        <li><a href="https://example.org/nofollow" rel="nofollow noopener">No-follow link</a></li>
+        <li><a href="mailto:hello@example.com">Mail link</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>ARIA + custom elements</h3>
+      <div role="tablist" aria-label="Sample tabs">
+        <button role="tab" aria-selected="true" aria-expanded="true" aria-controls="panel-a">Tab A</button>
+        <button role="tab" aria-selected="false" aria-expanded="false" aria-disabled="true">Tab B</button>
+      </div>
+      <clinic-card aria-label="A custom element" class="pulse">Custom element content</clinic-card>
+      <div data-noindex aria-hidden="true">No-index / hidden region</div>
+    </div>
+  </section>
+
+  <section class="card" id="images">
+    <h3>Images + image map</h3>
+    <img src="demo-image.svg" alt="Clinic mark" title="Clinic mark" width="160" height="160" usemap="#sample-map">
+    <img src="demo-image.svg" alt="Scaled clinic mark" title="Scaled" width="90" height="90">
+    <map name="sample-map">
+      <area shape="rect" coords="10,10,80,80" href="#hero" alt="Top-left region">
+      <area shape="rect" coords="90,90,150,150" href="#links" alt="Bottom-right region">
+    </map>
+    <p><img src="demo-image.svg" title="Image without alt" width="40" height="40"></p>
+  </section>
+
+  <section class="card" id="form">
+    <h3>Form with HTML5 validation and clipboard blockers</h3>
+    <form action="#submitted" method="get" onsubmit="return false">
+      <label for="fullname">Full name</label>
+      <input id="fullname" name="fullname" type="text" required onpaste="return false" oncopy="return false">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required>
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" pattern="[0-9+ ]+">
+      <label for="age">Age</label>
+      <input id="age" name="age" type="number" min="0" max="120">
+      <label for="date">Date</label>
+      <input id="date" name="date" type="date">
+      <label for="colour">Colour</label>
+      <input id="colour" name="colour" type="color" value="#7c3aed">
+      <label for="website">Website</label>
+      <input id="website" name="website" type="url">
+      <label for="secret">Password</label>
+      <input id="secret" name="secret" type="password">
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes" rows="2"></textarea>
+      <label><input type="checkbox" name="agree"> I agree</label>
+      <label><input type="radio" name="plan" value="a"> Plan A</label>
+      <label for="plan">Plan</label>
+      <select id="plan" name="plan"><option value="first">First</option><option value="second">Second</option></select>
+      <input id="unlabelled" name="unlabelled" type="text" placeholder="No label — a11y issue">
+      <button type="submit">Submit</button>
+      <button type="reset">Reset</button>
+    </form>
+  </section>
+
+  <section class="card" id="events">
+    <h3>Events and editable content</h3>
+    <button type="button" onclick="this.textContent = 'Clicked'">Inline onclick</button>
+    <button type="button" id="js-button">JavaScript listener</button>
+    <p contenteditable="true">This paragraph is content editable — try typing in it.</p>
+    <table><tr><td>Row without a header cell</td></tr></table>
+  </section>
+
+  <noscript>This page needs JavaScript for the interactive bits.</noscript>
+  <script>
+    document.cookie = 'wd_demo=hello; path=/; SameSite=Lax';
+    document.cookie = 'wd_theme=light; path=/; SameSite=Strict';
+    document.getElementById('js-button').addEventListener('click', function () {
+      this.textContent = 'Clicked ' + new Date().toLocaleTimeString();
+    });
+    document.getElementById('js-button').addEventListener('input', function () {});
+  </script>
+</body>
+</html>

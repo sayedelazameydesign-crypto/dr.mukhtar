@@ -56,6 +56,16 @@
 - [x] **`scripts/bootstrap-github.sh` صُحِّح** — سياق الفحص المطلوب أصبح اسم الـcheck run الحقيقي (`lint · typecheck · test · build · audit`) بدل job id غير موجود؛ وحماية main تنتظر المالك (التوكن 403).
 - [ ] **قرارات عند المالك** — حماية main، تفعيل Dependabot security updates، تثبيت Renovate، قرار الترخيص (CodeRabbit مشروط به)، وأول تشغيل أخضر ثم ضم فحوص E2E/CodeQL للحماية.
 
+## مكتمل في هذه الدورة (أداة Web Developer المعزولة)
+
+- [x] **٧٦ ميزة في سجل واحد** — ٣٣ ميزة جديدة + ١١ تحسينًا + ١٩ بند منصة/Chrome + ١٣ ميزة أساسية
+  في `web-developer/engine/features.js`، لكل بند رابطه الأصلي في [`web-developer/FEATURES.md`](web-developer/FEATURES.md).
+- [x] **لوحة مستقلة وإضافة MV3** — `/web-developer/` تعمل على `demo.html` في المعاينة المحلية،
+  و`manifest.json` + `extension/content.js` + `extension/service-worker.js` تقود التبويب النشط،
+  مع خيارات، وقوالب، واختصارات، وأدوات `%s`/`%d`، وتصدير CSV/JSON، ووضع داكن، وأيقونات حالة.
+- [x] **580 فحصًا آليًا** — `node scripts/test-web-developer.js` (jsdom) و`node web-developer/scripts/build-catalog.js --check`
+  مضافان إلى `package.json` وإلى `ci.yml`؛ الأداة لا تُضمَّن في `gas/` ولا في نشر Pages ولا تمسّ مسار الحجز.
+
 ## مفتوح قبل التشغيل الحقيقي
 
 - [ ] **تجربة الحجز العربية وتأكيد الاستلام على حساب Google فعلي** — إنشاء طلب، ظهور الرقم المرجعي،

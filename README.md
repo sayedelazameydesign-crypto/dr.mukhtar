@@ -107,6 +107,7 @@ scripts/build-gas-package.py   بناء gas/Index.html + gas/Fonts.html
 scripts/test-gas-simulated.js  محاكاة Sheets/Calendar/Lock دون شبكة
 scripts/test-ui-smoke.js       فحص DOM لمسار الحجز ولوحة العيادة
 scripts/test-privacy-health.js حذف بيانات ولي الأمر، قاعدة الاحتفاظ، وحمولة فحص الصحة
+web-developer/              أداة مطوّر معزولة (لوحة + إضافة Chrome)، لا تمسّ مسار الحجز ولا تُنشر في Pages/gas
 .github/workflows/pages.yml    نشر الواجهة على GitHub Pages (يحتاج تفعيلًا مرة واحدة: docs/publish.md)
 ```
 
@@ -142,8 +143,20 @@ node scripts/check-config.js         # عقد الإعداد (24 مفتاحًا)
 node scripts/scan-secrets.js         # فحص أسرار بلا تبعيات (يعمل في CI أيضًا)
 node scripts/check-workflows.js      # عقد الأسرار/المتغيرات وسياسة الـworkflows (+ --self-test)
 node scripts/live-llm-smoke.js       # فحص حي اختياري للمزوّد (من env فقط، ويُتخطّى بلا مفتاح)
+node scripts/test-web-developer.js   # أداة المطوّر: السجل + المحرّك + DOM عبر jsdom (580 فحصًا)
+node web-developer/scripts/build-catalog.js --check  # فهرس الميزات لا ينحرف عن السجل
 python3 scripts/build-gas-package.py # بناء حزمة Apps Script (Index + Fonts + Code + Llm)
 ```
+
+### أداة Web Developer (معزولة عن منتج العيادة)
+
+`web-developer/` لوحة فحص صفحات + إضافة Chrome (MV3) تنفّذ قائمة ميزات
+[Web Developer to-do](https://chrispederick.com/work/web-developer/to-do/) المطلوبة: ٦٣ بندًا
+و١٣ ميزة أساسية بُنيت لتحمل التحسينات. افتحها محليًا عبر
+`python3 scripts/preview.py` ثم `/web-developer/`؛ تعمل على صفحة `demo.html` داخل إطار،
+أو حمّل المجلد كإضافة غير مضغوطة لتعمل على التبويب النشط. **لا تُضمَّن في حزمة `gas/`
+ولا في نشر Pages**، ولا تغيّر أي سطر في `index.html`/`app.js`/`Code.gs` الخاصة بالحجز.
+التفاصيل: [`web-developer/README.md`](web-developer/README.md) و[`web-developer/FEATURES.md`](web-developer/FEATURES.md).
 
 `test-ui-smoke.js` يعمل عبر `jsdom`، وإن لم يكن مثبتًا يطبع تعليمات التثبيت ويتوقف بلطف.
 

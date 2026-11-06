@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Web Developer — feature dashboard",
+  "version": "1.0.0",
+  "description": "Standalone implementation of the Web Developer to-do feature list: inspectors, outlines, validators, reports, options, templates, shortcuts and tools.",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Web Developer"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "extension/service-worker.js"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs",
+    "cookies",
+    "contentSettings",
+    "downloads"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["engine/core.js", "engine/features.js", "extension/content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+W" },
+      "description": "Open the Web Developer dashboard"
+    }
+  }
+}

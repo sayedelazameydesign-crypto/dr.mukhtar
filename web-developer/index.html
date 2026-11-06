@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web Developer — feature dashboard</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body data-page="dashboard">
+  <div class="wd-app">
+    <header class="wd-header">
+      <div class="wd-brand">
+        <span class="wd-logo" aria-hidden="true">WD</span>
+        <div>
+          <h1>Web Developer</h1>
+          <p id="wd-mode-label">Standalone dashboard · inspecting the demo page</p>
+        </div>
+      </div>
+      <div class="wd-header-actions">
+        <span class="wd-status-chip" id="wd-status-js" title="JavaScript status icon">JS: on</span>
+        <span class="wd-status-chip" id="wd-status-quirks" title="Quirks mode status icon">Standards</span>
+        <span class="wd-status-chip" id="wd-active-count" title="Active features">0 active</span>
+        <button type="button" class="wd-btn" id="wd-dark-toggle" title="Dark mode">◐ Dark</button>
+        <button type="button" class="wd-btn" id="wd-ack" title="Acknowledge changes">✓ Saved</button>
+        <button type="button" class="wd-btn" id="wd-close" title="Close dashboard">✕ Close</button>
+      </div>
+    </header>
+
+    <div class="wd-body">
+      <aside class="wd-sidebar" id="wd-sidebar">
+        <label class="wd-search-label" for="wd-search">Find a feature</label>
+        <input type="search" id="wd-search" class="wd-input" placeholder="e.g. outline, cookie, aria…" autocomplete="off">
+        <nav id="wd-menu" class="wd-menu" aria-label="Feature menus"></nav>
+        <div class="wd-sidebar-foot">
+          <a href="FEATURES.md" target="_blank" rel="noopener">Feature catalog ↗</a>
+          <a href="demo.html" target="_blank" rel="noopener" id="wd-demo-open">Open demo page ↗</a>
+        </div>
+      </aside>
+
+      <main class="wd-main">
+        <section class="wd-preview" id="wd-preview">
+          <div class="wd-preview-bar">
+            <strong>Inspected page</strong>
+            <span id="wd-preview-url">demo.html</span>
+            <button type="button" class="wd-btn" id="wd-demo-reload">↻ Reload</button>
+            <label for="wd-demo-width" class="wd-inline-label">width</label>
+            <select id="wd-demo-width" class="wd-input wd-input-small">
+              <option value="100%">100%</option>
+              <option value="1024px">1024px</option>
+              <option value="768px">768px</option>
+              <option value="375px">375px</option>
+            </select>
+          </div>
+          <!-- src is set by dashboard.js only in standalone mode: extension pages have a
+               strict CSP, and the popup drives the active tab instead of this frame. -->
+          <iframe id="wd-demo-frame" title="Web Developer demo page" loading="eager"></iframe>
+        </section>
+
+        <section class="wd-feature-section">
+          <div class="wd-section-head">
+            <h2 id="wd-feature-heading">All features</h2>
+            <span id="wd-feature-count" class="wd-muted"></span>
+          </div>
+          <div id="wd-features" class="wd-feature-grid"></div>
+        </section>
+      </main>
+
+      <section class="wd-output" id="wd-output">
+        <div class="wd-output-head" id="wd-output-head">
+          <div class="wd-tabs" id="wd-output-tabs">
+            <button type="button" class="wd-tab is-active" data-tab="output">Output</button>
+            <button type="button" class="wd-tab" data-tab="options">Options</button>
+            <button type="button" class="wd-tab" data-tab="templates">Templates</button>
+            <button type="button" class="wd-tab" data-tab="shortcuts">Shortcuts</button>
+            <button type="button" class="wd-tab" data-tab="tools">Tools</button>
+            <button type="button" class="wd-tab" data-tab="about">About</button>
+          </div>
+          <button type="button" class="wd-btn wd-btn-icon" id="wd-detach" title="Reposition the dashboard">⤢</button>
+        </div>
+
+        <div class="wd-panel is-active" id="wd-panel-output">
+          <div class="wd-output-toolbar">
+            <strong id="wd-output-title">No report yet</strong>
+            <span id="wd-output-meta" class="wd-muted"></span>
+            <button type="button" class="wd-btn" id="wd-beautify">Beautify CSS</button>
+            <label class="wd-check"><input type="checkbox" id="wd-wrap" checked> Wrap</label>
+            <button type="button" class="wd-btn" id="wd-copy">Copy</button>
+            <button type="button" class="wd-btn" id="wd-clear">Clear</button>
+          </div>
+          <div id="wd-output-body" class="wd-output-body wd-wrap"><p class="wd-note">Run a feature or toggle an inspector to see its output here.</p></div>
+        </div>
+
+        <div class="wd-panel" id="wd-panel-options">
+          <p class="wd-note">Options are saved locally (and synced with <code>chrome.storage.sync</code> in extension mode).</p>
+          <div id="wd-options-form" class="wd-options-form"></div>
+          <h3 class="wd-fieldset-title">Menus</h3>
+          <p class="wd-note">Rename, hide or reorder the sidebar menus. Save with the button below.</p>
+          <div id="wd-menu-settings" class="wd-options-form"></div>
+          <div class="wd-panel-actions">
+            <button type="button" class="wd-btn wd-btn-primary" id="wd-options-save">Save options</button>
+            <button type="button" class="wd-btn" id="wd-options-reset">Reset to defaults</button>
+            <button type="button" class="wd-btn" id="wd-options-export">Export JSON</button>
+            <button type="button" class="wd-btn" id="wd-options-copy">Copy JSON</button>
+            <label class="wd-btn wd-file-label">Import JSON<input type="file" id="wd-options-import" accept="application/json,.json" hidden></label>
+          </div>
+        </div>
+
+        <div class="wd-panel" id="wd-panel-templates">
+          <p class="wd-note">Save the currently active features as a named template, then load it in one click.</p>
+          <div class="wd-inline-form">
+            <input type="text" id="wd-template-name" class="wd-input" placeholder="Template name">
+            <button type="button" class="wd-btn wd-btn-primary" id="wd-template-save">Save current set</button>
+          </div>
+          <div id="wd-template-list" class="wd-list-cards"></div>
+        </div>
+
+        <div class="wd-panel" id="wd-panel-shortcuts">
+          <p class="wd-note">Bind a feature to a key combination, e.g. <code>Alt+Shift+D</code>. Bindings work here and in the extension content script.</p>
+          <div class="wd-inline-form">
+            <input type="search" id="wd-shortcut-search" class="wd-input" placeholder="Filter features…">
+            <button type="button" class="wd-btn wd-btn-primary" id="wd-shortcut-save">Save shortcuts</button>
+            <button type="button" class="wd-btn" id="wd-shortcut-reset">Clear all</button>
+          </div>
+          <div id="wd-shortcut-list" class="wd-shortcut-list"></div>
+        </div>
+
+        <div class="wd-panel" id="wd-panel-tools">
+          <p class="wd-note">In a tool URL, <code>%s</code> expands to the full page URL and <code>%d</code> to its domain.</p>
+          <div class="wd-inline-form">
+            <button type="button" class="wd-btn" id="wd-tool-add">+ Add tool</button>
+            <button type="button" class="wd-btn wd-btn-primary" id="wd-tool-save">Save tools</button>
+          </div>
+          <div id="wd-tool-list" class="wd-list-cards"></div>
+        </div>
+
+        <div class="wd-panel" id="wd-panel-about">
+          <h3>Web Developer — feature dashboard</h3>
+          <p>This is an isolated developer tool living in <code>web-developer/</code>. It does not change the clinic booking site,
+             is not part of the Apps Script bundle, and is not published by the Pages workflow.</p>
+          <ul class="wd-list">
+            <li><b>Standalone mode</b> (this preview): every feature acts on the demo page in the frame above. Reload it to start over — active toggles are re-applied automatically.</li>
+            <li><b>Extension mode</b>: load <code>web-developer/</code> as an unpacked Chrome extension (<code>chrome://extensions</code> → Load unpacked). The popup then drives the active tab through a content script.</li>
+            <li>All 63 requested roadmap items plus the 13 base features they build on are in <a href="FEATURES.md" target="_blank" rel="noopener">FEATURES.md</a> with their upstream links.</li>
+            <li>No network calls are required: validators, spelling, accessibility, contrast and colour checks all run locally. A remote validator is used only if you configure one.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+    <div id="wd-toast" class="wd-toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="engine/core.js"></script>
+  <script src="engine/features.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

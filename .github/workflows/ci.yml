@@ -206,6 +206,14 @@ jobs:
           node scripts/test-published-clinic.js
           node scripts/test-demo-availability.js
 
+      # The isolated Web Developer tool has its own registry/engine/UI contract: prove
+      # every requested feature is present and the toggles restore the DOM. jsdom is
+      # installed by the step above; the suite fails (never skips) if it is missing.
+      - name: Web Developer tool suite (registry + engine + dashboard)
+        run: |
+          node scripts/test-web-developer.js
+          node web-developer/scripts/build-catalog.js --check
+
       # Runs here, not earlier: the document must record the same measurement a developer
       # sees, which means the browser gate has to be able to run. --require-jsdom turns a
       # missing dependency into a failure instead of a quietly different table.

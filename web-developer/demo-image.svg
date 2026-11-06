@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Clinic mark">
+  <rect width="160" height="160" rx="24" fill="#ede9fe"/>
+  <circle cx="80" cy="80" r="52" fill="#7c3aed"/>
+  <path d="M80 48v64M48 80h64" stroke="#fff" stroke-width="14" stroke-linecap="round"/>
+  <text x="80" y="146" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#4c1d95">WD demo</text>
+</svg>

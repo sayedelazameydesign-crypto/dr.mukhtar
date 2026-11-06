@@ -1,0 +1,22 @@
+/* External demo stylesheet — used by "Disable Individual Stylesheet" and "Edit CSS". */
+:root { color-scheme: light; }
+body {
+  margin: 20px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+h1 { font-size: 26px; color: #312e81; margin: 0 0 6px; }
+h2 { font-size: 19px; margin: 0 0 6px; }
+h3 { font-size: 16px; margin: 0 0 8px; }
+.lead { color: #475569; max-width: 70ch; }
+.card { background: #fff; border: 1px solid #e2e8f0; margin: 14px 0; }
+section p { margin: 6px 0; }
+a { color: #1d4ed8; }
+button, input, select, textarea { font: inherit; padding: 5px 8px; margin: 2px 0; }
+button { background: #ede9fe; border: 1px solid #c4b5fd; border-radius: 6px; cursor: pointer; }
+label { display: block; font-weight: 600; font-size: 13px; }
+img { vertical-align: middle; margin-right: 8px; }
+clinic-card { display: block; background: #dcfce7; border: 1px solid #86efac; padding: 8px; border-radius: 8px; }
+table { border-collapse: collapse; }
+td { border: 1px solid #cbd5e1; padding: 4px 8px; }
