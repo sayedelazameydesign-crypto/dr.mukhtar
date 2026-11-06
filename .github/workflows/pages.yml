@@ -51,7 +51,7 @@ jobs:
           # publishes whatever is added later — terminal transcripts, backend sources,
           # build scripts — which is exactly what had been happening.
           mkdir -p _site assets
-          cp index.html app.css app.js brand.svg manifest.webmanifest \
+          cp index.html privacy.html app.css app.js brand.svg manifest.webmanifest \
              robots.txt sitemap.xml 404.html clinic.json _site/
           # No masking: a missing assets/ used to publish a site with no fonts and no error.
           cp -r assets/. _site/assets/

@@ -177,11 +177,24 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   check('result never claims confirmation', /لم يتأكد/.test($('#bookingResult').textContent));
   check('phone never rendered in result', !$('#bookingResult').textContent.includes('01000000000'));
 
-  // ---- tracking ----
+  // ---- tracking: a reference alone is not a credential ----
   $('#trackReference').value = reference || '';
+  $('#trackPhone').value = '';
   submit('#trackForm');
   await wait(200);
-  check('tracking finds the request', /بانتظار/.test($('#trackResult').textContent), $('#trackResult').textContent);
+  check('tracking refuses a reference without the phone',
+    /رقم الهاتف/.test($('#trackResult').textContent), $('#trackResult').textContent);
+  $('#trackPhone').value = '01099999999';
+  submit('#trackForm');
+  await wait(200);
+  check('tracking refuses the wrong phone',
+    /لا يوجد طلب مطابق/.test($('#trackResult').textContent), $('#trackResult').textContent);
+  $('#trackPhone').value = '01000000000';
+  submit('#trackForm');
+  await wait(200);
+  check('tracking finds the request with reference + phone', /بانتظار/.test($('#trackResult').textContent), $('#trackResult').textContent);
+  check('the guardian can ask for deletion from the tracking card',
+    !!$('#trackResult .danger-link'), $('#trackResult').innerHTML.slice(0, 120));
 
   // ---- staff dashboard ----
   $$('.nav-button').find((button) => button.dataset.view === 'staff').click();

@@ -14,8 +14,8 @@
       "css",
       "shell"
     ],
-    "generated_at": "2026-11-05T13:10:00Z",
-    "commit": "9b41fa1",
+    "generated_at": "2026-11-06T04:33:03.829Z",
+    "commit": "173618c",
     "generated_by": "agent",
     "coverage": "partial",
     "excluded": [
@@ -868,8 +868,7 @@
       "lang": "env",
       "layer": "infra",
       "role": "Variable name: gated first-run Pages creation"
-    }
-    ,
+    },
     {
       "id": "backend.whatsapp",
       "kind": "module",
@@ -1052,6 +1051,41 @@
       "lang": "json",
       "layer": "docs",
       "role": "The gap ledger and source of truth"
+    },
+    {
+      "id": "ui.privacy",
+      "kind": "page",
+      "path": "privacy.html",
+      "layer": "ui",
+      "role": "static-first privacy notice; JS only fills configured facts"
+    },
+    {
+      "id": "domain.privacy",
+      "kind": "module",
+      "path": "Settings.gs",
+      "layer": "domain",
+      "role": "guardian data rights: owned lookup, erasure, retention window"
+    },
+    {
+      "id": "domain.health",
+      "kind": "module",
+      "path": "Code.gs",
+      "layer": "domain",
+      "role": "healthCheck_, retention purge, token-gated uptime endpoint"
+    },
+    {
+      "id": "test.privacy-health",
+      "kind": "test",
+      "path": "scripts/test-privacy-health.js",
+      "layer": "test",
+      "role": "offline proof of erasure, retention and health payload"
+    },
+    {
+      "id": "data.health-token",
+      "kind": "config",
+      "path": "appsscript.json",
+      "layer": "data",
+      "role": "HEALTH_TOKEN Script Property gates the public uptime endpoint"
     }
   ],
   "edges": [
@@ -2430,6 +2464,122 @@
         [
           "scripts.readiness-report",
           "scripts.go-live-check"
+        ]
+      ]
+    },
+    {
+      "type": "imports",
+      "evidence": "privacy.html:14 link -> app.css:1",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.privacy",
+          "ui.app-css"
+        ]
+      ]
+    },
+    {
+      "type": "imports",
+      "evidence": "privacy.html:15 script src -> app.js:1 (init bails to loadPrivacyNotice)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.privacy",
+          "ui.app-js"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "app.js loadPrivacyNotice -> api(\"getPrivacyNotice\"); app.js trackRequest -> api(\"lookupOwnRequest\")",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ui.privacy",
+          "api.gas"
+        ],
+        [
+          "ui.app-js",
+          "api.gas"
+        ]
+      ]
+    },
+    {
+      "type": "calls",
+      "evidence": "Settings.gs getPrivacyNotice/lookupOwnRequest/deleteOwnRequestData; Code.gs getHealthReport",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "api.gas",
+          "domain.privacy"
+        ],
+        [
+          "api.gas",
+          "domain.health"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "Settings.gs readRetentionMonths_ <- Script Properties RETENTION_MONTHS (catalog field)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.privacy",
+          "data.props"
+        ],
+        [
+          "domain.settings",
+          "domain.privacy"
+        ]
+      ]
+    },
+    {
+      "type": "writes",
+      "evidence": "Settings.gs deleteOwnRequestData -> updateRequestRow_; Code.gs purgeExpiredRequests_ -> Requests sheet",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.privacy",
+          "data.sheets"
+        ],
+        [
+          "domain.health",
+          "data.sheets"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/test-privacy-health.js:21 checks (erasure, retention, health)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "test.privacy-health",
+          "domain.privacy"
+        ],
+        [
+          "test.privacy-health",
+          "domain.health"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": "Code.gs doGetHealth reads Script Property HEALTH_TOKEN (not a GitHub secret)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "domain.health",
+          "data.health-token"
         ]
       ]
     }

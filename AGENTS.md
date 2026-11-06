@@ -61,6 +61,7 @@ python3 scripts/preview.py                  # local preview on 0.0.0.0:8080 (hid
 node scripts/test-gas-simulated.js          # backend: locking, conflicts, outages, queues
 node scripts/test-llm-adapter.js            # adapter: retry/backoff, circuit, budget, cache, PII, sanitising
 node scripts/test-ui-smoke.js               # DOM journey (needs: npm i --no-save jsdom@25)
+node scripts/test-privacy-health.js         # guardian erasure, retention purge, health payload (offline)
 node scripts/test-demo-availability.js      # demo slots respect visit duration + work hours (jsdom)
 node scripts/check-config.js [props.json]   # config contract
 node scripts/scan-secrets.js                # dependency-free secret scan (always on in CI)
@@ -94,11 +95,15 @@ New module, route, env name, table or provider → update the map in the same PR
 
 - `app.js`: `api()` is the only backend bridge (demo `localStorage` vs `google.script.run`).
   `callServer()` is the single place where the GAS transport lives.
-- `Code.gs`: `doGet`, `getAvailableSlots`, `createRequest`, `lookupBooking`, `getDashboard`,
+- `Code.gs`: `doGet`, `doGetHealth` (token-gated), `healthCheck_`, `purgeExpiredRequests_`,
+  `getAvailableSlots`, `createRequest`, `lookupBooking`, `getDashboard`,
   `approveRequest`, `proposeAlternative`, `moveConfirmedAppointment`, `cancelRequest`,
   `completeRequest`, `closeDay`, `askGeneralQuestion`, `validateConfig`, `llmStatus`.
   All writes take `LockService`; availability is re-checked at approval.
 - `Llm.gs`: `llmAnswer_` (entry), `LLM.PROVIDERS` (adapters), budget/circuit/cache helpers.
+- `Settings.gs`: settings catalog (backed by `RETENTION_MONTHS` for the retention window),
+  `lookupOwnRequest` / `deleteOwnRequestData` — guardian data rights; a reference alone is
+  never a credential, the phone is. `privacy.html` is the published notice (static-first).
 - Availability cache: 30 s read cache only — never used for approval decisions.
 
 ## 5. Style

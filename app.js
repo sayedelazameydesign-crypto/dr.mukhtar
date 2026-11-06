@@ -280,6 +280,9 @@
     { group: 'services', title: 'أنواع الزيارات ومدتها', help: 'تُبنى منها قائمة «نوع الزيارة» على الصفحة ومدة كل موعد.', fields: [
       { key: 'VISIT_SERVICES', label: 'أنواع الزيارات وأسعارها', type: 'services', help: 'سطر لكل نوع: الاسم = المدة بالدقائق = السعر (السعر اختياري، واتركوه فارغًا إن لم يكن معلنًا)' }
     ] },
+    { group: 'retention', title: 'الخصوصية والاحتفاظ', help: 'تُعرض على صفحة الخصوصية المنشورة؛ تغييرها هنا يغيّر ما يقرأه ولي الأمر.', fields: [
+      { key: 'RETENTION_MONTHS', label: 'مدة الاحتفاظ ببيانات الطلبات (بالأشهر)', type: 'int', min: 1, max: 60, help: 'بعدها تُحذف بيانات التواصل من الطلبات القديمة. القيمة نفسها تظهر على صفحة الخصوصية.' }
+    ] },
     { group: 'security', title: 'رمز الدخول', help: 'لا يُخزَّن الرمز كما هو: يُخزَّن بصمته فقط.', fields: [
       { key: 'STAFF_PIN', label: 'رمز دخول جديد', type: 'pin', secret: true, help: '16 حرفًا على الأقل؛ لا يُعرض الرمز الحالي أبدًا' }
     ] }
@@ -288,7 +291,8 @@
     CLINIC_NAME: 'Celia Kids', CLINIC_PHONE: '', CLINIC_ADDRESS: '', CLINIC_TIMELINE: '',
     DOCTOR_NAME: '', DOCTOR_TITLE: '', DOCTOR_SUBSPECIALTY: '', DOCTOR_LICENSE: '',
     WORK_DAYS: '0,1,2,3,4', WEEKEND_DAYS: '5,6', WORK_START: '09:00', WORK_END: '14:00', SLOT_MINUTES: '30',
-    VISIT_SERVICES: 'كشف جديد = 60\nمتابعة = 30'
+    VISIT_SERVICES: 'كشف جديد = 60\nمتابعة = 30',
+    RETENTION_MONTHS: '12'
   };
   function readSettingsStore() {
     try {
@@ -502,6 +506,61 @@
       return booking
         ? { ok: true, booking: { reference: booking.reference, day: booking.day, time: booking.time, status: booking.status } }
         : { ok: false, message: 'لم نعثر على طلب بهذا الرقم.' };
+    }
+    if (method === 'getPrivacyNotice') {
+      const values = readSettingsStore();
+      return {
+        ok: true,
+        clinicName: values.CLINIC_NAME || '',
+        phone: String(values.CLINIC_PHONE || '').replace(/[^0-9+]/g, ''),
+        address: values.CLINIC_ADDRESS || '',
+        retentionMonths: Number(values.RETENTION_MONTHS) > 0 ? Number(values.RETENTION_MONTHS) : 12,
+        deletionChannels: String(values.CLINIC_PHONE || '').replace(/\D/g, '').length >= 6 ? ['phone'] : []
+      };
+    }
+    if (method === 'lookupOwnRequest' || method === 'deleteOwnRequestData') {
+      // The demo mirrors the live rule: a reference alone never reveals a request.
+      const ref = String(args[0] || '').trim().toUpperCase();
+      const phone = String(args[1] || '').replace(/\D/g, '');
+      const record = store.bookings.find((item) => item.reference.toUpperCase() === ref);
+      if (!record || phone.length < 8 || String(record.phone || '').replace(/\D/g, '') !== phone) {
+        return { ok: false, message: 'لا يوجد طلب مطابق لهذا الرقم المرجعي وهذا الهاتف.' };
+      }
+      if (method === 'lookupOwnRequest') {
+        return { ok: true, booking: { reference: record.reference, status: record.status,
+          visitType: record.visitType, day: record.day, time: record.time,
+          slotVerified: !!record.slotVerified, retentionMonths: Number(readSettingsStore().RETENTION_MONTHS) || 12 } };
+      }
+      // Demo mode has no calendar, so a confirmed visit is the equivalent commitment.
+      if (record.status === 'CONFIRMED') {
+        return { ok: false, message: 'هذا الموعد ما زال مؤكدًا في جدول العيادة. اطلبوا إلغاءه أولًا ثم احذفوا البيانات.' };
+      }
+      record.guardianName = '';
+      record.phone = '';
+      record.status = 'DELETED';
+      record.updatedAt = new Date().toISOString();
+      saveDemo(store);
+      return { ok: true, booking: { reference: record.reference, status: 'DELETED' } };
+    }
+    if (method === 'getHealthReport') {
+      if (!isStaffSession(args[0])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      const months = Number(readSettingsStore().RETENTION_MONTHS) || 12;
+      return { ok: true, report: {
+        ok: true,
+        started: new Date().toISOString(),
+        checks: [
+          { id: 'config', ok: true, detail: '' },
+          { id: 'sheets', ok: true, detail: 'وضع تجريبي: الطلبات محفوظة في هذا المتصفح فقط' },
+          { id: 'calendar', ok: true, detail: 'وضع تجريبي: لا يتصل بتقويم حقيقي' },
+          { id: 'queues', ok: true, detail: '0/25 · 0/100' },
+          { id: 'staff_pin', ok: true, detail: '' },
+          { id: 'retention', ok: months >= 1, detail: `${months} شهر` },
+          { id: 'last_purge', ok: true, detail: 'لا ينطبق في العرض التجريبي' }
+        ],
+        counters: { requests: store.bookings.length, queued_requests: 0, queued_audits: 0, retention_months: months },
+        last_staff_action: '',
+        staff_action_age_days: null
+      } };
     }
     if (method === 'getDashboard') {
       if (!isStaffSession(args[0])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
@@ -1183,6 +1242,48 @@
     const result = await api('getClinicSettings', state.staffPin);
     if (result && result.ok) renderSettings(result);
   }
+  async function loadHealth() {
+    const body = $('#healthBody');
+    if (!body) return;
+    const button = $('#healthRefresh');
+    if (button) button.disabled = true;
+    body.innerHTML = '<p class="settings-loading">جارٍ الفحص…</p>';
+    try {
+      const result = await api('getHealthReport', state.staffPin);
+      if (!result || !result.ok) throw new Error(result && result.message ? result.message : 'تعذر تشغيل الفحص.');
+      const report = result.report || {};
+      const labels = {
+        config: 'إعداد العيادة',
+        sheets: 'سجل الطلبات (Sheets)',
+        calendar: 'التقويم',
+        queues: 'طوابير الانقطاع',
+        staff_pin: 'رمز الدخول',
+        retention: 'مدة الاحتفاظ',
+        last_purge: 'آخر تطبيق لقاعدة الاحتفاظ'
+      };
+      const counters = report.counters || {};
+      const rows = (report.checks || []).map((check) => `
+        <li class="${check.ok ? 'is-ok' : 'is-bad'}">
+          <span class="health-dot" aria-hidden="true"></span>
+          <strong>${escapeHTML(labels[check.id] || check.id)}</strong>
+          <span>${check.ok ? 'سليم' : 'يحتاج إجراء'}</span>
+          ${check.detail ? `<small>${escapeHTML(String(check.detail)).slice(0, 160)}</small>` : ''}
+        </li>`).join('');
+      const stale = Number(report.staff_action_age_days);
+      const freshness = Number.isFinite(stale) && stale >= 2
+        ? `<p class="health-warn">لم يُفتح لوحة العيادة منذ ${arabicNumber(stale)} يومًا. الطلبات لا تُراقب من تلقاء نفسها.</p>`
+        : '';
+      body.innerHTML = `
+        <p class="health-headline ${report.ok ? 'is-ok' : 'is-bad'}">${report.ok ? 'النظام جاهز لاستقبال طلب الآن.' : 'النظام لا يستطيع استقبال طلب بأمان الآن — راجعوا البنود أدناه.'}</p>
+        <ul class="health-list">${rows}</ul>
+        <p class="health-counters">طلبات مسجلة: ${arabicNumber(counters.requests || 0)} · في الطابور: ${arabicNumber(counters.queued_requests || 0)} · تدقيق معلّق: ${arabicNumber(counters.queued_audits || 0)}</p>
+        ${freshness}`;
+    } catch (error) {
+      body.innerHTML = `<p class="inline-error">${escapeHTML(error.message)}</p>`;
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
   function showPinBanner(show) {
     const banner = $('#pinBanner');
     if (banner) banner.hidden = !show;
@@ -1197,7 +1298,7 @@
       button.classList.toggle('active', active);
       if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
     });
-    if (tab === 'settings') openSettings();
+    if (tab === 'settings') { openSettings(); loadHealth(); }
   }
 
   /* ---------------- progress + summary ---------------- */
@@ -1501,21 +1602,93 @@
 
   async function trackRequest(event) {
     event.preventDefault();
-    const ref = $('#trackReference').value.trim();
+    const ref = $('#trackReference').value.trim().toUpperCase();
+    const phone = ($('#trackPhone') || {}).value || '';
     const target = $('#trackResult');
     target.hidden = false;
     target.className = 'track-result';
     target.textContent = 'جارٍ البحث…';
     if (!ref) { target.classList.add('error'); target.textContent = 'أدخلوا الرقم المرجعي أولًا.'; return; }
+    // The reference is not a credential on its own (a photographed screen leaks it), so the
+    // phone that filed the request is required before any detail is shown.
+    if (String(phone).replace(/\D/g, '').length < 8) {
+      target.classList.add('error');
+      target.textContent = 'أدخلوا رقم الهاتف الذي أرسلتم به الطلب لعرض حالته.';
+      return;
+    }
     try {
-      const response = await api('lookupBooking', ref);
+      const response = await api('lookupOwnRequest', ref, phone);
       if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'لم نعثر على طلب بهذا الرقم.');
       const booking = response.booking;
       target.innerHTML = `<strong>${escapeHTML(formatStatus(booking.status))}</strong><br>${escapeHTML(prettyDate(booking.day))} · ${escapeHTML(prettyTime(booking.time))}<br><span class="request-ref">${escapeHTML(booking.reference)}</span>`;
+      if (booking.status !== 'DELETED') {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'link-button danger-link';
+        button.textContent = 'حذف بياناتي';
+        button.addEventListener('click', () => deleteMyData(booking.reference, phone, button));
+        target.appendChild(document.createElement('br'));
+        target.appendChild(button);
+      }
     } catch (error) {
       target.classList.add('error');
       target.textContent = error.message;
     }
+  }
+
+  /**
+   * Erasing is irreversible and reaches a real spreadsheet, so it is confirmed in words
+   * that say what disappears and what stays — not a generic "are you sure?".
+   */
+  async function deleteMyData(reference, phone, button) {
+    const confirmed = window.confirm('سيُحذف اسمكم ورقم هاتفكم من هذا الطلب، ولا يمكن التراجع. يبقى الرقم المرجعي وحالة الطلب فقط في سجل العيادة. هل تريدون المتابعة؟');
+    if (!confirmed) return;
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = 'جارٍ الحذف…';
+    try {
+      const response = await api('deleteOwnRequestData', reference, phone, 'طلب ولي الأمر من صفحة المتابعة');
+      if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر الحذف.');
+      toast(response.warning || 'حُذفت بياناتكم من الطلب.');
+      const target = document.getElementById('trackResult');
+      if (target) {
+        target.className = 'track-result';
+        target.innerHTML = '<strong>حُذفت بيانات هذا الطلب</strong><br>لم يبقَ الاسم ولا رقم الهاتف. احتفظوا بالرقم المرجعي للاستفسار هاتفيًا.';
+      }
+    } catch (error) {
+      toast(error.message);
+      button.disabled = false;
+      button.textContent = original;
+    }
+  }
+
+  /* ---------------- privacy notice (public, no PIN) ---------------- */
+  // The static notice in privacy.html is readable without JavaScript; this fills the two
+  // facts that are configuration (clinic name/phone) and the retention window, so the page
+  // cannot promise a policy the backend does not apply.
+  async function loadPrivacyNotice() {
+    const slot = document.querySelector('[data-privacy-notice]');
+    if (!slot) return;
+    try {
+      const notice = await api('getPrivacyNotice');
+      if (!notice || !notice.ok) return;
+      const months = Number(notice.retentionMonths) > 0 ? Number(notice.retentionMonths) : 12;
+      slot.querySelectorAll('[data-notice-phone]').forEach((node) => {
+        if (notice.phone) {
+          node.textContent = notice.phone;
+          if (node.tagName === 'A') node.href = `tel:${notice.phone}`;
+        } else {
+          node.textContent = 'هاتف العيادة غير منشور بعد — اطلبوا الحذف عبر استقبال العيادة.';
+        }
+      });
+      slot.querySelectorAll('[data-notice-retention]').forEach((node) => {
+        node.textContent = `${arabicNumber(months)} شهرًا`;
+      });
+      slot.querySelectorAll('[data-notice-clinic]').forEach((node) => {
+        if (notice.clinicName) node.textContent = notice.clinicName;
+      });
+      slot.dataset.loaded = 'true';
+    } catch (error) { /* the static notice stays readable; never a blank privacy page */ }
   }
 
   /* ---------------- staff dashboard ---------------- */
@@ -1731,6 +1904,10 @@
 
   /* ---------------- wiring + boot ---------------- */
   function init() {
+    // privacy.html loads this same script but has none of the booking DOM. Bail out early
+    // with the one job that page needs, instead of throwing on the first missing element
+    // and leaving the notice half-rendered.
+    if (!$('#bookingForm')) { loadPrivacyNotice(); return; }
     $$('[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
     // Delegated on purpose: the service cards are rebuilt from settings, so binding
     // listeners to the initial nodes silently stopped working after a save.
@@ -1787,6 +1964,9 @@
       if (field) field.focus();
     });
     $('#trackReference').addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase(); });
+    // privacy.html loads the same script: it renders the notice and nothing else.
+    loadPrivacyNotice();
+    if ($('#healthRefresh')) $('#healthRefresh').addEventListener('click', loadHealth);
     document.addEventListener('visibilitychange', () => { if (!document.hidden && state.view === 'staff' && state.staffPin) refreshDashboard(); });
 
     try {

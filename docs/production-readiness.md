@@ -40,10 +40,10 @@
 
 | القياس | القيمة |
 | --- | --- |
-| تاريخ القياس | 2026-11-05 |
+| تاريخ القياس | 2026-11-06 |
 | بيئة القياس | jsdom موجود (البوابة عملت) |
 | الشبكة | متخطّاة (--offline) |
-| جاهز | **5** |
+| جاهز | **6** |
 | يحتاج إجراء | **4** |
 | غير مُتحقَّق | **4** |
 | معلومات | 2 |
@@ -55,7 +55,7 @@
 
 | الإجمالي | مغلق | مفتوح |
 | --- | --- | --- |
-| **18** | **15** | **3** (G1) (G2) (G14) |
+| **20** | **17** | **3** (G1) (G2) (G14) |
 
 | Gap | Type | Severity | Status | Evidence / closure |
 | --- | --- | --- | --- | --- |
@@ -77,6 +77,8 @@
 | G16 | missing_abuse_control | high | **resolved** | Script cache counter with a 5-failure / 15-minute lock, shared across executions; test-gas-simulated.js asserts four typos do not lock, the fifth does, the correct PIN is refused while locked, the window clears, and a good login resets the counter. Removing the lock check fails the suite. |
 | G17 | unattributable_audit | med | **resolved** | staffActor_() records the signed-in account as staff:<email> (lower-cased), degrades to 'staff' when the account cannot be resolved, and the public clinic profile is asserted to carry no email; test-gas-simulated.js checks both branches. |
 | G18 | unbounded_wait | high | **resolved** | scripts/test-ui-smoke.js drives a real Apps Script-shaped runner whose callback never fires: the slot read falls back to the documented preference list, the submit button returns to enabled with its label restored, and the toast says the response did not arrive. Removing the wrapper (mutation) fails 4 assertions. |
+| G19 | missing_data_rights | high | **resolved** | node scripts/test-privacy-health.js -> 21 checks (reference+phone ownership, erasure blanks name/phone but keeps audit trail, live-event and outage-queue refusals, retention window + throttle) |
+| G20 | unobservable_failure | high | **resolved** | node scripts/test-privacy-health.js -> health payload without name/phone/reference, red on Sheets outage, red on temporary PIN, red on full queue, public endpoint closed without HEALTH_TOKEN |
 
 ## نتيجة تشغيل التقرير
 
@@ -90,9 +92,10 @@
 | clinic.source — مصدر بيانات العيادة | ℹ️ info | قُرئ من القالب (بلا تصدير حقيقي) — أي أن الحالة أعلاه هي حالة «لم يُضبط بعد» وليست حالة عيادتك | المستخدم |
 | gate.workflows — عقود سير العمل والأسرار | ✅ **PASS** | · manifest secret GOOGLE_REFRESH_TOKEN_DEV is not referenced by any workflow (declared-only is allowed, keep it delibera | CC (المستودع) |
 | gate.secrets — مسح الأسرار | ✅ **PASS** | Secret scan passed — 93 text files (tracked files), 11 rules, 0 findings. | CC (المستودع) |
-| gate.parity — تطابق الإعدادات (حيّ/تجريبي) | ✅ **PASS** | Settings parity OK — 15 fields match between Settings.gs and app.js, prices round-trip, and the public profile ships ser | CC (المستودع) |
+| gate.parity — تطابق الإعدادات (حيّ/تجريبي) | ✅ **PASS** | Settings parity OK — 16 fields match between Settings.gs and app.js, prices round-trip, and the public profile ships ser | CC (المستودع) |
 | gate.backend — محاكاة الخادم | ✅ **PASS** | Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calen | CC (المستودع) |
 | gate.ui — الواجهة في متصفح | ✅ **PASS** | UI smoke test passed: rendering, booking, reference tracking, staff approval, and the admin assistant all work in demo m | CC (المستودع) |
+| gate.privacy — الخصوصية والاحتفاظ وفحص الصحة | ✅ **PASS** | Privacy/health suite passed: 21 checks (reference is not a credential, deletion erases contact data and keeps the audit  | CC (المستودع) |
 | site.up — الموقع المنشور | ⏸️ **NOT VERIFIED** | تم تخطي الشبكة (--offline) | المستخدم (شبكة) |
 | live.appsScript — الخادم يعمل في حساب Google | ⏸️ **NOT VERIFIED** | لم يُختبر في حساب حقيقي — المحاكاة لا تُغني عنه | المستخدم |
 | live.branchProtection — حماية main (مطلوب PR + CI) | ⏸️ **NOT VERIFIED** | لا يمكن قراءتها بلا صلاحية إدارة المستودع | المستخدم |
