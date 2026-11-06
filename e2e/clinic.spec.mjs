@@ -97,9 +97,9 @@ test('the page is Arabic RTL, keyboard-skippable, and names no model provider', 
   // Guardian labels are programmatic (wrapped labels), so a screen reader announces them.
   await expect(page.getByLabel('اسم ولي الأمر')).toBeVisible();
   await expect(page.getByLabel('رقم الهاتف', { exact: true })).toBeVisible();
-  // No model provider, no dev version string, no invented tel: target.
-  const content = await page.content();
-  expect(content).not.toMatch(/Gemini/i);
+  // No model provider *named in visible copy* (the internal id="geminiStatus" is code,
+  // not prose), and no invented tel: target. Mirrors scripts/test-ui-smoke.js.
+  expect(await page.locator('body').innerText()).not.toMatch(/Gemini/i);
   expect(await page.locator('a[href^="tel:"]').count()).toBe(0);
 });
 
