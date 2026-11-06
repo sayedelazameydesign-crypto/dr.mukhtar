@@ -49,8 +49,27 @@ async function bookAppointment(page) {
   return result;
 }
 
-test('a guardian books in demo mode and the result never leaks the phone nor claims confirmation', async ({ page }) => {
-  await expect(page.locator('[data-demo-badge]')).toBeVisible();
+test('a guardian books and the result never leaks the phone nor claims confirmation', async ({ page, request }) => {
+  // The badge follows clinic.json, not the build: app.js hides [data-demo-badge] when the
+  // published profile says demoMode === false. Asserting "visible" unconditionally turned a
+  // data change into a red build on main, so read the profile and assert the state it declares.
+  const profileResponse = await request.get('/clinic.json');
+  const profile = profileResponse.ok() ? await profileResponse.json() : {};
+  const badge = page.locator('[data-demo-badge]');
+  if (profile.demoMode === true) {
+    await expect(badge).toBeVisible();
+  } else {
+    await expect(badge).toBeHidden();
+    // A real profile must show its own identity — never the shipped placeholder.
+    const clinicName = String(profile.clinicName || '').trim();
+    if (clinicName) {
+      await expect(page.locator('[data-config="clinicName"]').first()).toHaveText(clinicName);
+    }
+    const doctorName = String(profile.doctorName || '').trim();
+    if (doctorName) {
+      await expect(page.locator('[data-config="doctorName"]').first()).toContainText(doctorName);
+    }
+  }
 
   const result = await bookAppointment(page);
   const reference = (await result.locator('.reference-chip').innerText()).trim();
