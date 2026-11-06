@@ -115,6 +115,11 @@ jobs:
       - name: Syntax gate (every script under scripts/)
         run: node scripts/check-script-syntax.js
 
+      # A threat model whose references do not resolve is fiction with a table. This gate
+      # requires every file:line to exist and every "controlled" row to quote a real test.
+      - name: Threat-model citations resolve and are backed by tests
+        run: node scripts/check-audit-doc.js
+
       # The provider probe decides whether to call a provider at all; its own suite proves the
       # disabled/enabled switch and every answer shape, offline.
       - name: Provider probe (switch, classification, diagnostics)

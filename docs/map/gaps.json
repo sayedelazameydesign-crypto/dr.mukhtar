@@ -281,11 +281,15 @@
     {
       "id": "G22",
       "type": "silent_breakage",
-      "status": "closed",
+      "status": "resolved",
       "severity": "high",
       "evidence": "scripts/env.js:35 — a missing comma between ENV_SPECS entries; no gate parsed the file",
       "fix": "scripts/check-script-syntax.js parses every script under scripts/, and CI runs it before the tests",
-      "closed_at": "2026-11-06"
+      "resolution": {
+        "date": "2026-11-06",
+        "evidence": "node scripts/check-script-syntax.js → 'Syntax gate passed: 45 script(s) under scripts/ parse.' and CI step 'Syntax gate (every script under scripts/)'",
+        "note": "scripts/env.js had a missing comma between ENV_SPECS entries; nothing parsed it because only three Apps Script files were checked."
+      }
     },
     {
       "id": "G23",
@@ -299,11 +303,30 @@
     {
       "id": "G24",
       "type": "docs_drift",
-      "status": "open",
+      "status": "resolved",
       "severity": "med",
       "evidence": "docs/ai-repair.md §7 'لا مراجعة أمنية خارجية، ولا مراجعة قانونية' — docs/audit/ holds no threat model",
-      "fix": "produce docs/audit/threat-model-2026-11.md with grim-prompter, gate it with a checker that requires every threat row to cite a file:line that exists",
-      "evidence_needed": "docs/audit/threat-model-*.md present and passing its gate"
+      "fix": "docs/audit/threat-model-2026-11.md (16 threat rows, 31 citations) gated by scripts/check-audit-doc.js in CI",
+      "evidence_needed": "docs/audit/threat-model-*.md present and passing its gate",
+      "resolution": {
+        "date": "2026-11-06",
+        "evidence": "node scripts/check-audit-doc.js → 'Audit gate passed: 16 threat rows, 31 file:line citations, all resolvable.' and the gate runs in CI as 'Threat-model citations resolve and are backed by tests'",
+        "note": "docs/audit/threat-model-2026-11.md; rows claiming control must quote a test assertion that exists."
+      }
+    },
+    {
+      "id": "G25",
+      "type": "security",
+      "status": "resolved",
+      "severity": "high",
+      "evidence": "Code.gs:992 constantTimeEquals_ looped over a.length only, so any correct prefix of the stored secret compared equal — reachable from doGetHealth (Code.gs:540) and verifyStaffPin_ (Settings.gs:163)",
+      "fix": "compare length first, then loop over the full string; regression tests 'a prefix of the secret is not accepted' and 'a prefix of the health token does not open the uptime endpoint'",
+      "impact": "Anyone who learned any prefix of HEALTH_TOKEN could read the uptime payload; a prefix of the 64-char PIN digest passed verifyStaffPin_ and opened the staff dashboard. Found while writing the STRIDE pass (T-10).",
+      "resolution": {
+        "date": "2026-11-06",
+        "evidence": "scripts/test-privacy-health.js: 'a prefix of the secret is not accepted', 'a prefix of the health token does not open the uptime endpoint', 'a prefix of the staff PIN digest does not unlock the dashboard' — all three fail against the old comparison and pass after Code.gs:992 compares length first.",
+        "note": "Length is compared first (not secret: the digest is always 64 chars), then a full-length constant-time loop."
+      }
     }
   ],
   "questions": [
