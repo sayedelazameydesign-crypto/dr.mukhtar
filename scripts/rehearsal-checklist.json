@@ -9,57 +9,19 @@
       "title": "المشروع والربط",
       "closes": [],
       "steps": [
-        {
-          "id": "S1.1",
-          "action": "أنشئ مشروع Apps Script وسمّه Celia Kids",
-          "expected": "المحرّر يفتح المشروع",
-          "evidence": ""
-        },
+        { "id": "S1.1", "action": "أنشئ مشروع Apps Script وسمّه Celia Kids", "expected": "المحرّر يفتح المشروع", "evidence": "" },
         {
           "id": "S1.2",
           "action": "شغّل python3 scripts/build-gas-package.py وانسخ ملفات gas/ إلى المحرّر",
           "expected": "٧ ملفات بالضبط، بلا خطأ صياغة",
-          "files": [
-            "Index.html",
-            "Fonts.html",
-            "Code.gs",
-            "Llm.gs",
-            "Settings.gs",
-            "WhatsApp.gs",
-            "appsscript.json"
-          ],
+          "files": ["Index.html", "Fonts.html", "Code.gs", "Llm.gs", "Settings.gs", "WhatsApp.gs", "appsscript.json"],
           "evidence": ""
         },
-        {
-          "id": "S1.3",
-          "action": "أضف CELIA_SHEET_ID في Script Properties",
-          "expected": "القيمة محفوظة (لا تنسخها هنا)",
-          "evidence": ""
-        },
-        {
-          "id": "S1.4",
-          "action": "شغّل initializeCeliaKids واقبل الصلاحيات الثلاث",
-          "expected": "أوراق Requests/Audit/Settings + تقويم «Celia Kids — عيادة الأطفال» + رمز دخول مؤقت يُعرض مرة واحدة (وشاشة الصلاحيات: Sheets + Calendar + اتصال بخدمة خارجية فقط)",
-          "evidence": ""
-        },
-        {
-          "id": "S1.5",
-          "action": "شغّل whatsappStatus من المحرّر",
-          "expected": "mode = off وconfigured = false وgraphVersion = v23.0 — أي أن محوّل واتساب موجود ومعطّل، ولا إرسال",
-          "evidence": ""
-        },
-        {
-          "id": "S1.6",
-          "action": "تحقّق من حارس المخطط على حساب حقيقي: أضف عمودًا فارغًا باسم notes في الموضع B من ورقة Requests، ثم شغّل أي مسار قراءة (getAvailableSlots أو افتح اللوحة)",
-          "expected": "يرمي خطأ schema_drift يسمّي الورقة والعمود 2، وتظهر رسالة «أعمدة ورقة Requests لا تطابق» في اللوحة، ويصير فحص الصحة أحمر — لا يُقرأ أي طلب بصمت",
-          "evidence": ""
-        },
-        {
-          "id": "S1.7",
-          "action": "أزل العمود notes من ورقة Requests وأعد تشغيل نفس المسار",
-          "expected": "يعمل المسار طبيعيًا من جديد، ويظهر سجل schema_drift واحد فقط في Stackdriver لكل محاولة",
-          "evidence": ""
-        }
+        { "id": "S1.3", "action": "أضف CELIA_SHEET_ID في Script Properties", "expected": "القيمة محفوظة (لا تنسخها هنا)", "evidence": "" },
+        { "id": "S1.4", "action": "شغّل initializeCeliaKids واقبل الصلاحيات الثلاث", "expected": "أوراق Requests/Audit/Settings + تقويم «Celia Kids — عيادة الأطفال» + رمز دخول مؤقت يُعرض مرة واحدة (وشاشة الصلاحيات: Sheets + Calendar + اتصال بخدمة خارجية فقط)", "evidence": "" },
+        { "id": "S1.5", "action": "شغّل whatsappStatus من المحرّر", "expected": "mode = off وconfigured = false وgraphVersion = v23.0 — أي أن محوّل واتساب موجود ومعطّل، ولا إرسال", "evidence": "" },
+        { "id": "S1.6", "action": "تحقّق من حارس المخطط على حساب حقيقي: أضف عمودًا فارغًا باسم notes في الموضع B من ورقة Requests، ثم شغّل أي مسار قراءة (getAvailableSlots أو افتح اللوحة)", "expected": "يرمي خطأ schema_drift يسمّي الورقة والعمود 2، وتظهر رسالة «أعمدة ورقة Requests لا تطابق» في اللوحة، ويصير فحص الصحة أحمر — ولا يُقرأ أي طلب بصمت", "evidence": "" },
+        { "id": "S1.7", "action": "أزل العمود notes من ورقة Requests وأعد تشغيل نفس المسار", "expected": "يعمل المسار طبيعيًا من جديد، ويظهر سجل schema_drift واحد فقط في Stackdriver لكل محاولة", "evidence": "" }
       ]
     },
     {
@@ -67,12 +29,7 @@
       "title": "المفتاح السرّي (بلا بطاقة)",
       "closes": [],
       "steps": [
-        {
-          "id": "S2.1",
-          "action": "أنشئ مفتاح Gemini وضعه في Script Properties باسم GEMINI_API_KEY",
-          "expected": "getConfigStatus() لا يشتكي من غيابه",
-          "evidence": ""
-        }
+        { "id": "S2.1", "action": "أنشئ مفتاح Gemini وضعه في Script Properties باسم GEMINI_API_KEY", "expected": "getConfigStatus() لا يشتكي من غيابه", "evidence": "" }
       ]
     },
     {
@@ -80,84 +37,30 @@
       "title": "النشر كتطبيق ويب",
       "closes": [],
       "steps": [
-        {
-          "id": "S3.1",
-          "action": "Deploy → Web app (Execute as Me, Anyone)",
-          "expected": "رابط /exec يعمل",
-          "evidence": ""
-        },
-        {
-          "id": "S3.2",
-          "action": "افتح الرابط",
-          "expected": "صفحة عربية RTL بلا شارة تجريبية",
-          "evidence": ""
-        }
+        { "id": "S3.1", "action": "Deploy → Web app (Execute as Me, Anyone)", "expected": "رابط /exec يعمل", "evidence": "" },
+        { "id": "S3.2", "action": "افتح الرابط", "expected": "صفحة عربية RTL بلا شارة تجريبية", "evidence": "" }
       ]
     },
     {
       "id": "S4",
       "title": "البروفة السبعية — جوهر G1",
-      "closes": [
-        "G1"
-      ],
+      "closes": ["G1"],
       "steps": [
-        {
-          "id": "S4.1",
-          "action": "اطلب موعدًا حقيقيًا من الصفحة",
-          "expected": "رقم مرجعي فوري + حالة «بانتظار التأكيد»",
-          "evidence": ""
-        },
-        {
-          "id": "S4.2",
-          "action": "تابع الطلب بالرقم المرجعي",
-          "expected": "الحالة والبيانات كما أُدخلت",
-          "evidence": ""
-        },
-        {
-          "id": "S4.3",
-          "action": "وافق من لوحة العيادة",
-          "expected": "حدث في تقويم الطبيب + صف في Audit",
-          "evidence": ""
-        },
-        {
-          "id": "S4.4",
-          "action": "اطلب نفس الوقت مرة أخرى",
-          "expected": "يُرفض: الوقت لم يعد متاحًا",
-          "evidence": ""
-        },
-        {
-          "id": "S4.5",
-          "action": "اطلب رابع موعد في اليوم نفسه",
-          "expected": "يُرفض: سقف اليوم",
-          "evidence": ""
-        },
-        {
-          "id": "S4.6",
-          "action": "ألغِ الموعد من اللوحة",
-          "expected": "حدث التقويم يُحدَّث ولا يبقى حاجزًا",
-          "evidence": ""
-        },
-        {
-          "id": "S4.7",
-          "action": "افتح ورقة Audit",
-          "expected": "صفوف إنشاء/موافقة/إلغاء بلا بيانات صحية",
-          "evidence": ""
-        }
+        { "id": "S4.1", "action": "اطلب موعدًا حقيقيًا من الصفحة", "expected": "رقم مرجعي فوري + حالة «بانتظار التأكيد»", "evidence": "" },
+        { "id": "S4.2", "action": "تابع الطلب بالرقم المرجعي", "expected": "الحالة والبيانات كما أُدخلت", "evidence": "" },
+        { "id": "S4.3", "action": "وافق من لوحة العيادة", "expected": "حدث في تقويم الطبيب + صف في Audit", "evidence": "" },
+        { "id": "S4.4", "action": "اطلب نفس الوقت مرة أخرى", "expected": "يُرفض: الوقت لم يعد متاحًا", "evidence": "" },
+        { "id": "S4.5", "action": "اطلب رابع موعد في اليوم نفسه", "expected": "يُرفض: سقف اليوم", "evidence": "" },
+        { "id": "S4.6", "action": "ألغِ الموعد من اللوحة", "expected": "حدث التقويم يُحدَّث ولا يبقى حاجزًا", "evidence": "" },
+        { "id": "S4.7", "action": "افتح ورقة Audit", "expected": "صفوف إنشاء/موافقة/إلغاء بلا بيانات صحية", "evidence": "" }
       ]
     },
     {
       "id": "S5",
       "title": "الجسر — G14",
-      "closes": [
-        "G14"
-      ],
+      "closes": ["G14"],
       "steps": [
-        {
-          "id": "S5.1",
-          "action": "شغّل node scripts/google/selftest.js مع توكن حقيقي",
-          "expected": "5/5 خطوات، والمعرّفات غير null",
-          "evidence": ""
-        }
+        { "id": "S5.1", "action": "شغّل node scripts/google/selftest.js مع توكن حقيقي", "expected": "5/5 خطوات، والمعرّفات غير null", "evidence": "" }
       ]
     },
     {
@@ -165,18 +68,8 @@
       "title": "النسخة الاحتياطية والاستعادة",
       "closes": [],
       "steps": [
-        {
-          "id": "S6.1",
-          "action": "صدّر Requests وAudit إلى CSV واحفظهما خارج Drive",
-          "expected": "ملفان على جهازك",
-          "evidence": ""
-        },
-        {
-          "id": "S6.2",
-          "action": "أعد استيراد Audit إلى ورقة جديدة",
-          "expected": "عدد الصفوف مطابق",
-          "evidence": ""
-        }
+        { "id": "S6.1", "action": "صدّر Requests وAudit إلى CSV واحفظهما خارج Drive", "expected": "ملفان على جهازك", "evidence": "" },
+        { "id": "S6.2", "action": "أعد استيراد Audit إلى ورقة جديدة", "expected": "عدد الصفوف مطابق", "evidence": "" }
       ]
     }
   ],
