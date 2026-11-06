@@ -98,6 +98,11 @@ function checkClinicData() {
   const template = readClinicContract();
   let properties = {};
   let source = '';
+  // A clinic profile file must not leak the published clinic.json back into the report:
+  // the test below simulates "a fresh checkout with nothing published", and a real
+  // clinic.json on disk then made a placeholder name look configured. The switch belongs
+  // to the caller (tests), and defaults to the documented behaviour.
+  const ignorePublished = process.env.CELIA_IGNORE_PUBLISHED_CLINIC === '1';
 
   if (PROPS_FILE) {
     try {
@@ -122,6 +127,7 @@ function checkClinicData() {
   // carries it, and the report says which — claiming a fact from the server while the page
   // shows a placeholder would be exactly the misreport this report exists to prevent.
   const published = (() => {
+    if (ignorePublished) return {};
     try {
       return JSON.parse(fs.readFileSync(path.join(path.resolve(__dirname, '..'), 'clinic.json'), 'utf8'));
     } catch (_) { return {}; }

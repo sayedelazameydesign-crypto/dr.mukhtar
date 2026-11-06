@@ -24,10 +24,13 @@ const defaults = Object.fromEntries(Object.entries(template).map(([key, spec]) =
 // The report runs the repository's gates, so its verdict depends on this machine. Pin the
 // browser gate to an explicit skip so the suite tests the report's logic, not whether the
 // sandbox happens to have jsdom installed.
-const run = (args) => spawnSync(process.execPath, [SCRIPT, ...args], {
+// `options.env` lets a case opt into the profile-only view (CELIA_IGNORE_PUBLISHED_CLINIC),
+// because the repository now publishes a real clinic.json and those cases describe a
+// checkout where nothing is published yet.
+const run = (args, options = {}) => spawnSync(process.execPath, [SCRIPT, ...args], {
   cwd: ROOT,
   encoding: 'utf8',
-  env: { ...process.env, CELIA_ALLOW_SKIP_UI: '1', NODE_PATH: '' }
+  env: { ...process.env, CELIA_ALLOW_SKIP_UI: '1', NODE_PATH: '', ...(options.env || {}) }
 });
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'go-live-'));
 const writeProps = (name, overrides) => {
@@ -87,7 +90,7 @@ const check = (label, condition, detail = '') => {
     DOCTOR_LICENSE: 'EG-12345',
     VISIT_SERVICES: 'كشف جديد = 60 = 250\nمتابعة = 30 = 150'
   });
-  const result = run(['--offline', '--profile', file]);
+  const result = run(['--offline', '--profile', file], { env: { CELIA_IGNORE_PUBLISHED_CLINIC: '1' } });
   check('a fully configured clinic clears every identity item',
     !/يحتاج إجراء\s+اسم العيادة/.test(result.stdout), 'clinic name still flagged');
   check('the phone is never printed in full', !/01001234567/.test(result.stdout), 'full phone leaked');
@@ -99,7 +102,7 @@ const check = (label, condition, detail = '') => {
 // 3 — a placeholder name must not pass as configured.
 {
   const file = writeProps('placeholder.json', { CLINIC_NAME: 'Celia Kids', CLINIC_PHONE: '' });
-  const result = run(['--offline', '--profile', file]);
+  const result = run(['--offline', '--profile', file], { env: { CELIA_IGNORE_PUBLISHED_CLINIC: '1' } });
   check('the shipped placeholder name is not treated as the clinic name',
     /يحتاج إجراء\s+اسم العيادة/.test(result.stdout), 'placeholder accepted');
   check('a missing phone blocks readiness', result.status === 1);
@@ -139,7 +142,7 @@ const check = (label, condition, detail = '') => {
   try {
     // Break the parity gate on purpose: the demo label no longer matches the live one.
     fs.writeFileSync(appPath, original.replace("label: 'أنواع الزيارات وأسعارها'", "label: 'أنواع الزيارات'"));
-    const result = run(['--offline', '--profile', file]);
+    const result = run(['--offline', '--profile', file], { env: { CELIA_IGNORE_PUBLISHED_CLINIC: '1' } });
     check('a broken gate turns the verdict to "needs action"', result.status === 1, `exit ${result.status}`);
     check('the failing gate is named', /تطابق الإعدادات/.test(result.stdout));
   } finally {
