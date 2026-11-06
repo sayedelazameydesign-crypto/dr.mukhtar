@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.2.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.1.0...celia-kids-clinic-v1.2.0) (2026-11-06)
+
+
+### Features
+
+* **gates:** the gap ledger becomes the only source of truth for gap documents ([892fbff](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/892fbffe6c420353fee3680bd7e8a6bd30ea84f2))
+* **gates:** سجل الفجوات مصدر الحقيقة الوحيد + بوابة تمنع انحراف المستندات ([bb661c6](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/bb661c697acc1715cf0e697ec6b9cb983cd3da2d))
+* **health:** one flat status field to watch, and split the rehearsal in two ([a6cb1ee](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/a6cb1eefeb31d491fbbb634b4ceced80f14a3be7))
+
+
+### Bug Fixes
+
+* **clinic:** publish the doctor's real WhatsApp number ([d4c3e81](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/d4c3e81b531e425f5091fb47a643766035d4adcc))
+* **clinic:** publish the doctor's real WhatsApp number ([a85d9b9](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/a85d9b91d59371152072186d9fa9b6e9c78f0073))
+* **identity:** publish the clinic's real name instead of the stale 'alaqsa clinic' ([d83c250](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/d83c2502d0eb2047dae02ee1ec86258b3458d61b))
+* **identity:** اسم العيادة الحقيقي + تصحيح أسماء الأوراق في البروفة ([a26fc3d](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/a26fc3d829293bb7f9e55045019ea0145ec7625d))
+* **llm:** a missing tunable uses its documented default, not its minimum ([e0991c5](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/e0991c521c56e6b5fda16756096783f8f35804f9))
+* **rehearsal:** S1.4 names the sheet the code actually creates (Closures, not Settings) ([3dd9762](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/3dd97625f740c159525c0264c25b107aa81bbc42))
+* **schema:** fail closed on sheet drift, make it reach a human, and expose a flat health status ([e0bd69d](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/e0bd69d9d347684d5d132140ab6f02380a475733))
+* **schema:** fail closed on sheet schema drift, and stop the stale bundle shadowing the source ([400a99d](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/400a99d1c4c4aff51317c97839b0f09476f02757))
+* **schema:** make drift reach a human, and close the stale-bundle category ([0d38dcd](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/0d38dcddf52bb3b2a217f1d8ea39159ced5771fe))
+
 ## [1.1.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.0.0...celia-kids-clinic-v1.1.0) (2026-11-06)
 
 
