@@ -143,6 +143,31 @@ Property → 4. if it was ever committed, purge history → 5. set `rotated` in
 
 Re-run the workflow afterwards (old runs keep old values).
 
+**The clock is now a command, not a sentence:**
+
+```bash
+node scripts/rotation-reminders.js            # report: ok / due soon / overdue / never set
+node scripts/rotation-reminders.js --json     # machine-readable (for an external reminder)
+```
+
+It reads `rotation_days` and `rotated` from `docs/secrets-manifest.json` **only** — never a
+value, never GitHub, never Apps Script — and it exits `1` only when a rotation is past its due
+date plus a grace window (`--max-days`, default 45). `rotated: null` means "declared, never
+rotated yet": reported as `never-set`, not as a failure. `ci.yml` runs it on every push.
+
+### Two copies of one key: which one is authoritative
+
+`GEMINI_API_KEY` exists twice by design, and the copies are **not** synced:
+
+| Copy | Purpose | If it goes stale |
+| --- | --- | --- |
+| GitHub Secret | the gated live smoke test (`LLM_SMOKE_ENABLED=true`) | the smoke test fails; the site is unaffected |
+| Apps Script Script Property | the runtime the assistant actually calls | the assistant answers with an error; **booking still works** |
+
+When you rotate, do both in the same sitting and record the date once. Building an automatic
+GitHub → Apps Script sync needs OAuth, a trusted bridge and extra scopes: deliberately out of
+scope for the first MVP, and NOT required for booking, which never calls Gemini.
+
 ## 7. Guard rails in this repo
 
 - `node scripts/check-workflows.js` — manifest shape, unknown `secrets.X`/`vars.X`, inline secrets,

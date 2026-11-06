@@ -1086,6 +1086,13 @@
       "path": "appsscript.json",
       "layer": "data",
       "role": "HEALTH_TOKEN Script Property gates the public uptime endpoint"
+    },
+    {
+      "id": "tool.rotation",
+      "kind": "script",
+      "path": "scripts/rotation-reminders.js",
+      "layer": "tooling",
+      "role": "secret rotation clock: names and dates only, never values"
     }
   ],
   "edges": [
@@ -2580,6 +2587,22 @@
         [
           "domain.health",
           "data.health-token"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "scripts/rotation-reminders.js reads docs/secrets-manifest.json rotation_days + rotated; ci.yml \"Secret rotation window\"",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.rotation",
+          "doc.manifest"
+        ],
+        [
+          "tool.rotation",
+          "ci.workflow"
         ]
       ]
     }

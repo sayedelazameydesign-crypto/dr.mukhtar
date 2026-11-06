@@ -194,6 +194,15 @@ jobs:
       - name: Zero-Card ledger is valid JSON
         run: node -e "const d=require('./docs/free-tiers.json'); if(!Array.isArray(d.services)||!d.services.length) throw new Error('services missing'); d.services.forEach(s=>{if(!('card_required' in s)) throw new Error('card_required missing for '+s.service)}); console.log('free-tiers.json OK:', d.services.length, 'services');"
 
+      # The rotation clock docs/secrets.md §6 describes but nothing ever checked. It reads
+      # names and dates only, never a value, and it can only fail after someone has recorded
+      # a rotation date: a secret that was never set is reported, not treated as overdue.
+      # No `|| echo ::warning` here — that would hide a real overdue rotation.
+      - name: Secret rotation window
+        run: |
+          node scripts/rotation-reminders.js --self-test
+          node scripts/rotation-reminders.js --warn-days 30 --max-days 45
+
       - name: Secret scan (built-in, always on)
         run: node scripts/scan-secrets.js
 
