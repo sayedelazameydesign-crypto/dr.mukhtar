@@ -179,7 +179,7 @@ jobs:
           node scripts/test-llm-smoke-probe.js
           node scripts/test-ai-repair.js
           node scripts/check-doc-evidence.js
-          npm i --no-save --no-audit --no-fund jsdom@25
+          npm ci --no-audit --no-fund
           node scripts/test-ui-smoke.js
 
       - name: Publish the verdict (and the patch, when there is one)

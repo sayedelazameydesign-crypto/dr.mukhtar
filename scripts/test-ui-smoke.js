@@ -3,7 +3,7 @@
 
 /**
  * DOM smoke test for the standalone site (demo mode only).
- * Requires jsdom:  npm i --no-save jsdom   (or: npm i -g jsdom)
+ * Requires jsdom:  npm ci   (pinned in package-lock.json)
  * Exits 0 when the whole journey works, 1 on any regression.
  */
 
@@ -18,7 +18,7 @@ try {
   // exercised at all. Fail by default; a deliberate skip must be asked for explicitly.
   if (!process.env.CELIA_ALLOW_SKIP_UI) {
     console.error('SKIPPED-WITH-FAILURE: jsdom is not installed, so this test did not run.');
-    console.error('Install it (npm i --no-save --prefix /tmp jsdom) or set CELIA_ALLOW_SKIP_UI=1 to accept the gap explicitly.');
+    console.error('Install it with `npm ci` at the repository root, or set CELIA_ALLOW_SKIP_UI=1 to accept the gap explicitly.');
     process.exit(1);
   }
   console.log('SKIPPED (explicit): jsdom is not installed and CELIA_ALLOW_SKIP_UI=1 was set.');

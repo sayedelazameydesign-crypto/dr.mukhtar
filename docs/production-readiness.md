@@ -81,7 +81,7 @@
 | G20 | unobservable_failure | high | **resolved** | node scripts/test-privacy-health.js -> health payload without name/phone/reference, red on Sheets outage, red on temporary PIN, red on full queue, public endpoint closed without HEALTH_TOKEN |
 | G21 | architecture_doc_invisible_on_site | low | **resolved** | node scripts/check-workflows.js (map parses, no undeclared/dead ids); grep of _site assembly in pages.yml shows the docs kept internal by allow-list |
 | G22 | silent_breakage | high | **resolved** | node scripts/check-script-syntax.js → 'Syntax gate passed: 45 script(s) under scripts/ parse.' and CI step 'Syntax gate (every script under scripts/)' |
-| G23 | unverified_behaviour | med | **OPEN** | .github/workflows/ai-repair.yml and ci-error-triage.yml exist only on the PR branch; GitHub refuses `gh workflow run` for a workflow absent from the default branch (HTTP 404), so neither can be executed before merge |
+| G23 | unverified_behaviour | med | **OPEN** | .github/workflows/ai-repair.yml and ci-error-triage.yml were on the PR branch only; GitHub refuses `gh workflow run` for a workflow absent from the default branch (HTTP 404). They merged in 01c90ba, so the technical blocker is gone and the remaining requirement is a completed run, not a merge |
 | G24 | docs_drift | med | **resolved** | node scripts/check-audit-doc.js → 'Audit gate passed: 16 threat rows, 31 file:line citations, all resolvable.' and the gate runs in CI as 'Threat-model citations resolve and are backed by tests' |
 | G25 | security | high | **resolved** | scripts/test-privacy-health.js: 'a prefix of the secret is not accepted', 'a prefix of the health token does not open the uptime endpoint', 'a prefix of the staff PIN digest does not unlock the dashboard' — all three fail against the old comparison and pass after Code.gs:992 compares length first. |
 
@@ -96,7 +96,7 @@
 | clinic.services — أنواع الزيارات | ℹ️ info | القالب الافتراضي (كشف جديد · متابعة) | المستخدم |
 | clinic.source — مصدر بيانات العيادة | ℹ️ info | قُرئ من القالب (بلا تصدير حقيقي) — أي أن الحالة أعلاه هي حالة «لم يُضبط بعد» وليست حالة عيادتك | المستخدم |
 | gate.workflows — عقود سير العمل والأسرار | ✅ **PASS** | · manifest secret GOOGLE_REFRESH_TOKEN_DEV is not referenced by any workflow (declared-only is allowed, keep it delibera | CC (المستودع) |
-| gate.secrets — مسح الأسرار | ✅ **PASS** | Secret scan passed — 120 text files (tracked files), 11 rules, 0 findings. | CC (المستودع) |
+| gate.secrets — مسح الأسرار | ✅ **PASS** | Secret scan passed — 123 text files (tracked files), 11 rules, 0 findings. | CC (المستودع) |
 | gate.parity — تطابق الإعدادات (حيّ/تجريبي) | ✅ **PASS** | Settings parity OK — 16 fields match between Settings.gs and app.js, prices round-trip, and the public profile ships ser | CC (المستودع) |
 | gate.backend — محاكاة الخادم | ✅ **PASS** | Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calen | CC (المستودع) |
 | gate.ui — الواجهة في متصفح | ✅ **PASS** | UI smoke test passed: rendering, booking, reference tracking, staff approval, and the admin assistant all work in demo m | CC (المستودع) |
@@ -112,7 +112,7 @@
 ## كيف يُعاد توليد هذا الملف
 
 ```bash
-npm i --no-save --prefix /tmp/jsd jsdom@25          # للبوابات الثلاث في المتصفح
+npm ci                                             # يثبّت jsdom من package-lock.json
 NODE_PATH=/tmp/jsd/node_modules node scripts/readiness-report.js --write
 NODE_PATH=/tmp/jsd/node_modules node scripts/readiness-report.js          # فحص فقط (يفشل إن تباعد)
 ```

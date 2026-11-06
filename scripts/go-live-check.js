@@ -196,7 +196,7 @@ function runGate(label, command, cmdArgs, id) {
     const skipped = /SKIPPED/i.test(line);
     const explicitSkip = skipped && process.env.CELIA_ALLOW_SKIP_UI;
     add(id, label, explicitSkip ? 'unverified' : (skipped ? 'action' : 'ready'), line.slice(0, 120),
-      skipped && !explicitSkip ? 'ثبّت الاعتماد: npm i --no-save --prefix /tmp jsdom (أو اعتمد التخطي صراحةً بـ CELIA_ALLOW_SKIP_UI=1)' : '');
+      skipped && !explicitSkip ? 'ثبّت الاعتماد: npm ci من الجذر (أو اعتمد التخطي صراحةً بـ CELIA_ALLOW_SKIP_UI=1)' : '');
   } catch (error) {
     const detail = String(error.stdout || error.stderr || error.message).trim().split('\n').slice(-3).join(' ').slice(0, 160);
     add(id, label, 'action', detail || 'فشل', 'أصلح البوابة قبل أي نشر — راجع المخرج أعلاه');

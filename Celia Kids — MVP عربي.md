@@ -26,7 +26,7 @@ python3 -m http.server 3000 --bind 0.0.0.0
 ```bash
 python3 scripts/build-gas-package.py
 node scripts/test-gas-simulated.js
-node scripts/test-ui-smoke.js   # يتطلب: npm i --no-save jsdom
+node scripts/test-ui-smoke.js   # يتطلب: npm ci
 ```
 
 تعمل المعاينة في وضع العرض التجريبي فقط؛ لا ترسل طلبات إلى العيادة. بيانات العرض في المتصفح ويمكن مسحها من إعدادات التخزين للموقع.

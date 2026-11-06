@@ -188,8 +188,11 @@ jobs:
         # install itself a hard prerequisite so coverage cannot vanish silently.
         run: |
           set -euo pipefail
-          npm i --no-save --no-audit --no-fund jsdom@25
-          node -e "require.resolve('jsdom'); console.log('jsdom present')"
+          # Locked install, not a floating `npm i jsdom@25`: the gate must fail for a
+          # repository reason, never because a registry tag moved. package-lock.json is
+          # committed; node_modules/ stays ignored.
+          npm ci --no-audit --no-fund
+          node -e "require.resolve('jsdom'); console.log('jsdom present', require('jsdom/package.json').version)"
           node scripts/test-ui-smoke.js
           node scripts/test-published-clinic.js
           node scripts/test-demo-availability.js
