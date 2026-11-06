@@ -98,9 +98,21 @@ test('the page is Arabic RTL, keyboard-skippable, and names no model provider', 
   await expect(page.getByLabel('اسم ولي الأمر')).toBeVisible();
   await expect(page.getByLabel('رقم الهاتف', { exact: true })).toBeVisible();
   // No model provider *named in visible copy* (the internal id="geminiStatus" is code,
-  // not prose), and no invented tel: target. Mirrors scripts/test-ui-smoke.js.
+  // not prose). Mirrors scripts/test-ui-smoke.js.
   expect(await page.locator('body').innerText()).not.toMatch(/Gemini/i);
-  expect(await page.locator('a[href^="tel:"]').count()).toBe(0);
+  // No *invented* phone targets: with an empty clinic.json there must be no tel: link;
+  // with the published profile, every tel: link must carry exactly the published digits
+  // (never a made-up number, never a prefix-truncated one).
+  const profile = await page.request.get('/clinic.json').then((res) => res.json()).catch(() => ({}));
+  const digits = String(profile?.phone ?? '').replace(/\D/g, '');
+  const telLinks = page.locator('a[href^="tel:"]');
+  if (digits.length >= 6) {
+    expect(await telLinks.count()).toBeGreaterThan(0);
+    const hrefs = await telLinks.evaluateAll((els) => els.map((el) => el.getAttribute('href') || ''));
+    for (const href of hrefs) expect(href.replace(/^tel:/, '').replace(/\D/g, '')).toBe(digits);
+  } else {
+    expect(await telLinks.count()).toBe(0);
+  }
 });
 
 test('the demo PIN is never visible outside the staff view', async ({ page }) => {
