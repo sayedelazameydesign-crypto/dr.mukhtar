@@ -76,7 +76,7 @@ report.browser_gate = jsdomPresent ? 'ran' : 'missing';
 if (requireJsdom && !jsdomPresent) {
   console.error('✗ --require-jsdom: jsdom is not installed, so the browser gate would report');
   console.error('  "needs action" on this machine and produce different numbers than a developer');
-  console.error('  sees. Install it (npm i --no-save --prefix /tmp/deps jsdom@25) and set NODE_PATH.');
+  console.error('  sees. Install it with `npm ci` at the repository root (package-lock.json pins the version).');
   process.exit(1);
 }
 
@@ -236,7 +236,7 @@ const TAIL = `
 ## كيف يُعاد توليد هذا الملف
 
 \`\`\`bash
-npm i --no-save --prefix /tmp/jsd jsdom@25          # للبوابات الثلاث في المتصفح
+npm ci                                             # يثبّت jsdom من package-lock.json
 NODE_PATH=/tmp/jsd/node_modules node scripts/readiness-report.js --write
 NODE_PATH=/tmp/jsd/node_modules node scripts/readiness-report.js          # فحص فقط (يفشل إن تباعد)
 \`\`\`

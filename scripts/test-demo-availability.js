@@ -4,7 +4,7 @@
 /**
  * Regression test for demo-mode availability: a 60-minute confirmed visit must
  * block BOTH of its 30-minute start slots (overlap, not just exact equality).
- * Requires jsdom: npm i --no-save jsdom@25
+ * Requires jsdom: npm ci (see package.json)
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -14,7 +14,7 @@ catch (error) {
   // Same rule as the other browser tests: a test that did not run is not a pass.
   if (!process.env.CELIA_ALLOW_SKIP_UI) {
     console.error('SKIPPED-WITH-FAILURE: jsdom is not installed, so this test did not run.');
-    console.error('Install it (npm i --no-save jsdom@25) or set CELIA_ALLOW_SKIP_UI=1 to accept the gap explicitly.');
+    console.error('Install it with `npm ci` at the repository root, or set CELIA_ALLOW_SKIP_UI=1 to accept the gap explicitly.');
     process.exit(1);
   }
   console.log('SKIPPED (explicit): jsdom is not installed and CELIA_ALLOW_SKIP_UI=1 was set.');

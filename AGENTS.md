@@ -60,7 +60,7 @@ Three runtimes, one source of truth:
 python3 scripts/preview.py                  # local preview on 0.0.0.0:8080 (hides gas/, scripts/, dotfiles)
 node scripts/test-gas-simulated.js          # backend: locking, conflicts, outages, queues
 node scripts/test-llm-adapter.js            # adapter: retry/backoff, circuit, budget, cache, PII, sanitising
-node scripts/test-ui-smoke.js               # DOM journey (needs: npm i --no-save jsdom@25)
+node scripts/test-ui-smoke.js               # DOM journey (needs: npm ci, see package.json)
 node scripts/test-privacy-health.js         # guardian erasure, retention purge, health payload (offline)
 node scripts/test-demo-availability.js      # demo slots respect visit duration + work hours (jsdom)
 node scripts/check-config.js [props.json]   # config contract
