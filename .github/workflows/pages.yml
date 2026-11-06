@@ -61,6 +61,8 @@ jobs:
           mkdir -p _site assets
           cp index.html privacy.html app.css app.js brand.svg manifest.webmanifest \
              robots.txt sitemap.xml 404.html clinic.json _site/
+          # Evidence Lab — generated, self-contained, safe to publish (approved for the public site)
+          cp -r evidence/ _site/evidence/
           # No masking: a missing assets/ used to publish a site with no fonts and no error.
           cp -r assets/. _site/assets/
           echo "--- published files:"
