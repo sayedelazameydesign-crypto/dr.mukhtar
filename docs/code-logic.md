@@ -70,6 +70,47 @@ WhatsApp يدوي (اختياري، مطفأ افتراضيًا) + سطر في A
 3. كل كتابة تحت قفل، وإعادة الفحص بعد القفل (حالة سباق مغطّاة باختبار).
 4. لا بيانات صحية في أي حقل أو سجل أو رابط.
 
+## ميثاق المراجعة — خمسة عناصر لكل سطر (بأدلة حقيقية من الكود)
+
+هذا هو الجرد الكامل لسلسلة التنفيذ. عمود **Evidence** يذكر **نص التحقق حرفيًا** كما هو مكتوب
+في ملف الاختبار، بحيث تستطيع التحقق منه بأمر واحد بدل تصديق الجدول:
+
+```bash
+grep -rn "نص التحقق" scripts/
+```
+
+**قاعدة الصياغة:** نصوص التحقق المنقولة حرفيًا بين `'…'` (كما في ملفات الاختبار)؛ علامات `«…»`
+محفوظة للنثر العربي ولسياسات المشروع. فحص آلي يتحقق من كل نص منقول بهذه الطريقة:
+
+```bash
+node scripts/check-doc-evidence.js   # يفشل إن تغيّر اسم اختبار ولم تتغير الصفحة
+```
+
+| # | Function | Input | Logic (القرار) | Output | Evidence (نص التحقق) |
+| --- | --- | --- | --- | --- | --- |
+| ١ | `createRequest(payload)` · `Code.gs:300` | `visitType · guardianName · phone · day · time · consent` | قفل → سقف ٣ طلبات/رقم/يوم → منع طلب مفتوح مكرر → `isSlotAvailable_` → حفظ | `{ok, booking, savedLocally, warning}` | `test-gas-simulated.js`: 'three rows for that number and day are counted' · 'the fourth request that day is refused' |
+| ٢ | `validateRequest_(payload)` · `Code.gs:993` | نفس الحقول | موافقة إلزامية · نوع من كتالوج الإعداد · اسم ≥٢ · هاتف ≥٨ أرقام · `YYYY-MM-DD`+`HH:MM` · مستقبلي · تنقية `<`/`>` | كائن نظيف أو `Error` عربي واحد | `test-gas-simulated.js` (مسار الحجز) + `test-clinic-schema.js` (أرقام الهاتف ٤٥ فحصًا) |
+| ٣ | `isSlotAvailable_(day,time,dur,excludeId)` · `Code.gs:1046` | يوم · وقت · مدة · حدث مستثنى | مستقبلي · يوم عمل · داخل الدوام · محاذاة الشبكة · نهاية قبل `WORK_END` · لا إغلاق · لا تقاطع حدث | `true/false` فقط | `test-gas-simulated.js`: 'a closed day is a valid day with no slots' · `test-demo-availability.js` |
+| ٤ | `getAvailableSlots(day,type)` · `Code.gs:218` | يوم · نوع زيارة | كاش ٣٠ث للقراءة فقط → شبكة بخطوة `SLOT_MINUTES` → `paddedStartIndex_` يمنع بداية تتجاوز الإغلاق | `{slots:[…]}` | `test-gas-simulated.js`: 'the primed list offers 10:00' |
+| ٥ | `approveRequest(ref,pin)` · `Code.gs:625` | مرجع · بصمة الرمز | رمز → قفل → الطلب ليس من الطابور → حالة تسمح → **إعادة فحص** → `createEvent` → `CONFIRMED` | `{ok, booking, warning}` | `test-gas-simulated.js`: 'overlapping approval is rejected while the script lock is held' |
+| ٦ | `invalidateSlotCacheFor_(day)` · `Code.gs:63` | يوم | إبطال مفاتيح اليوم لكل خدمة (وليس كل الكاش) | — | «the approved time disappears from the cached slot list» |
+| ٧ | `queueOutageRequest_(record)` · `Code.gs:1114` | طلب | حد ٢٥ طلبًا و٨٠٠٠ بايت، وإلا خطأ صريح | مفتاح `CKQ_*` في Script Properties | `test-gas-simulated.js` ('request-queue-full rejection') |
+| ٨ | `auditBestEffort_(…)` · `Code.gs:1167` | مرجع · فاعل · فعل · من/إلى | يكتب في `Audit`، وإن فشل يضع في طابور التدقيق (حد ١٠٠) | `true/false` — يُبلَّغ للموظف | «the approval was written to the Audit sheet» · «queued audit is written when Sheets returns» |
+| ٩ | `publicBooking_(record)` · `Code.gs:1092` | سجل داخلي | تقليص إلى ٧ حقول (لا شيء زائد) | كائن عام | `test-ui-smoke.js`: 'result never claims confirmation' · 'phone never rendered in result' |
+| ١٠ | `lookupOwnRequest / deleteOwnRequestData` · `Settings.gs` | مرجع · **هاتف** | تطابق الهاتف أولًا (المرجع ليس اعتمادًا) → رفض إن كان في الطابور → رفض إن كان الحدث قائمًا → محو الاسم والهاتف وإبقاء التدقيق | `{ok, booking}` / رسالة رفض | `test-privacy-health.js`: 'deletion blanks name and phone but keeps the administrative trail' · 'a live calendar appointment blocks deletion until it is cancelled' |
+| ١١ | `healthCheck_() / getHealthReport(pin)` · `Code.gs` | لا شيء / رمز | إعداد · Sheets · تقويم · طوابير · رمز مؤقت · احتفاظ · آخر فحص | تقرير بلا أي بيانات شخصية | `test-privacy-health.js`: 'health is green on a healthy clinic and carries no personal data' · 'the staff health endpoint refuses a bad PIN' |
+| ١٢ | `purgeExpiredRequests_()` · `Code.gs` | إعداد `RETENTION_MONTHS` | حالات منتهية فقط + لا حدث تقويم + تبريد ٢٢ ساعة + تدقيق | عدد المحذوف/الفاشل | `test-privacy-health.js`: 'retention trims old settled rows and leaves everything else alone' |
+| ١٣ | `verifyStaffPin_(candidate)` · `Settings.gs` | بصمة SHA-256 | قفل بعد ٥ محاولات/١٥ دقيقة · مقارنة ثابتة الزمن · ترقية الرمز النصي القديم | `true/false` | `test-gas-simulated.js` (قفل، ترقية، إعادة تعيين) · `test-ui-smoke.js`: 'the PIN can be rotated from the UI' |
+
+### ما لا يثبته أي من هذه الأدلة
+
+| الادعاء | الحقيقة |
+| --- | --- |
+| «الكود موجود ⇒ الوظيفة تعمل» | المحاكاة تستبدل Sheets/Calendar/Cache. السلوك الحقيقي يحتاج حساب Google (G1) |
+| «الاختبار أخضر ⇒ النظام منشور» | Apps Script لم يُنشر قط (المرحلة ١٥ 🟡) |
+| «النشر نجح ⇒ التشغيل سليم» | المرحلة ١٦ تبقى `NOT VERIFIED` حتى تظهر `live.appsScript` PASS من تشغيل حقيقي |
+| «المراجعة الآلية ⇒ مراجعة أمنية» | لا مراجعة أمنية خارجية ولا مراجعة قانونية (قانون ١٥١/٢٠٢٠) |
+
 ## كيف تقرأ المنطق بنفسك في دقيقتين
 
 ```bash

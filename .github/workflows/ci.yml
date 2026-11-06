@@ -108,6 +108,11 @@ jobs:
       - name: Python syntax gate
         run: python3 -m py_compile scripts/build-gas-package.py scripts/preview.py
 
+      # The execution-logic page cites test assertions by name; a renamed assertion would
+      # otherwise turn the table into decoration.
+      - name: Execution-logic citations exist in the tests
+        run: node scripts/check-doc-evidence.js
+
       - name: Settings parity (live catalog vs demo mirror)
         run: node scripts/check-settings-parity.js
 

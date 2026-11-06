@@ -1093,6 +1093,27 @@
       "path": "scripts/rotation-reminders.js",
       "layer": "tooling",
       "role": "secret rotation clock: names and dates only, never values"
+    },
+    {
+      "id": "doc.lifecycle",
+      "kind": "doc",
+      "path": "docs/lifecycle.md",
+      "layer": "docs",
+      "role": "18-stage lifecycle mapped to runnable evidence"
+    },
+    {
+      "id": "doc.code-logic",
+      "kind": "doc",
+      "path": "docs/code-logic.md",
+      "layer": "docs",
+      "role": "execution logic: function, input, decision, output, evidence"
+    },
+    {
+      "id": "tool.doc-evidence",
+      "kind": "script",
+      "path": "scripts/check-doc-evidence.js",
+      "layer": "tooling",
+      "role": "cited test assertions must exist verbatim"
     }
   ],
   "edges": [
@@ -2602,6 +2623,46 @@
         ],
         [
           "tool.rotation",
+          "ci.workflow"
+        ]
+      ]
+    },
+    {
+      "type": "imports",
+      "evidence": "README.md links docs/lifecycle.md and docs/code-logic.md; both cite Code.gs/Settings.gs/app.js by function name",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "doc.readme",
+          "doc.lifecycle"
+        ],
+        [
+          "doc.readme",
+          "doc.code-logic"
+        ],
+        [
+          "doc.code-logic",
+          "domain.code-gs"
+        ],
+        [
+          "doc.code-logic",
+          "ui.app-js"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/check-doc-evidence.js verifies docs/code-logic.md citations; ci.yml step \"Execution-logic citations exist in the tests\"",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.doc-evidence",
+          "doc.code-logic"
+        ],
+        [
+          "tool.doc-evidence",
           "ci.workflow"
         ]
       ]

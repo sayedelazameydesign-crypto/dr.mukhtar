@@ -55,7 +55,7 @@
 
 | الإجمالي | مغلق | مفتوح |
 | --- | --- | --- |
-| **20** | **17** | **3** (G1) (G2) (G14) |
+| **21** | **18** | **3** (G1) (G2) (G14) |
 
 | Gap | Type | Severity | Status | Evidence / closure |
 | --- | --- | --- | --- | --- |
@@ -79,6 +79,7 @@
 | G18 | unbounded_wait | high | **resolved** | scripts/test-ui-smoke.js drives a real Apps Script-shaped runner whose callback never fires: the slot read falls back to the documented preference list, the submit button returns to enabled with its label restored, and the toast says the response did not arrive. Removing the wrapper (mutation) fails 4 assertions. |
 | G19 | missing_data_rights | high | **resolved** | node scripts/test-privacy-health.js -> 21 checks (reference+phone ownership, erasure blanks name/phone but keeps audit trail, live-event and outage-queue refusals, retention window + throttle) |
 | G20 | unobservable_failure | high | **resolved** | node scripts/test-privacy-health.js -> health payload without name/phone/reference, red on Sheets outage, red on temporary PIN, red on full queue, public endpoint closed without HEALTH_TOKEN |
+| G21 | architecture_doc_invisible_on_site | low | **resolved** | node scripts/check-workflows.js (map parses, no undeclared/dead ids); grep of _site assembly in pages.yml shows the docs kept internal by allow-list |
 
 ## نتيجة تشغيل التقرير
 
@@ -91,7 +92,7 @@
 | clinic.services — أنواع الزيارات | ℹ️ info | القالب الافتراضي (كشف جديد · متابعة) | المستخدم |
 | clinic.source — مصدر بيانات العيادة | ℹ️ info | قُرئ من القالب (بلا تصدير حقيقي) — أي أن الحالة أعلاه هي حالة «لم يُضبط بعد» وليست حالة عيادتك | المستخدم |
 | gate.workflows — عقود سير العمل والأسرار | ✅ **PASS** | · manifest secret GOOGLE_REFRESH_TOKEN_DEV is not referenced by any workflow (declared-only is allowed, keep it delibera | CC (المستودع) |
-| gate.secrets — مسح الأسرار | ✅ **PASS** | Secret scan passed — 105 text files (tracked files), 11 rules, 0 findings. | CC (المستودع) |
+| gate.secrets — مسح الأسرار | ✅ **PASS** | Secret scan passed — 106 text files (tracked files), 11 rules, 0 findings. | CC (المستودع) |
 | gate.parity — تطابق الإعدادات (حيّ/تجريبي) | ✅ **PASS** | Settings parity OK — 16 fields match between Settings.gs and app.js, prices round-trip, and the public profile ships ser | CC (المستودع) |
 | gate.backend — محاكاة الخادم | ✅ **PASS** | Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calen | CC (المستودع) |
 | gate.ui — الواجهة في متصفح | ✅ **PASS** | UI smoke test passed: rendering, booking, reference tracking, staff approval, and the admin assistant all work in demo m | CC (المستودع) |
