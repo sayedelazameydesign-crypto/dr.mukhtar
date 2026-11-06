@@ -247,6 +247,30 @@ test('config validation rejects bad values instead of silently normalising', () 
   assert.doesNotThrow(() => context.getConfig_());
 });
 
+test('an unset tunable falls back to the documented default, not to its minimum', () => {
+  // The regression this locks: Script Properties return null for anything not set, and
+  // Number(null) is 0, so a missing limit used to clamp to min (1 answer/day, 2s timeout,
+  // circuit opens after one failure). A clinic that only pastes the key must get LLM.DEFAULTS.
+  const keys = [
+    'LLM_TIMEOUT_MS', 'LLM_RETRIES', 'LLM_BACKOFF_BASE_MS', 'LLM_BACKOFF_MAX_MS',
+    'LLM_CIRCUIT_FAILS', 'LLM_COOLDOWN_S', 'LLM_DAILY_LIMIT', 'GEMINI_DAILY_LIMIT',
+    'LLM_HOURLY_LIMIT', 'LLM_MAX_OUTPUT_TOKENS', 'LLM_MAX_INPUT_CHARS', 'LLM_CACHE_TTL_SEC'
+  ];
+  const saved = keys.map((key) => [key, properties.get(key)]);
+  keys.forEach((key) => properties.delete(key));
+  try {
+    const defaults = JSON.parse(vm.runInContext('JSON.stringify(LLM.DEFAULTS)', context));
+    const config = context.llmConfig_();
+    for (const key of Object.keys(defaults)) {
+      assert.equal(config[key], defaults[key], `${key} must fall back to ${defaults[key]} when unset`);
+    }
+  } finally {
+    saved.forEach(([key, value]) => {
+      if (value === undefined) properties.delete(key); else properties.set(key, value);
+    });
+  }
+});
+
 test('validateConfig blocks when only the bootstrap PIN exists', () => {
   properties.delete('ADMIN_PIN_HASH');
   properties.set('CK_MUST_CHANGE_PIN', '1');

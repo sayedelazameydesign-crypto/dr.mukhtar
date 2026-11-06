@@ -74,7 +74,15 @@ const LLM_ERRORS = {
 function llmProperties_() { return PropertiesService.getScriptProperties(); }
 
 function llmNumber_(raw, fallback, min, max) {
-  const value = Number(raw);
+  // An unset Script Property arrives as null, and Number(null) is 0 — finite, so the old
+  // shape clamped a *missing* tunable to its minimum instead of using the documented
+  // default. A clinic that set only GEMINI_API_KEY therefore got 1 answer/day, a 2s
+  // timeout, zero retries, a circuit that opened after a single failure, 50 input chars
+  // and 64 output tokens — all silently, and all contradicting LLM.DEFAULTS.
+  // A blank value means "not configured" and must fall back.
+  const text = String(raw == null ? '' : raw).trim();
+  if (!text) return fallback;
+  const value = Number(text);
   if (!isFinite(value)) return fallback;
   return Math.min(max, Math.max(min, Math.round(value)));
 }
