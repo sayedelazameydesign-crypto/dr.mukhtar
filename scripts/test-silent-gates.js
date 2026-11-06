@@ -125,6 +125,9 @@ const run = (script, args = [], opts = {}) => spawnSync(process.execPath, [path.
   fs.mkdirSync(path.join(sandbox, 'assets', 'fonts'), { recursive: true });
   fs.readdirSync(path.join(ROOT, 'assets', 'fonts')).forEach((font) =>
     fs.copyFileSync(path.join(ROOT, 'assets', 'fonts', font), path.join(sandbox, 'assets', 'fonts', font)));
+  fs.mkdirSync(path.join(sandbox, 'evidence'), { recursive: true });
+  fs.readdirSync(path.join(ROOT, 'evidence')).forEach((file) =>
+    fs.copyFileSync(path.join(ROOT, 'evidence', file), path.join(sandbox, 'evidence', file)));
 
   const leaked = path.join(sandbox, '.github', 'workflows', 'pages.yml');
   fs.writeFileSync(leaked, fs.readFileSync(leaked, 'utf8').replace('404.html clinic.json _site/', '404.html clinic.json Llm.gs _site/'));
