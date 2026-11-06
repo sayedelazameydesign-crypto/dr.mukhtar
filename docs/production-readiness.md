@@ -91,7 +91,7 @@
 | Item | Result | Detail | Owner |
 | --- | --- | --- | --- |
 | config.export — ملف خصائص مُصدَّر (Script Properties) | ❌ **FAIL (needs user action)** | لا يوجد تصدير — القراءة من قالب العيادة، وقيم الخادم الحقيقية مجهولة | CC (المستودع) |
-| clinic.name — اسم العيادة الحقيقي | ✅ **PASS** | عيادة دكتور مختار (clinic.json) | المستخدم |
+| clinic.name — اسم العيادة الحقيقي | ✅ **PASS** | عيادة دكتور مختار سيد كامل (clinic.json) | المستخدم |
 | clinic.phone — هاتف العيادة | ✅ **PASS** | 2011… (مخفي جزئيًا) · clinic.json | المستخدم |
 | clinic.doctor — اسم الطبيب | ✅ **PASS** | مضبوط (clinic.json) | المستخدم |
 | clinic.license — رقم الترخيص | ⏸️ **NOT VERIFIED** | إعفاء مؤقت — الرقم لم يُوفَّر، ولا يُعدّ مستوفى | المستخدم |
