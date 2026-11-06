@@ -1,0 +1,42 @@
+name: 🐛 بلاغ عطل
+description: عطل قابل للتكرار في الواجهة أو المنطق (بيانات وهمية فقط)
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **ممنوع منعًا باتًا لصق بيانات مرضى/أولياء أمور حقيقية** (اسم، هاتف، رقم مرجعي حقيقي) أو
+        لقطات منها. استعمل بيانات وهمية حصرًا. البلاغ الذي يتضمن بيانات حقيقية يُغلق فورًا.
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: ماذا حدث؟ وما المتوقع؟
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: خطوات التكرار (ببيانات وهمية)
+      placeholder: |
+        1. افتح الديمو…
+        2. اختر متابعة…
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: الوضع
+      options:
+        - الديمو الحي (github.io)
+        - تشغيل محلي (python3 scripts/preview.py)
+        - Google Apps Script (تجريبي)
+    validations:
+      required: true
+  - type: checkboxes
+    id: pii
+    attributes:
+      label: تأكيد الخصوصية
+      options:
+        - label: تأكدتُ أنه لا توجد أي بيانات مريض/ولي أمر حقيقية في هذا البلاغ
+          required: true
