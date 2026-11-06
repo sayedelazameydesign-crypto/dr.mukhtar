@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.2.0...celia-kids-clinic-v1.3.0) (2026-11-06)
+
+
+### Features
+
+* **clinic:** exempt the licence from the gate as a pending item ([56983a2](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/56983a2e9739f010e8d9d869ff08f38f4f9772f8))
+
 ## [1.2.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.1.0...celia-kids-clinic-v1.2.0) (2026-11-06)
 
 
