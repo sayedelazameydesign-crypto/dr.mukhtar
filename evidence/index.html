@@ -89,14 +89,13 @@ npm run readiness            # سجل الجاهزية مقابل gaps.json</pre
 
   <h2>نموذج التهديد — بما فيه ما لم يُغلَق</h2>
   <div class="cards">
-    <div class="card"><b>10</b><span>مُسيطر عليها / جزئيًا</span></div>
+    <div class="card"><b>12</b><span>مُسيطر عليها / جزئيًا</span></div>
     <div class="card"><b>2</b><span>مقبولة (مؤقتًا / خارج نموذج)</span></div>
     <div class="card"><b>2</b><span>مخاطرة قائمة وموثقة</span></div>
-    <div class="card"><b>2</b><span>حرجة — انظر T-09 وT-10</span></div>
+    <div class="card"><b>0</b><span>حرجة مفتوحة الآن</span></div>
   </div>
   <div class="honest">
-    <b>الثغرة المؤكدة T-10 (وT-09) لم تُغلَق بعد.</b> مقارنة <code>constantTimeEquals_</code> تدور على طول النبذة لا طول المخزّن — بادئة صحيحة تُقبَل. الوثيقة تشرح الإثبات التنفيذي سطريًا، و<a href="https://github.com/sayedelazameydesign-crypto/dr.mukhtar/blob/main/docs/audit/threat-model-2026-11.md">النموذج الكامل</a> يحمل دليل ملف:سطر لكل صف. هذا المستودع لا يدّعي جاهزية أمنية غير موجودة — يدّعي أن ما يعيبه مكتوب مكانه. قناة البلاغ الخاصة: <a href="https://github.com/sayedelazameydesign-crypto/dr.mukhtar/blob/main/SECURITY.md">SECURITY.md</a>.
-  </div>
+    <b>T-10 أُغلقت — والوثيقة تتذكر لماذا.</b> مقارنة ثابتة الزمن تقبل بادئة السر كانت تفتح نقطة الصحة وبوابة الموظف؛ أُصلحت على <code>main</code> (مقارنة الطول أولًا ثم حلقة كاملة) وثلاثة فحوص تفشل على الكود القديم تنجح الآن، وG25 محلول في السجل. هذا المختبر لا يدّعي مستودعًا بلا عيوب — يدّعي أن ما وُجد أُغلق بدل تجميله. ما يبقى قائمًا وموثقًا: T-15 (الرمز في رابط URL) وT-03/T-11 (التوفر/الحرمان). النموذج الكامل: <a href="https://github.com/sayedelazameydesign-crypto/dr.mukhtar/blob/main/docs/audit/threat-model-2026-11.md">docs/audit/threat-model-2026-11.md</a> — قناة البلاغ الخاصة: <a href="https://github.com/sayedelazameydesign-crypto/dr.mukhtar/blob/main/SECURITY.md">SECURITY.md</a>.  </div>
 
   <h2>المعمارية — خمسة حدود واعية</h2>
   <table>
@@ -148,7 +147,7 @@ npm run readiness            # سجل الجاهزية مقابل gaps.json</pre
 
   <details>
     <summary>English summary</summary>
-    <p><strong>Evidence Lab — Celia Kids (dr.mukhtar).</strong> Every figure on this page is generated from the committed repository or re-measured with a single command: the readiness ledger (26 gaps, 21 closed, 5 open: G1, G2, G14, G23, G26), the architecture map (151 nodes / 95 edges), the STRIDE threat model (16 threats, including two honestly documented critical items T-09/T-10 that are not closed), and the test suite (<code>npm test</code>). Zero runtime dependencies, zero credit cards, SHA-pinned CI. This is not a security audit; it is a promise that everything you see can be checked. Reproduce everything: clone, <code>npm ci &amp;&amp; npm test</code>, <code>npm run evidence:check</code>.</p>
+    <p><strong>Evidence Lab — Celia Kids (dr.mukhtar).</strong> Every figure on this page is generated from the committed repository or re-measured with a single command: the readiness ledger (26 gaps, 21 closed, 5 open: G1, G2, G14, G23, G26), the architecture map (151 nodes / 95 edges), the STRIDE threat model (16 threats, including T-10 — a real prefix-comparison flaw found during the audit pass, since fixed on main and pinned by three regression tests), and the test suite (<code>npm test</code>). Zero runtime dependencies, zero credit cards, SHA-pinned CI. This is not a security audit; it is a promise that everything you see can be checked. Reproduce everything: clone, <code>npm ci &amp;&amp; npm test</code>, <code>npm run evidence:check</code>.</p>
   </details>
 
   <footer>

@@ -199,11 +199,10 @@ ${gapRows}
     <div class="card"><b>${threatStats.controlled}</b><span>مُسيطر عليها / جزئيًا</span></div>
     <div class="card"><b>${threatStats.accepted}</b><span>مقبولة (مؤقتًا / خارج نموذج)</span></div>
     <div class="card"><b>${threatStats.standing}</b><span>مخاطرة قائمة وموثقة</span></div>
-    <div class="card"><b>${threatStats.critical}</b><span>حرجة — انظر T-09 وT-10</span></div>
+    <div class="card"><b>${threatStats.critical}</b><span>حرجة مفتوحة الآن</span></div>
   </div>
   <div class="honest">
-    <b>الثغرة المؤكدة T-10 (وT-09) لم تُغلَق بعد.</b> مقارنة <code>constantTimeEquals_</code> تدور على طول النبذة لا طول المخزّن — بادئة صحيحة تُقبَل. الوثيقة تشرح الإثبات التنفيذي سطريًا، و<a href="${repoBlob('docs/audit/threat-model-2026-11.md')}">النموذج الكامل</a> يحمل دليل ملف:سطر لكل صف. هذا المستودع لا يدّعي جاهزية أمنية غير موجودة — يدّعي أن ما يعيبه مكتوب مكانه. قناة البلاغ الخاصة: <a href="${repoBlob('SECURITY.md')}">SECURITY.md</a>.
-  </div>
+    <b>T-10 أُغلقت — والوثيقة تتذكر لماذا.</b> مقارنة ثابتة الزمن تقبل بادئة السر كانت تفتح نقطة الصحة وبوابة الموظف؛ أُصلحت على <code>main</code> (مقارنة الطول أولًا ثم حلقة كاملة) وثلاثة فحوص تفشل على الكود القديم تنجح الآن، وG25 محلول في السجل. هذا المختبر لا يدّعي مستودعًا بلا عيوب — يدّعي أن ما وُجد أُغلق بدل تجميله. ما يبقى قائمًا وموثقًا: T-15 (الرمز في رابط URL) وT-03/T-11 (التوفر/الحرمان). النموذج الكامل: <a href="${repoBlob('docs/audit/threat-model-2026-11.md')}">docs/audit/threat-model-2026-11.md</a> — قناة البلاغ الخاصة: <a href="${repoBlob('SECURITY.md')}">SECURITY.md</a>.  </div>
 
   <h2>المعمارية — خمسة حدود واعية</h2>
   <table>
@@ -246,7 +245,7 @@ ${layerRows}
 
   <details>
     <summary>English summary</summary>
-    <p><strong>Evidence Lab — Celia Kids (dr.mukhtar).</strong> Every figure on this page is generated from the committed repository or re-measured with a single command: the readiness ledger (${gaps.length} gaps, ${resolvedGaps} closed, ${openGaps.length} open: G1, G2, G14, G23, G26), the architecture map (${number(nodes.length)} nodes / ${number(edges.length)} edges), the STRIDE threat model (${threatRows.length} threats, including two honestly documented critical items T-09/T-10 that are not closed), and the test suite (<code>npm test</code>). Zero runtime dependencies, zero credit cards, SHA-pinned CI. This is not a security audit; it is a promise that everything you see can be checked. Reproduce everything: clone, <code>npm ci &amp;&amp; npm test</code>, <code>npm run evidence:check</code>.</p>
+    <p><strong>Evidence Lab — Celia Kids (dr.mukhtar).</strong> Every figure on this page is generated from the committed repository or re-measured with a single command: the readiness ledger (${gaps.length} gaps, ${resolvedGaps} closed, ${openGaps.length} open: G1, G2, G14, G23, G26), the architecture map (${number(nodes.length)} nodes / ${number(edges.length)} edges), the STRIDE threat model (${threatRows.length} threats, including T-10 — a real prefix-comparison flaw found during the audit pass, since fixed on main and pinned by three regression tests), and the test suite (<code>npm test</code>). Zero runtime dependencies, zero credit cards, SHA-pinned CI. This is not a security audit; it is a promise that everything you see can be checked. Reproduce everything: clone, <code>npm ci &amp;&amp; npm test</code>, <code>npm run evidence:check</code>.</p>
   </details>
 
   <footer>
@@ -280,7 +279,7 @@ const buildBenchmarks = () => `# BENCHMARKS — مقاييس المستودع ا
 | 5 | مسارات CI (سير العمل) | ${workflowCount} ملف \`.yml\` — كلها SHA-pinned | \`ls .github/workflows/*.yml \| wc -l\` |
 | 6 | فجوات موثقة في السجل | ${gaps.length} — محلولة ${resolvedGaps} · مفتوحة ${openGaps.length} | \`node scripts/readiness-report.js --offline\` |
 | 7 | مكوّنات وعلاقات خريطة المعمارية | ${nodes.length} مكوّن · ${edges.length} علاقة · ${(projectMap.entrypoints || []).length} نقطة دخول | \`node -e "const p=require('./docs/map/project.json');console.log(p.nodes.length,p.edges.length,p.entrypoints.length)"\` |
-| 8 | تهديدات STRIDE موثقة | ${threatRows.length} صف · ${threatStats.controlled} مُسيطر (${threatStats.critical} حرجتان موثقتان) | \`grep -cE '^\\| T-' docs/audit/threat-model-2026-11.md\` |
+| 8 | تهديدات STRIDE موثقة | ${threatRows.length} صف · ${threatStats.controlled} مُسيطر · ${threatStats.critical} حرجة مفتوحة | \`grep -cE '^\\| T-' docs/audit/threat-model-2026-11.md\` |
 | 9 | فحوص الخصوصية/الاحتفاظ | 24 فحصًا — تشغيل 2026-11-06 ✅ | \`node scripts/test-privacy-health.js\` |
 | 10 | محاكاة Apps Script (انقطاعات + منافسة قفل) | تمر — شاملة طابورَي الانقطاع ورفض الامتلاء | \`node scripts/test-gas-simulated.js\` |
 | 11 | خدمات خارجية حرة بلا بطاقة | ${cardFree} / ${services.length} | \`node -e "const d=require('./docs/free-tiers.json');console.log(d.services.filter(s=>!s.card_required).length+'/'+d.services.length)"\` |
