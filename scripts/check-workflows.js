@@ -631,7 +631,7 @@ if (!fs.existsSync(ENABLE_PAGES)) {
     const assemblyText = assembly ? assembly[0] : '';
     // Files that are internal by design and must never appear in the public bundle.
     const neverShip = [
-      'Code.gs', 'Llm.gs', 'Settings.gs', 'appsscript.json',
+      'Code.gs', 'Staff.gs', 'Llm.gs', 'Settings.gs', 'appsscript.json',
       'build-gas-package.py', 'app.config.ts', 'manus-routes.json',
       '.env.example', '.gitignore', 'clinic.json'
     ].filter((file) => file !== 'clinic.json'); // clinic.json is public by design
@@ -784,7 +784,7 @@ if (!process.env.CELIA_REPO_ROOT) {
           GmailApp: 'gmail',
           MailApp: 'script.send_mail'
         };
-        const backend = ['Code.gs', 'Llm.gs', 'Settings.gs', 'WhatsApp.gs']
+        const backend = ['Code.gs', 'Staff.gs', 'Llm.gs', 'Settings.gs', 'WhatsApp.gs']
           .filter((file) => fs.existsSync(path.join(ROOT, file)));
         const used = new Set();
         backend.forEach((file) => {
