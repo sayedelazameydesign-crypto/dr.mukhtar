@@ -90,7 +90,7 @@
 
 | Item | Result | Detail | Owner |
 | --- | --- | --- | --- |
-| clinic.name — اسم العيادة الحقيقي | ✅ **PASS** | alaqsa clinic (clinic.json) | المستخدم |
+| clinic.name — اسم العيادة الحقيقي | ✅ **PASS** | عيادة دكتور مختار (clinic.json) | المستخدم |
 | clinic.phone — هاتف العيادة | ✅ **PASS** | 2011… (مخفي جزئيًا) · clinic.json | المستخدم |
 | clinic.doctor — اسم الطبيب | ❌ **FAIL (needs user action)** | غير مضبوط — تظهر شارة «لم يُتحقق بعد» | المستخدم |
 | clinic.license — رقم الترخيص | ❌ **FAIL (needs user action)** | غير مضبوط | المستخدم |
