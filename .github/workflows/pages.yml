@@ -147,3 +147,46 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+      # A green deploy job proves an artifact was uploaded, not that the public URL
+      # serves our page. This is the only place in the pipeline that can see the live
+      # site, so it asserts both the status and a content fingerprint — otherwise a
+      # 200 from a placeholder or a stale cache would read as success.
+      - name: Verify the live URL actually serves the site
+        env:
+          URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -uo pipefail
+          code=000
+          for attempt in $(seq 1 12); do
+            code=$(curl -s -o /tmp/live.html -w '%{http_code}' --max-time 20 "$URL") || code=000
+            [ "$code" = "200" ] && break
+            echo "attempt ${attempt}: HTTP ${code}, retrying"
+            sleep 5
+          done
+          echo "live URL: $URL -> HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::error title=live site unreachable::${URL} returned HTTP ${code} after 12 attempts."
+            exit 1
+          fi
+          # Content fingerprint: an element that only exists in our index.html.
+          if ! grep -q 'trackReference' /tmp/live.html; then
+            echo "::error title=wrong content::${URL} returned 200 but is not our index.html."
+            exit 1
+          fi
+          bytes=$(wc -c < /tmp/live.html | tr -d ' ')
+          digest=$(sha256sum /tmp/live.html | cut -d' ' -f1)
+          echo "live site OK: ${bytes} bytes, sha256 ${digest}"
+          # A CI log is transient and rarely read. The step summary is what ends up on
+          # the run page and can be quoted straight into the readiness ledger.
+          {
+            echo "### Live site verified"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| URL | \`${URL}\` |"
+            echo "| HTTP | ${code} |"
+            echo "| Bytes | ${bytes} |"
+            echo "| sha256 | \`${digest}\` |"
+            echo "| Run | ${GITHUB_RUN_NUMBER} |"
+          } >> "$GITHUB_STEP_SUMMARY"

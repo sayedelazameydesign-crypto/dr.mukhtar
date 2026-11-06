@@ -65,6 +65,24 @@ const ids = new Set();
 
 if (!steps.length) errors.push('no steps found');
 
+/* --------------------------------------------------------- doctor session view */
+// The doctor sees a short list of scenes; the operator works a long list of steps. Two
+// hand-maintained lists drift, so every scene must point at a real step — a scene whose
+// ref resolves to nothing is a promise the runbook does not keep.
+if (data.doctor_session) {
+  const scenes = data.doctor_session.scenes || [];
+  if (!scenes.length) errors.push('doctor_session exists but has no scenes');
+  const known = new Set(steps.map((step) => step.id));
+  scenes.forEach((scene, index) => {
+    if (!scene.ref) { errors.push(`doctor_session scene ${index + 1} has no ref`); return; }
+    if (!known.has(scene.ref)) {
+      errors.push(`doctor_session scene ${index + 1} refs ${scene.ref}, which is not a step in sections`);
+    }
+  });
+  const orders = scenes.map((scene) => scene.order);
+  if (new Set(orders).size !== orders.length) errors.push('doctor_session scenes must have distinct order values');
+}
+
 /* ------------------------------------------------------------- bundle contract */
 // A rehearsal that tells the owner to copy "the files" is how a file gets forgotten. The step
 // that ships the bundle must name every file, and that list must match what the build actually

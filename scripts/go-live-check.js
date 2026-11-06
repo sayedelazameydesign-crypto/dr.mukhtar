@@ -185,10 +185,16 @@ function runGate(label, command, cmdArgs, id) {
   try {
     const output = execFileSync(command, cmdArgs, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     const lines = String(output).trim().split('\n').filter(Boolean);
+    // Structured log lines are not summaries. A JSON event such as
+    // {"event":"health_check","ok":false} contains "ok", so the case-insensitive
+    // summary match below used to quote a raw log line as the gate's result — an
+    // unreadable reason is a reason people learn to ignore.
+    const prose = lines.filter((item) => !item.trimStart().startsWith('{'));
     // Prefer the summary line over a trailing reminder ("mocked services do not establish…"),
     // which would otherwise be quoted as if it were the result.
-    const line = lines.find((item) => /passed|OK|PASS/i.test(item) && !/SKIPPED|Reminder/i.test(item))
-      || lines.find((item) => /SKIPPED/i.test(item))
+    const line = prose.find((item) => /passed|OK|PASS/i.test(item) && !/SKIPPED|Reminder/i.test(item))
+      || prose.find((item) => /SKIPPED/i.test(item))
+      || prose.pop()
       || lines.pop()
       || '';
     // A skipped browser test is a gap that looks green: report it as an action, because

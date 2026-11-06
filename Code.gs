@@ -191,10 +191,68 @@ function ensureClinicCalendar_(props) {
   return calendar;
 }
 
+/**
+ * Column positions for one sheet, resolved once per execution and validated
+ * against the live header row before anything is read or written.
+ *
+ * Declared with `var` so it lands on the Apps Script global object: a test (or a
+ * second setup run) can clear it. Every other top-level binding here is `const`.
+ */
+var sheetSchemaIndex_ = {};
+
+/**
+ * Prove the live sheet still has the schema the code assumes, then return a
+ * header -> column-position map.
+ *
+ * rowToRequest_() and requestToRow_() index columns by position. That is only
+ * safe while the sheet's first row is exactly `headers` — and nothing checked.
+ * Adding one column to CK.REQUEST_HEADERS against a sheet created earlier shifted
+ * every field silently: the guardian's phone landed in the *name* column, which
+ * publicBooking_() renders, so a schema edit became a privacy leak with no error
+ * anywhere. Reading a header is one call, so it is done once per execution.
+ *
+ * Fails closed and loudly. It never repairs the sheet: rewriting a header over
+ * live rows is the same defect wearing a helper's clothes.
+ */
+function assertSheetSchema_(sheet, headers, label) {
+  if (sheetSchemaIndex_[label]) return sheetSchemaIndex_[label];
+  const width = Math.max(headers.length, sheet.getLastColumn());
+  const live = sheet.getRange(1, 1, 1, width).getValues()[0].map(function (cell) { return String(cell); });
+  for (let i = 0; i < headers.length; i += 1) {
+    if (live[i] === headers[i]) continue;
+    logEvent_('error', 'schema_drift', {
+      sheet: label,
+      position: i + 1,
+      expected: headers[i],
+      found: live[i] || ''
+    });
+    const drift = new Error('مخطط ورقة ' + label + ' لا يطابق ما يتوقعه الكود عند العمود ' + (i + 1) +
+      ': المتوقع «' + headers[i] + '» والموجود «' + (live[i] || 'فارغ') +
+      '». أُوقف التنفيذ عمدًا — لا تعدّل الترويسة يدويًا فوق بيانات قائمة.');
+    // Callers catch broadly. Without a marker, every catch site reports drift as a
+    // generic "cannot reach Sheets", which is the one thing an operator must not
+    // be told: the sheet is reachable, its columns are wrong.
+    drift.code = 'SCHEMA_DRIFT';
+    drift.sheet = label;
+    throw drift;
+  }
+  const index = {};
+  headers.forEach(function (header, position) { index[header] = position; });
+  sheetSchemaIndex_[label] = index;
+  return index;
+}
+
+/** True when an error is the schema guard refusing, not a service being down. */
+function isSchemaDrift_(error) { return !!error && error.code === 'SCHEMA_DRIFT'; }
+
 function ensureSheet_(ss, name, headers) {
   let sheet = ss.getSheetByName(name);
   if (!sheet) sheet = ss.insertSheet(name);
   if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  // Checked on every access, not only on creation: the dangerous case is a sheet
+  // that already exists. A stray formatted cell also lands here — getLastRow()
+  // counts formatting, so such a sheet skips the header write and reads back empty.
+  assertSheetSchema_(sheet, headers, name);
   return sheet;
 }
 
@@ -358,6 +416,12 @@ function createRequest(payload) {
     logEvent_(savedLocally ? 'warn' : 'info', 'request_created', { verified: verified, queued: savedLocally, audit_stored: auditStored });
     return { ok: true, booking: publicBooking_(record), savedLocally: savedLocally, warning: warning };
   } catch (error) {
+    // Fail closed either way, but the internal reason belongs in the log and on the
+    // staff board — not in a message read by a parent.
+    if (isSchemaDrift_(error)) {
+      logEvent_('error', 'booking_blocked_by_schema_drift', { sheet: error.sheet });
+      return { ok: false, message: 'العيادة لا تستطيع استقبال الطلبات الآن. تواصلوا معنا هاتفيًا.' };
+    }
     return { ok: false, message: error.message || 'تعذر حفظ الطلب.' };
   } finally {
     lock.releaseLock();
@@ -390,10 +454,23 @@ function getDashboard(pin) {
   // lately?" without reading the Audit sheet (which may be exactly what is broken).
   markStaffSeen_();
   try { syncOutageQueue_(); }
-  catch (error) { warnings.push('تعذر مزامنة سجل الطلبات مع Sheets؛ الطلبات الاحتياطية محفوظة للمراجعة عند عودة الخدمة.'); }
+  catch (error) {
+    if (isSchemaDrift_(error)) warnings.push('توقف: مزامنة الطابور الاحتياطي متوقفة بسبب أعمدة ورقة «' + error.sheet + '» (schema_drift).');
+    else warnings.push('تعذر مزامنة سجل الطلبات مع Sheets؛ الطلبات الاحتياطية محفوظة للمراجعة عند عودة الخدمة.');
+  }
   let bookings = [];
   try { bookings = readAllRequests_(); }
-  catch (error) { warnings.push('تعذر الوصول إلى Google Sheets. راجعوا الاتصال قبل اتخاذ إجراء.'); }
+  catch (error) {
+    if (isSchemaDrift_(error)) {
+      // The board would otherwise be empty with a "check the connection" note, and
+      // the clinic would chase a network that is fine. Say what is actually wrong.
+      warnings.push('توقف: أعمدة ورقة «' + error.sheet + '» لا تطابق ما يتوقعه النظام، فالطلبات لا تُقرأ. ' +
+        'لا تعدّلوا الأعمدة يدويًا — التفاصيل في سجل الأخطاء (schema_drift).');
+      logEvent_('error', 'dashboard_blocked_by_schema_drift', { sheet: error.sheet });
+    } else {
+      warnings.push('تعذر الوصول إلى Google Sheets. راجعوا الاتصال قبل اتخاذ إجراء.');
+    }
+  }
   const closures = [];
   try { closures.push.apply(closures, readClosures_()); }
   catch (error) { warnings.push('تعذر قراءة إغلاقات الدوام.'); }
@@ -454,15 +531,26 @@ function healthCheck_() {
 
   let requestRows = 0;
   let sheetOk = false;
+  let schemaDrifted = false;
   try {
     const sheet = getSpreadsheet_().getSheetByName(CK.REQUESTS);
     if (!sheet) add('sheets', false, 'ورقة Requests غير موجودة؛ شغّلوا initializeCeliaKids().');
     else {
+      // Deliberately not getSheetByName alone: that only proves the tab exists. This
+      // endpoint is the one an external monitor watches, so it has to notice a sheet
+      // whose columns no longer match the code — otherwise the site stays green while
+      // every read is wrong.
+      assertSheetSchema_(sheet, CK.REQUEST_HEADERS, CK.REQUESTS);
       sheetOk = true;
       requestRows = Math.max(0, sheet.getLastRow() - 1);
       add('sheets', true, '');
     }
-  } catch (error) { add('sheets', false, error.message || 'تعذر الوصول إلى Sheets'); }
+  } catch (error) {
+    schemaDrifted = isSchemaDrift_(error);
+    add('sheets', false, schemaDrifted
+      ? 'أعمدة ورقة «' + error.sheet + '» لا تطابق النظام (schema_drift).'
+      : (error.message || 'تعذر الوصول إلى Sheets'));
+  }
 
   let calendarOk = false;
   try { calendarOk = !!getCalendar_(); add('calendar', calendarOk, calendarOk ? '' : 'تعذر العثور على تقويم العيادة'); }
@@ -499,8 +587,17 @@ function healthCheck_() {
   };
   add('last_purge', ageDays(lastPurge) === null || ageDays(lastPurge) <= 8, lastPurge || 'لم يُسجل بعد');
 
+  const healthy = checks.every(function (check) { return check.ok; });
   return {
-    ok: checks.every(function (check) { return check.ok; }),
+    ok: healthy,
+    // One flat word for an external monitor to watch. `ok` alone cannot carry the
+    // distinction: doGetHealth answers { ok: false } when the token is missing, so a
+    // monitor reading only `ok` cannot tell "healthy" from "closed" from "broken",
+    // and an HTTP-level monitor sees 200 in all three cases. Watch this field.
+    //   ok    — every check passed
+    //   drift — the sheet's columns no longer match the code; nothing reads correctly
+    //   down  — some other failure (Sheets, Calendar, queues, retention, config)
+    status: healthy ? 'ok' : (schemaDrifted ? 'drift' : 'down'),
     started: started,
     checks: checks,
     counters: {
@@ -519,11 +616,18 @@ function getHealthReport(pin) {
   if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
   try {
     const report = healthCheck_();
-    logEvent_('info', 'health_check', { ok: report.ok, queued: report.counters.queued_requests });
-    return { ok: true, report: report };
+    logEvent_('info', 'health_check', { ok: report.ok, status: report.status, queued: report.counters.queued_requests });
+    // `status` is lifted out of the report so the board and the external monitor read
+    // the same word from the same place, with no conditional expression on either side.
+    return { ok: true, status: report.status, report: report };
   } catch (error) {
-    logEvent_('error', 'health_check_failed', { code: 'HEALTH' });
-    return { ok: false, message: 'تعذر تشغيل فحص الصحة.' };
+    // The endpoint still goes red, but a red light with no cause is a light nobody
+    // can act on. Schema drift is named so the operator knows it is not an outage.
+    const drift = isSchemaDrift_(error);
+    logEvent_('error', 'health_check_failed', { code: drift ? 'SCHEMA_DRIFT' : 'HEALTH', sheet: drift ? error.sheet : '' });
+    return { ok: false, message: drift
+      ? 'فحص الصحة أحمر: أعمدة ورقة «' + error.sheet + '» لا تطابق النظام.'
+      : 'تعذر تشغيل فحص الصحة.' };
   }
 }
 
@@ -968,9 +1072,12 @@ function getSpreadsheet_() {
   if (active) return active;
   throw new Error('لم يتم إعداد Google Sheets. شغّل initializeCeliaKids() أولاً.');
 }
-function requestsSheet_() { return getSpreadsheet_().getSheetByName(CK.REQUESTS) || ensureSheet_(getSpreadsheet_(), CK.REQUESTS, CK.REQUEST_HEADERS); }
-function closuresSheet_() { return getSpreadsheet_().getSheetByName(CK.CLOSURES) || ensureSheet_(getSpreadsheet_(), CK.CLOSURES, CK.CLOSURE_HEADERS); }
-function auditSheet_() { return getSpreadsheet_().getSheetByName(CK.AUDIT) || ensureSheet_(getSpreadsheet_(), CK.AUDIT, CK.AUDIT_HEADERS); }
+// ensureSheet_ is idempotent and now carries the schema guard, so it runs on every
+// access. The previous `getSheetByName(name) || ensureSheet_(...)` short-circuit
+// meant an existing sheet was returned unchecked — exactly the sheet that can drift.
+function requestsSheet_() { return ensureSheet_(getSpreadsheet_(), CK.REQUESTS, CK.REQUEST_HEADERS); }
+function closuresSheet_() { return ensureSheet_(getSpreadsheet_(), CK.CLOSURES, CK.CLOSURE_HEADERS); }
+function auditSheet_() { return ensureSheet_(getSpreadsheet_(), CK.AUDIT, CK.AUDIT_HEADERS); }
 function getCalendar_() {
   const id = PropertiesService.getScriptProperties().getProperty('CALENDAR_ID') || 'primary';
   const calendar = id === 'primary' ? CalendarApp.getDefaultCalendar() : CalendarApp.getCalendarById(id);
@@ -1107,7 +1214,12 @@ function publicBooking_(record) { return { reference: record.reference, status: 
 function readAllRequests_() {
   const sheet = requestsSheet_(); const result = [];
   if (sheet.getLastRow() >= 2) sheet.getRange(2, 1, sheet.getLastRow() - 1, CK.REQUEST_HEADERS.length).getValues().forEach((row) => result.push(rowToRequest_(row)));
-  const map = new Map(); result.forEach((item) => map.set(item.reference, item));
+  // getLastRow() counts formatting as well as content, so a stray bold cell below
+  // the data makes this read past the last real row. Every such row maps to an
+  // all-empty record; without this filter they collapse into one phantom booking
+  // keyed by '' and appear on the staff board.
+  const records = result.filter((item) => item.reference !== '');
+  const map = new Map(); records.forEach((item) => map.set(item.reference, item));
   readOutageQueue_().forEach((item) => { if (!map.has(item.reference)) map.set(item.reference, item); });
   return Array.from(map.values());
 }
