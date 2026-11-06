@@ -113,6 +113,22 @@ const check = (label, condition, detail = '') => {
     check('a file cannot add or price a visit type', cards.every((card) => !/مجاني/.test(card)), cards.join(' | '));
   }
 
+  // 1b — the number is written the way a parent dials it (01113593643), but wa.me only
+  //      accepts the international form. `https://wa.me/01113593643` opens a chat with
+  //      nobody; this assertion is why the conversion exists.
+  {
+    const window = await boot({ clinicName: 'عيادة دكتور مختار سيد كامل', phone: '01113593643' });
+    const tel = window.document.querySelector('[data-config="phone"] a');
+    check('the tel: link keeps the dialled local number',
+      tel !== null && tel.getAttribute('href') === 'tel:01113593643', tel && tel.getAttribute('href'));
+    const wa = window.document.querySelector('a[href^="https://wa.me/"]');
+    const waNumber = wa ? decodeURIComponent(wa.getAttribute('href')).replace(/^https:\/\/wa\.me\//, '').split('?')[0] : '';
+    check('wa.me receives the international number, never the leading 0',
+      waNumber === '201113593643', waNumber);
+    check('the WhatsApp link is a real chat target, not a dead one',
+      /^20[0-9]{10}$/.test(waNumber), waNumber);
+  }
+
   // 2 — an empty file must leave the page exactly as it was.
   {
     const window = await boot({ clinicName: '', phone: '', whatsapp: '', address: '' });

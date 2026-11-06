@@ -804,15 +804,27 @@
   // A neutral opener: no name, no symptom, no appointment details. The parent decides
   // what to write; we only save them the step of finding the number.
   const WHATSAPP_OPENER = 'السلام عليكم، أرغب في الاستفسار عن موعد.';
+  // wa.me only accepts the international form. A published Egyptian number is stored the
+  // way it is dialled locally (01113593643), so `https://wa.me/01113593643` would open a
+  // chat with nobody: the leading 0 has to become 20. Found only once a real number was
+  // published — with an empty field the link never rendered and the bug was invisible.
+  function waNumber(phone) {
+    let number = String(phone || '').replace(/\D/g, '');
+    if (number.startsWith('00')) number = number.slice(2);
+    if (number.startsWith('0')) return `20${number.slice(1)}`;
+    if (number.startsWith('20')) return number;
+    return number.length === 10 && number.startsWith('1') ? `20${number}` : number;
+  }
   function setWhatsApp(phone) {
-    const digitsOnly = String(phone || '').replace(/\D/g, '');
-    const usable = digitsOnly.length >= 8;
+    const digitsOnly = waNumber(phone);
+    const usable = digitsOnly.length >= 10 && digitsOnly.startsWith('20');
     const links = $$('#whatsappLink, #whatsappLinkAccess');
     links.forEach((link) => {
       const holder = link.closest('p');
       if (!usable) { if (holder) holder.hidden = true; link.removeAttribute('href'); return; }
       link.href = `https://wa.me/${digitsOnly}?text=${encodeURIComponent(WHATSAPP_OPENER)}`;
       link.setAttribute('aria-label', `مراسلة العيادة على واتساب على ${phone}`);
+      link.setAttribute('data-wa-number', digitsOnly);
       if (holder) holder.hidden = false;
     });
   }

@@ -281,8 +281,9 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   check('the dialable number keeps no spaces or dashes', phoneLink !== null && !/[\s-]/.test(phoneLink.getAttribute('href')), phoneLink && phoneLink.getAttribute('href'));
   const wa = $('a[href^="https://wa.me/"]');
   check('a configured number turns on the WhatsApp button', wa !== null, 'no wa.me link');
+  // Configured as 01001234567 (the way a parent dials it); wa.me only accepts 20…
   check('the WhatsApp opener carries no personal or medical details', wa !== null
-    && /wa\.me\/01001234567\?text=/.test(wa.getAttribute('href'))
+    && /wa\.me\/201001234567\?text=/.test(wa.getAttribute('href'))
     && !/اسم|هاتف|عمر|سنة|أعراض|ألم|حرارة/.test(decodeURIComponent(wa.getAttribute('href').split('text=')[1] || '')),
     wa && decodeURIComponent(wa.getAttribute('href')));
   // Regression: a frozen VISIT_MINUTES table used to shadow the edited durations, so a
