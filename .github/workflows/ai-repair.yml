@@ -53,7 +53,7 @@ jobs:
       - name: Scan the run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_ID: ${{ inputs.run_id }}
+          RUN_ID: ${{ github.event.inputs.run_id }}
         run: |
           set -euo pipefail
           run_id="${RUN_ID:-}"
@@ -197,7 +197,7 @@ jobs:
   open-pr:
     name: Open a reviewable PR (write, no key)
     needs: [analyse, verify]
-    if: needs.verify.result == 'success' && inputs.dry_run == 'false'
+    if: needs.verify.result == 'success' && github.event.inputs.dry_run == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -253,7 +253,7 @@ jobs:
               node -e "const r=require('./reports/repair-report.json');console.log('**Status:** '+r.status);console.log('');console.log(r.proposal&&r.proposal.rationale||'');"
             fi
             echo
-            echo 'Verification: the patch passed the guard and `git apply --check` in a job with no'
+            echo 'Verification: the patch passed the guard and a dry-run apply in a job with no'
             echo 'secret and no write permission, and the existing suite ran against the patched tree.'
             echo
             echo 'A human must review this PR. Nothing is merged or deployed automatically.'

@@ -52,7 +52,7 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          INPUT_RUN_ID: ${{ inputs.run_id }}
+          INPUT_RUN_ID: ${{ github.event.inputs.run_id }}
           EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
