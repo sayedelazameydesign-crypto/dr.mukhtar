@@ -878,6 +878,18 @@ assert.equal(context.getClinicSettings(bootstrapHash).ok, false, 'the bootstrap 
   try { context.readAllRequests_(); } catch (error) { firstRunError = error; }
   assert.equal(firstRunError, null, 'an empty sheet is not drift: the header is written before it is checked');
   assert.deepEqual(virgin.rows[0], originalHeaders, 'the first access installs the declared header');
+  // The healthy baseline for the flat status field.
+  const keepHashBaseline = propertyValues.get('ADMIN_PIN_HASH');
+  const baselinePin = `baseline-${crypto.randomBytes(12).toString('hex')}`;
+  propertyValues.set('ADMIN_PIN_HASH', hashPin(baselinePin));
+  const baseline = context.getHealthReport(baselinePin);
+  propertyValues.set('ADMIN_PIN_HASH', keepHashBaseline);
+  // At this point earlier suites have filled the outage queues, so the clinic is
+  // genuinely unhealthy — but not drifted. That is the distinction the flat field
+  // exists to carry: a monitor must not page for "drift" when the cause is queues.
+  assert.ok(['ok', 'drift', 'down'].includes(baseline.status), 'status is always one of the three known words, got ' + baseline.status);
+  assert.notEqual(baseline.status, 'drift', 'a non-schema failure is never reported as drift');
+  assert.equal(baseline.status, 'down', 'the full outage queue reports "down", not "drift"');
 
   // (b) Propagation. A drifted sheet must not be reported as a network problem.
   const addColumn = () => { CK.REQUEST_HEADERS.splice(1, 0, 'notes'); };
@@ -908,6 +920,11 @@ assert.equal(context.getClinicSettings(bootstrapHash).ok, false, 'the bootstrap 
     assert.equal(sheetsCheck.ok, false, 'the sheets check is the one that fails');
     assert.match(sheetsCheck.detail, new RegExp(CK.REQUESTS), 'the failing check names the sheet');
     assert.match(sheetsCheck.detail, /schema_drift/, 'and names the cause, not a generic outage');
+    // The flat field an external monitor watches. `ok` alone cannot carry it: the
+    // unauthenticated endpoint also answers ok:false, so a monitor reading only that
+    // cannot tell "closed" from "drifted" from "down".
+    assert.equal(health.status, 'drift', 'the flat status names drift, not a generic failure');
+    assert.equal(health.report.status, 'drift', 'and the report carries the same word');
 
     // Guardian: fails closed, but the internal text is not handed to a parent.
     const booked = context.createRequest({

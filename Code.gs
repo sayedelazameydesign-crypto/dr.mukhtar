@@ -531,6 +531,7 @@ function healthCheck_() {
 
   let requestRows = 0;
   let sheetOk = false;
+  let schemaDrifted = false;
   try {
     const sheet = getSpreadsheet_().getSheetByName(CK.REQUESTS);
     if (!sheet) add('sheets', false, 'ورقة Requests غير موجودة؛ شغّلوا initializeCeliaKids().');
@@ -545,7 +546,8 @@ function healthCheck_() {
       add('sheets', true, '');
     }
   } catch (error) {
-    add('sheets', false, isSchemaDrift_(error)
+    schemaDrifted = isSchemaDrift_(error);
+    add('sheets', false, schemaDrifted
       ? 'أعمدة ورقة «' + error.sheet + '» لا تطابق النظام (schema_drift).'
       : (error.message || 'تعذر الوصول إلى Sheets'));
   }
@@ -585,8 +587,17 @@ function healthCheck_() {
   };
   add('last_purge', ageDays(lastPurge) === null || ageDays(lastPurge) <= 8, lastPurge || 'لم يُسجل بعد');
 
+  const healthy = checks.every(function (check) { return check.ok; });
   return {
-    ok: checks.every(function (check) { return check.ok; }),
+    ok: healthy,
+    // One flat word for an external monitor to watch. `ok` alone cannot carry the
+    // distinction: doGetHealth answers { ok: false } when the token is missing, so a
+    // monitor reading only `ok` cannot tell "healthy" from "closed" from "broken",
+    // and an HTTP-level monitor sees 200 in all three cases. Watch this field.
+    //   ok    — every check passed
+    //   drift — the sheet's columns no longer match the code; nothing reads correctly
+    //   down  — some other failure (Sheets, Calendar, queues, retention, config)
+    status: healthy ? 'ok' : (schemaDrifted ? 'drift' : 'down'),
     started: started,
     checks: checks,
     counters: {
@@ -605,8 +616,10 @@ function getHealthReport(pin) {
   if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
   try {
     const report = healthCheck_();
-    logEvent_('info', 'health_check', { ok: report.ok, queued: report.counters.queued_requests });
-    return { ok: true, report: report };
+    logEvent_('info', 'health_check', { ok: report.ok, status: report.status, queued: report.counters.queued_requests });
+    // `status` is lifted out of the report so the board and the external monitor read
+    // the same word from the same place, with no conditional expression on either side.
+    return { ok: true, status: report.status, report: report };
   } catch (error) {
     // The endpoint still goes red, but a red light with no cause is a light nobody
     // can act on. Schema drift is named so the operator knows it is not an outage.

@@ -121,5 +121,5 @@ NODE_PATH=/tmp/jsd/node_modules node scripts/readiness-report.js          # فح
 ## بروفة Google
 
 كل خطوة في [`docs/google-rehearsal.md`](./google-rehearsal.md) لها حقل `evidence` في
-`scripts/rehearsal-checklist.json` (20 خطوة، التقدّم الحالي **0/20**). الفجوتان **G1** و**G14** لا
+`scripts/rehearsal-checklist.json` (21 خطوة، التقدّم الحالي **0/21**). الفجوتان **G1** و**G14** لا
 تُغلقان إلا بأدلة من حسابك، ولا يرقّيهما كلام.
