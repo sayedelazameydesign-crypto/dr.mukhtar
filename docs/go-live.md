@@ -182,7 +182,14 @@
 ### B-3 · النشر كتطبيق ويب
 | # | الخطوة | المالك | الدليل |
 | --- | --- | --- | --- |
-| B3.1 | Deploy → New deployment → Web app · Execute as **Me** · Access **Anyone** | ⟦أنت⟧ | رابط `script.google.com/macros/s/…/exec` |
+| B3.1 | Deploy → New deployment → Web app · Execute as **Me** · Access **Anyone** (صار مثبتًا في `appsscript.json`، فلا حاجة لضبطه يدويًا) | ⟦أنت⟧ | رابط `script.google.com/macros/s/…/exec` |
+
+> **٢٠٢٦-١١-٠٦ — إعداد النشر انتقل إلى الكود:** كان `appsscript.json` بلا كتلة `webapp`، فكان
+> `executeAs/access` يعيشان في المحرّر وحده — ولهذا نُشر المشروع الحقيقي بـ`access: MYSELF`، أي
+> صفحة لا يفتحها إلا المالك. الكتلة الآن في الملف:
+> `{"executeAs": "USER_DEPLOYING", "access": "ANYONE_ANONYMOUS"}`، وبوابة `check-workflows.js`
+> تفشل إن عاد إلى `MYSELF` (تحقّقت بإرجاع الخطأ). ملاحظة عملية: تغيير `access` **لا يسري على نشر
+> قائم** — يجب `Deploy → Manage deployments → Edit → New version`، وإلا بقي الإصدار القديم.
 | B3.2 | افتح الرابط في **نافذة خاصة** (بلا تسجيل دخول) | ⟦أنت⟧ | الصفحة تعمل كزائر |
 | B3.3 | **اختبار الرفض:** افتح لوحة العيادة برمز خاطئ | ⟦أنت⟧ | رسالة «رمز الموظف غير صحيح» — لا دخول |
 
