@@ -115,6 +115,14 @@ jobs:
       - name: Syntax gate (every script under scripts/)
         run: node scripts/check-script-syntax.js
 
+      # Shape, not behaviour: a pure function that starts reading Script Properties, a
+      # mutation that forgets the lock, or a model call creeping into the booking path will
+      # not fail any behavioural test — it fails in production, months later.
+      - name: Architecture boundaries hold
+        run: |
+          node scripts/check-architecture-boundaries.js --self-test
+          node scripts/check-architecture-boundaries.js
+
       # A threat model whose references do not resolve is fiction with a table. This gate
       # requires every file:line to exist and every "controlled" row to quote a real test.
       - name: Threat-model citations resolve and are backed by tests

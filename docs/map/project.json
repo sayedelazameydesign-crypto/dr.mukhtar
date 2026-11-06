@@ -1212,6 +1212,27 @@
       "path": "scripts/check-audit-doc.js",
       "layer": "tooling",
       "role": "audit citations resolve and controlled rows quote real tests"
+    },
+    {
+      "id": "doc.arch-layers",
+      "kind": "doc",
+      "path": "docs/architecture/three-layers.md",
+      "layer": "docs",
+      "role": "atomic / kernel / evidence layers, with a measured inventory"
+    },
+    {
+      "id": "doc.arch-boundaries",
+      "kind": "config",
+      "path": "docs/architecture/boundaries.json",
+      "layer": "docs",
+      "role": "the five architecture rules as data"
+    },
+    {
+      "id": "tool.arch-gate",
+      "kind": "script",
+      "path": "scripts/check-architecture-boundaries.js",
+      "layer": "tooling",
+      "role": "fails when a pure function, the lock, the response contract or the booking path drifts"
     }
   ],
   "edges": [
