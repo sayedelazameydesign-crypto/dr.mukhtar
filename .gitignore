@@ -23,3 +23,8 @@ config/google.profile.*.json
 !config/google.profile.example.json
 .secrets/
 .local-store/
+
+# Playwright + Lighthouse CI artifacts — reports are uploaded as run artifacts, never committed
+test-results/
+playwright-report/
+.lighthouseci/

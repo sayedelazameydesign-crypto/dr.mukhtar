@@ -1,0 +1,25 @@
+# Security updates ONLY.
+#
+# Version-update PRs are Renovate's job (renovate.json, Mondays, grouped) — running
+# both bots on version updates would duplicate PRs for the same bumps, which is why
+# the limit below is 0. Dependabot's security *alerts* are a repository setting
+# (enabled once by the owner: Settings → Code security); security *update PRs* are
+# not counted against this limit.
+#
+# $0. No secrets, no card — native GitHub feature on a public repository.
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    cooldown:
+      default-days: 7 # wait a week after release before PRing — supply-chain quarantine
+    open-pull-requests-limit: 0 # version updates off (Renovate owns them); security fixes still arrive
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 0 # same split for action SHAs

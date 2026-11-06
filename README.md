@@ -111,6 +111,18 @@ python3 scripts/build-gas-package.py # بناء حزمة Apps Script (Index + Fo
 
 `test-ui-smoke.js` يعمل عبر `jsdom`، وإن لم يكن مثبتًا يطبع تعليمات التثبيت ويتوقف بلطف.
 
+```bash
+npx playwright install chromium && npx playwright test   # رحلات المتصفح الفعلية (demo mode، Chromium)
+```
+
+## خط الأنابيب الهندسية AI-Native
+
+الخطوط العريضة والميزانية المستهدفة (**$0/شهر، بلا بطاقة**) والحالة لكل أداة — في
+[`docs/engineering-stack.md`](docs/engineering-stack.md). باختصار: حماية `main` (خطوة المالك)،
+CodeQL + OSV-Scanner + zizmor + Scorecard (بوابات أمنية في CI)، Renovate للإصدارات وDependabot
+للأمان فقط، Playwright + Lighthouse للوصول، Release Please للإصدار، ولا دمج تلقائي ولا نشر دون
+موافقة بشرية. التحقق الشهري عبر issue مفتوحة تلقائيًا كل أول شهر (`[monthly-tools-watch]`).
+
 ## النشر على GitHub Pages
 
 سير العمل `pages.yml` ينشر جذر المستودع عند كل دفع إلى `main`.

@@ -1,0 +1,65 @@
+name: Monthly tools watch
+
+# Answers the question "ما الجديد في أدوات AI Coding وGitHub المجانية؟" by opening a
+# checklist issue on the 1st of every month. The agent cannot act between sessions —
+# the repository can remind its owner instead. Closes itself quietly when an open
+# checklist already exists. Delete this file to stop the reminders; nothing else
+# depends on it.
+#
+# $0, no secrets (built-in GITHUB_TOKEN, issues only).
+
+on:
+  schedule:
+    - cron: '0 6 1 * *' # 06:00 UTC on the 1st — 08:00 Cairo in winter, 09:00 in summer
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monthly-tools-watch
+  cancel-in-progress: false
+
+jobs:
+  open-issue:
+    name: Open the monthly free-tier checklist
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Create the issue when none is open
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          title='[monthly-tools-watch] المراجعة الشهرية لأدوات المطوّر (AI Coding + GitHub المجانية)'
+          open_count="$(gh issue list --state open --search 'monthly-tools-watch in:title' --json number --jq 'length')"
+          if [ "$open_count" != "0" ]; then
+            echo "An open checklist issue already exists — nothing to do."
+            exit 0
+          fi
+          gh issue create --title "$title" --body-file - <<'BODY'
+          ## المراجعة الشهرية لأدوات المطوّر — Zero-Card
+
+          احرص أن يبقى هدف الاشتراك **$0/شهر** حقيقة، لا انطباعًا. لا تُضف خدمة جديدة قبل أن تتحقق من بطاقة التسجيل.
+
+          ### ١. حدود المجانية والحصص
+          - [ ] صفحات تسعير/خطط: Google Antigravity · GitHub Copilot Free · Renovate · Dependabot · Release Please
+          - [ ] صفحات تسعير/خطط: CodeQL · Gitleaks · OSV-Scanner · zizmor · OpenSSF Scorecard · Playwright · Lighthouse CI
+          - [ ] أهلية المصدر المفتوح لـ CodeRabbit (المراجعات المجانية للمستودعات العامة المؤهلة) — تحقق من ترخيص المستودع
+          - [ ] أي تغيير في حصص Actions/Packages للمستودعات العامة
+          - [ ] أي تغيير في خطط Gemini/Intelligence في Antigravity (حدود أسبوعية أساسية حاليًا)
+
+          ### ٢. المستودع
+          - [ ] حدّث `docs/free-tiers.json` (`checked` و `policy.reverify_by`) وافتح PR صغيرًا
+          - [ ] راجع `docs/exit-plan.md` — كل مزوّد جديد يحتاج سطر استبدال
+          - [ ] تأكد أن آخر تشغيل لـ Renovate فتح PRs منطقية بدون automerge
+
+          ### ٣. الأدلة
+          - [ ] CI أخضر على `main` · Code Scanning بدون نتائج حرجة · Scorecard score لم ينخفض
+          - [ ] إن اكتشفت تجاوز حدود أو بطاقة إلزامية: أوقف الأداة، سجّل في `docs/free-tiers.json` تحت `rejected`، واعثر fallback
+
+          المرجع الكامل: `docs/engineering-stack.md` — الخطة، الأدوات المقترحة، وما رُفض ولماذا.
+          BODY

@@ -1,0 +1,34 @@
+name: Release Please
+
+# Keeps CHANGELOG.md, the version in package.json and the git tag in sync with
+# Conventional Commits, via a single open release PR. Nothing is published
+# automatically and nothing merges without a human — this workflow only maintains
+# the release pull request (#docs/engineering-stack).
+#
+# $0, no secrets: uses the built-in GITHUB_TOKEN. Office hours safe: runs on
+# pushes to main only.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never cancel mid-flight: half-written changelog entries are worse than none.
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Maintain the release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # the release commit/tag
+      pull-requests: write # the release PR itself
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        # Manifest mode: release-please-config.json + .release-please-manifest.json
+        # (defaults pick both up). No token input: GITHUB_TOKEN is used.

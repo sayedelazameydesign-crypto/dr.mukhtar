@@ -1,0 +1,42 @@
+name: OSV Scanner
+
+# Known-vulnerability scan of the dependency lockfile against the OSV database
+# (https://osv.dev). Complements npm audit (registry advisories) and Dependabot
+# (security update PRs): this gate fails on any known vuln in the tree, audit and
+# Dependabot cover the registry-facing half. Pinned to the upstream release SHA;
+# the reusable workflow uploads SARIF to Security → Code scanning.
+#
+# Cost: $0. No secrets, no card, no external account — it runs on the runner and
+# talks to the OSV API.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '23 6 * * 1' # Mondays 06:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: osv-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Vulnerability scan (OSV)
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    with:
+      # Whole tree: package-lock.json is the only dependency manifest today; the scan
+      # walks it recursively and stays correct when more manifests appear.
+      scan-args: |-
+        -r
+        ./
+      fail-on-vuln: true

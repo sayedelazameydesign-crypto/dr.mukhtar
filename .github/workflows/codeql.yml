@@ -1,0 +1,49 @@
+name: CodeQL
+
+# Semantic analysis of the repository's JavaScript (site + tooling) and Python (build
+# tooling). Free on public repositories; results land in Security → Code scanning.
+# Apps Script sources (*.gs) are JavaScript by dialect but are not a supported CodeQL
+# language, so they are covered by the repo's own gates (syntax, architecture
+# boundaries, backend simulation) and are deliberately out of this matrix.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '41 6 * * 1' # Mondays 06:41 UTC — weekly deep pass, off the working hour
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          languages: ${{ matrix.language }}
+          # No compiled artifact in this repository: both languages are interpreted.
+          build-mode: none
+
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          category: '/language:${{ matrix.language }}'

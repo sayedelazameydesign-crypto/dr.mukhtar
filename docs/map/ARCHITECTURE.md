@@ -23,6 +23,23 @@
 | Pilot week | `docs/pilot/professor-week.md` | ⚠️ not run — needs the owner's Google account |
 | Growth | `docs/growth/doctors-playbook.md` · `pitch/` | ✅ documents + printed sheet, gated by `check-pilot-docs.js` |
 | Google bridge | `test-google-bridge.js` + `google/selftest.js --local` ✅ 29 tests | live bootstrap ⚠️ owner-side |
+
+## 2b. Engineering plane (AI-native, 2026-11 — CELIA-GITHUB-ENGINEERING-STACK-001)
+
+| Gate | File | Trigger | Verified |
+| --- | --- | --- | --- |
+| CodeQL SAST | `.github/workflows/codeql.yml` | push/PR/weekly | 🆕 runs on this PR; free on public repos |
+| OSV vuln scan | `.github/workflows/osv-scan.yml` | push/PR/weekly | SHA-pinned reusable workflow; SARIF → Security tab |
+| zizmor (Actions) | `.github/workflows/zizmor.yml` | push/PR/weekly | ✅ 0 findings locally (was 48) |
+| OpenSSF Scorecard | `.github/workflows/scorecard.yml` | main/weekly | ⏸ first run after merge |
+| Playwright E2E | `e2e/clinic.spec.mjs` + `e2e.yml` | PR | 5 journeys, demo mode only; Chromium on runner |
+| Lighthouse CI | `.lighthouserc.json` + `e2e.yml` | PR | a11y ≥0.9 is an error; rest are recorded warnings |
+| Release Please | `release-please.yml` (+ manifest/config) | main pushes | opens release PR only; humans merge |
+| Renovate / Dependabot | `renovate.json` · `.github/dependabot.yml` | weekly Monday | Renovate = versions (7-day quarantine), Dependabot = security, zero overlap |
+| Monthly watch | `.github/workflows/monthly-tools-watch.yml` | 1st of month | opens `[monthly-tools-watch]` issue; deduped while open |
+
+Every action in every workflow is pinned to a full commit SHA (comments carry the tag). `main` protection remains an owner step (integration token: 403 — `scripts/bootstrap-github.sh` corrected to the real check-run name). Full plan, decisions and deviations: `docs/engineering-stack.md`.
+
 ## 3. Components
 
 ```mermaid

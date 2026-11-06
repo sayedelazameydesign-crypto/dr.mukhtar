@@ -45,6 +45,17 @@
 - [x] **21 فحصًا آليًا** — `scripts/test-privacy-health.js`، ومضاف إلى `ci.yml` وإلى `go-live-check`.
 - [x] **الفجوتان G19 و G20 مغلقتان بالأدلة** في `docs/map/gaps.json`؛ `production-readiness.md` أُعيد توليده.
 
+## مكتمل في هذه الدورة (CELIA-GITHUB-ENGINEERING-STACK-001 — خط الأنابيب الهندسية)
+
+- [x] **بوابات الأمن في CI** — CodeQL (SAST للـJS/Python → Security tab)، OSV-Scanner (ثغرات التبعيات، `fail-on-vuln`)، zizmor (أمن الـActions)، OpenSSF Scorecard (أسبوعي + نشر النتيجة)؛ كل الإجراءات في كل الـworkflows مثبّتة على SHA كامل مع تعليق الإصدار، و`persist-credentials: false` لكل checkout لا يدفع.
+- [x] **Playwright E2E على متصفح حقيقي (demo mode)** — ٥ رحلات: حجز كامل، رفض المرجع بلا هاتف، دخول اللوحة والموافقة، RTL/تخطي/طوارئ، وعدم ظهور رمز PIN خارج اللوحة. لا بيانات حقيقية ولا حجوزات — localStorage فقط.
+- [x] **Lighthouse CI** — بوابة خطأ على إمكانية الوصول (≥0.9)، وأداء/SEO/الأفضل-ممارسات بأرضية تحذير مسجلة (`.lighthouserc.json`).
+- [x] **Renovate + Dependabot بتقسيم واضح** — Renovate للإصدارات (أسبوعي، مجمّع، quarantine ٧ أيام، بلا automerge)، Dependabot للأمان فقط (`open-pull-requests-limit: 0`).
+- [x] **Release Please** — PR إصدار + CHANGELOG من Conventional Commits؛ لا ينشر ولا يدمج دون إنسان.
+- [x] **تذكير شهري تلقائي** — issue `[monthly-tools-watch]` في أول كل شهر لمراجعة حصص المجانية (`docs/free-tiers.json` محدَّث: 23 خدمة مسجلة بتاريخ 2026-11-06).
+- [x] **`scripts/bootstrap-github.sh` صُحِّح** — سياق الفحص المطلوب أصبح اسم الـcheck run الحقيقي (`lint · typecheck · test · build · audit`) بدل job id غير موجود؛ وحماية main تنتظر المالك (التوكن 403).
+- [ ] **قرارات عند المالك** — حماية main، تفعيل Dependabot security updates، تثبيت Renovate، قرار الترخيص (CodeRabbit مشروط به)، وأول تشغيل أخضر ثم ضم فحوص E2E/CodeQL للحماية.
+
 ## مفتوح قبل التشغيل الحقيقي
 
 - [ ] **تجربة الحجز العربية وتأكيد الاستلام على حساب Google فعلي** — إنشاء طلب، ظهور الرقم المرجعي،

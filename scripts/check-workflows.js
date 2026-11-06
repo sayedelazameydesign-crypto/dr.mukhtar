@@ -92,6 +92,8 @@ jobs:
     { name: 'undeclared secret is rejected', workflow: GOOD_WORKFLOW.replace(/GEMINI_API_KEY/g, 'UNKNOWN_TOKEN'), expect: 1 },
     { name: 'unpinned third-party action is rejected', workflow: GOOD_WORKFLOW.replace('uses: actions/checkout@v5', 'uses: some-org/deploy@main'), expect: 1 },
     { name: 'missing timeout-minutes is rejected', workflow: GOOD_WORKFLOW.replace('    timeout-minutes: 5\n', ''), expect: 1 },
+    { name: 'a reusable-workflow call needs no timeout-minutes (GitHub forbids the key)', workflow: 'name: osv\non: [push]\npermissions:\n  contents: read\njobs:\n  scan:\n    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36\n    permissions:\n      contents: read\n', expect: 0 },
+    { name: 'a floating reusable-workflow ref is rejected (the exemption covers only the timeout)', workflow: 'name: osv\non: [push]\npermissions:\n  contents: read\njobs:\n  scan:\n    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2\n    permissions:\n      contents: read\n', expect: 1 },
     { name: 'missing permissions block is rejected', workflow: GOOD_WORKFLOW.replace('permissions:\n  contents: read\n', ''), expect: 1 },
     { name: 'self-hosted runner is rejected', workflow: GOOD_WORKFLOW.replace('runs-on: ubuntu-latest', 'runs-on: [self-hosted, linux]'), expect: 1 },
     { name: 'pull_request_target with head checkout is rejected', workflow: GOOD_WORKFLOW.replace('on: [push]', 'on: [pull_request_target]') + '      - uses: actions/checkout@v5\n        with:\n          ref: \${{ github.event.pull_request.head.sha }}\n', expect: 1 },
@@ -288,11 +290,16 @@ for (const file of workflowFiles) {
     fail(`${relative} — ${ref} must be pinned to a full commit SHA (non-official action or floating major)`);
   }
 
-  // 5. every job needs timeout-minutes
+  // 5. every job needs timeout-minutes — except a job whose `uses:` calls a reusable
+  // workflow (*.yml@<sha>): GitHub forbids timeout-minutes there (only name, uses, with,
+  // secrets, needs, if, permissions are allowed), so demanding it made the contract
+  // reject the only valid shape. Action calls (owner/repo@sha in a regular job with
+  // runs-on) still require the timeout.
   const jobBlocks = text.split(/^  (?=[A-Za-z0-9_-]+:\s*$)/m).slice(1);
   jobBlocks.forEach((block) => {
     const name = (block.match(/^([A-Za-z0-9_-]+):/) || [])[1];
     if (!name || !/\n\s{4}(?:name|runs-on|steps|uses|needs|environment):/.test(block)) return;
+    if (/^\s{4}uses:\s*\S+\.ya?ml@/m.test(block)) return; // reusable workflow call: key is not allowed
     if (!/timeout-minutes:/.test(block)) fail(`${relative} — job "${name}" has no timeout-minutes`);
   });
 
