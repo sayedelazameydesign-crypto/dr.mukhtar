@@ -90,7 +90,7 @@
 
 | Item | Result | Detail | Owner |
 | --- | --- | --- | --- |
-| clinic.name — اسم العيادة الحقيقي | ✅ **PASS** | alaqsa clinic (clinic.json) | المستخدم |
+| clinic.name — اسم العيادة الحقيقي | ✅ **PASS** | عيادة دكتور مختار (clinic.json) | المستخدم |
 | clinic.phone — هاتف العيادة | ✅ **PASS** | 2011… (مخفي جزئيًا) · clinic.json | المستخدم |
 | clinic.doctor — اسم الطبيب | ❌ **FAIL (needs user action)** | غير مضبوط — تظهر شارة «لم يُتحقق بعد» | المستخدم |
 | clinic.license — رقم الترخيص | ❌ **FAIL (needs user action)** | غير مضبوط | المستخدم |
@@ -121,5 +121,5 @@ NODE_PATH=/tmp/jsd/node_modules node scripts/readiness-report.js          # فح
 ## بروفة Google
 
 كل خطوة في [`docs/google-rehearsal.md`](./google-rehearsal.md) لها حقل `evidence` في
-`scripts/rehearsal-checklist.json` (21 خطوة، التقدّم الحالي **0/21**). الفجوتان **G1** و**G14** لا
+`scripts/rehearsal-checklist.json` (21 خطوة، التقدّم الحالي **7/21** — S1 مكتملة بأدلة بتاريخ 2026-11-06: المشروع، والحزمة، و`CELIA_SHEET_ID`، والتهيئة، و`whatsappStatus`، وحارس `schema_drift` ذهابًا وعودة). الفجوتان **G1** و**G14** لا
 تُغلقان إلا بأدلة من حسابك، ولا يرقّيهما كلام.
