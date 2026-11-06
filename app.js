@@ -11,11 +11,24 @@
   const IS_GAS = typeof google !== 'undefined' && !!(google.script && google.script.run);
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+  const can = (permission) => (state.permissions || []).indexOf(String(permission)) !== -1;
   const reduceMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  /**
+   * Demonstration mode has no server, so it runs as the owner: every permission on. The
+   * live deployment replaces these the moment `login` answers (ADR 0007). The page may
+   * hide a control with `can()`, and must still expect the server to refuse the call:
+   * hiding a button is never a permission.
+   */
+  const ALL_PERMISSIONS = ['booking:read:clinic', 'booking:approve', 'booking:reschedule',
+    'booking:no_show', 'settings:write', 'staff:manage', 'audit:read', 'analytics:clinic'];
+  const ROLE_LABELS = { CLINIC_ADMIN: 'مالك العيادة', DOCTOR: 'الطبيب', RECEPTION: 'الاستقبال' };
   const state = {
     view: 'booking',
     staffPin: '',
+    permissions: ALL_PERMISSIONS.slice(),
+    role: 'CLINIC_ADMIN',
+    staffName: '',
     selectedTime: '',
     selectedDay: '',
     slots: [],
@@ -1723,8 +1736,8 @@
     const ref = escapeHTML(booking.reference);
     const actions = canAct ? `
       <div class="request-actions">
-        ${isPending ? `<button class="action-approve" data-action="approve" data-ref="${ref}">${booking.status === 'RESCHEDULED' ? 'اعتماد الوقت المقترح' : 'قبول وحجز'}</button><button data-action="reschedule" data-ref="${ref}">اقتراح وقت بديل</button><button class="action-danger" data-action="cancel" data-ref="${ref}">رفض / إلغاء</button>` : ''}
-        ${isConfirmed ? `<button data-action="move" data-ref="${ref}">تعديل الموعد</button><button data-action="complete" data-ref="${ref}">إكمال الزيارة</button><button data-action="cancel" data-ref="${ref}" class="action-danger">إلغاء</button><a class="text-button" href="${whatsappLink(booking)}" target="_blank" rel="noopener noreferrer">رسالة WhatsApp</a>` : ''}
+        ${isPending ? `${can('booking:approve') ? `<button class="action-approve" data-action="approve" data-ref="${ref}">${booking.status === 'RESCHEDULED' ? 'اعتماد الوقت المقترح' : 'قبول وحجز'}</button>` : ''}${can('booking:reschedule') ? `<button data-action="reschedule" data-ref="${ref}">اقتراح وقت بديل</button><button class="action-danger" data-action="cancel" data-ref="${ref}">رفض / إلغاء</button>` : ''}` : ''}
+        ${isConfirmed ? `${can('booking:reschedule') ? `<button data-action="move" data-ref="${ref}">تعديل الموعد</button>` : ''}${can('booking:no_show') ? `<button data-action="complete" data-ref="${ref}">إكمال الزيارة</button>` : ''}${can('booking:reschedule') ? `<button data-action="cancel" data-ref="${ref}" class="action-danger">إلغاء</button>` : ''}<a class="text-button" href="${whatsappLink(booking)}" target="_blank" rel="noopener noreferrer">رسالة WhatsApp</a>` : ''}
         ${booking.status === 'RESCHEDULED' ? `<a class="text-button" href="${whatsappLink(booking, true)}" target="_blank" rel="noopener noreferrer">إرسال الاقتراح يدويًا</a>` : ''}
       </div>` : '';
     // A slot the calendar could not confirm is a *preference*, not a booking. The clinic
@@ -1743,6 +1756,20 @@
     </article>`;
   }
 
+  /** Reflect the signed-in role: a label, and the controls this role may not use are hidden. */
+  function applyStaffChrome() {
+    const label = $('#staffRoleLabel');
+    if (label) {
+      const role = ROLE_LABELS[state.role] || state.role || '';
+      label.textContent = state.staffName ? state.staffName + ' · ' + role : role;
+      label.hidden = !label.textContent;
+    }
+    $$('[data-staff-tab="settings"]').forEach((button) => { button.hidden = !can('settings:write'); });
+    const healthBody = $('#healthBody');
+    const healthCard = healthBody && healthBody.closest ? healthBody.closest('.health-card') : null;
+    if (healthCard) healthCard.hidden = !can('staff:manage');
+  }
+
   async function loginStaff(event) {
     event.preventDefault();
     const typed = $('#staffPin').value.trim();
@@ -1754,10 +1781,27 @@
         try { localStorage.setItem(DEMO_PIN_KEY, await sha256Hex(DEMO_PIN)); } catch (_) { /* private mode */ }
       }
       const pin = await sha256Hex(typed);
-      const response = await api('getDashboard', pin);
+      // The digest buys a session token; every later call carries the token, so a disabled
+      // staff member stops working immediately. An older backend answers getDashboard with
+      // the digest directly, so the page keeps working while the deployment is updated.
+      let credential = pin;
+      if (IS_GAS) {
+        const loginAnswer = await api('login', pin);
+        if (loginAnswer && loginAnswer.ok === false && loginAnswer.code === 'UNAUTHORIZED') {
+          throw new Error(loginAnswer.message || 'رمز الدخول غير صحيح.');
+        }
+        if (loginAnswer && loginAnswer.ok && loginAnswer.token) {
+          credential = loginAnswer.token;
+          state.permissions = Array.isArray(loginAnswer.permissions) ? loginAnswer.permissions : [];
+          state.role = loginAnswer.staff && loginAnswer.staff.role ? loginAnswer.staff.role : '';
+          state.staffName = loginAnswer.staff && loginAnswer.staff.name ? loginAnswer.staff.name : '';
+        }
+      }
+      const response = await api('getDashboard', credential);
       if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر فتح لوحة الموظف.');
-      state.staffPin = pin;
-      sessionHash = pin;
+      state.staffPin = credential;
+      sessionHash = credential;
+      applyStaffChrome();
       $('#staffLogin').hidden = true;
       $('#staffDashboard').hidden = false;
       renderDashboard(response);

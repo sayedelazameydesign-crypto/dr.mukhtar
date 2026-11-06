@@ -29,6 +29,8 @@
 | --- |
 | `role` ∈ `DOCTOR|RECEPTION|CLINIC_ADMIN`. `pin_hash` = SHA-256 + salt (نمط `Settings.gs` الحالي). لا يوجد نص صريح إطلاقًا. |
 
+**المُنفَّذ اليوم (ADR-0007):** ورقة `Staff` بأعمدة `id · name · role · pinHash · active · createdAt` وحدها — بلا `clinic_id`/`branch_id`/`email`/`phone`/`last_login_at`/`failed_attempts` لأن العيادة واحدة والعدّاد ما زال مشتركًا. `pinHash` بصمة SHA-256 **بلا salt** حتى الآن (البصمة تُقارن بمقارنة ثابتة الزمن)، والجلسة في `Script Properties` بمفتاح `CK_SESSION_<token>` وصلاحية ٨ ساعات. إضافة الأعمدة الباقية عمل موجات متعددة العيادات، لا هذه الموجة.
+
 ### 1.4 `doctor` — الطبيب (جديد)
 | id · clinic_id · staff_id · display_name · title · subspecialty · license_no · bio · photo_url · years_experience · languages · accepts_online |
 | --- |

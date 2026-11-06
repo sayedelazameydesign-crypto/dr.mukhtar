@@ -66,7 +66,7 @@ SHIPPED.forEach((file) => {
 /* --------------------------------------------- 3. internal files must not ship */
 // Backend sources, build scripts, host leftovers, the env template and terminal logs.
 const INTERNAL = [
-  'Code.gs', 'Llm.gs', 'Settings.gs', 'appsscript.json',
+  'Code.gs', 'Staff.gs', 'Llm.gs', 'Settings.gs', 'appsscript.json',
   'build-gas-package.py', 'app.config.ts', 'manus-routes.json',
   '.env.example', 'config/clinic.example.json', 'docs', 'scripts', 'gas', 'config'
 ];

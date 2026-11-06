@@ -93,7 +93,7 @@ const context = {
 
 vm.createContext(context);
 // Settings.gs carries staffPinState_/pinHash_, which validateConfig now uses.
-for (const file of ['Llm.gs', 'Code.gs', 'Settings.gs']) {
+for (const file of ['Llm.gs', 'Code.gs', 'Staff.gs', 'Settings.gs']) {
   const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
   vm.runInContext(source, context, { filename: file });
 }

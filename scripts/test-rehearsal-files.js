@@ -29,9 +29,9 @@ const check = (label, condition, detail = '') => {
   passed += 1;
 };
 
-const BUNDLE = ['Index.html', 'Fonts.html', 'Code.gs', 'Llm.gs', 'Settings.gs', 'WhatsApp.gs', 'appsscript.json'];
+const BUNDLE = ['Index.html', 'Fonts.html', 'Code.gs', 'Staff.gs', 'Llm.gs', 'Settings.gs', 'WhatsApp.gs', 'appsscript.json'];
 // The build always emits the two HTML files; the rest exist only if the source file exists.
-const SOURCE_FILES = ['Code.gs', 'Llm.gs', 'Settings.gs', 'WhatsApp.gs', 'appsscript.json'];
+const SOURCE_FILES = ['Code.gs', 'Staff.gs', 'Llm.gs', 'Settings.gs', 'WhatsApp.gs', 'appsscript.json'];
 
 let counter = 0;
 /**
@@ -83,7 +83,7 @@ const run = (root) => spawnSync(process.execPath, [CHECK], {
   const listed = spawnSync('python3', [BUILD, '--list'], { cwd: ROOT, encoding: 'utf8' });
   check('build --list exits cleanly', listed.status === 0, listed.stderr);
   const names = listed.stdout.split('\n').map((line) => line.trim()).filter(Boolean);
-  check('build --list names all seven bundle files', names.length === 7 && BUNDLE.every((n) => names.includes(n)), names.join(','));
+  check('build --list names every bundle file', names.length === BUNDLE.length && BUNDLE.every((n) => names.includes(n)), names.join(','));
   // --list must be read-only: it is called by a check, and a check that writes is not a check.
   const scratch = makeRoot({});
   spawnSync('python3', [path.join(scratch, 'scripts', 'build-gas-package.py'), '--list'], { cwd: scratch, encoding: 'utf8' });

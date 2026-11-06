@@ -14,7 +14,7 @@
           "id": "S1.2",
           "action": "شغّل python3 scripts/build-gas-package.py وانسخ ملفات gas/ إلى المحرّر",
           "expected": "٧ ملفات بالضبط، بلا خطأ صياغة",
-          "files": ["Index.html", "Fonts.html", "Code.gs", "Llm.gs", "Settings.gs", "WhatsApp.gs", "appsscript.json"],
+          "files": ["Index.html", "Fonts.html", "Code.gs", "Staff.gs", "Llm.gs", "Settings.gs", "WhatsApp.gs", "appsscript.json"],
           "evidence": "2026-11-06 · الملفات الخادمية المُلصقة مُثبَتة بالتنفيذ: Code.gs (initializeCeliaKids) وSettings.gs (تغيير الرمز من اللوحة) وWhatsApp.gs (whatsappStatus). Index.html وFonts.html وappsscript.json يُثبَتان عند النشر في S3 — لم أُثبتهما هنا."
         },
         { "id": "S1.3", "action": "أضف CELIA_SHEET_ID في Script Properties", "expected": "القيمة محفوظة (لا تنسخها هنا)", "evidence": "2026-11-06 · CELIA_SHEET_ID مكتوب بحكم مسار الكود: initializeCeliaKids يكتبه بعد نجاح التهيئة (Code.gs:140)، والتهيئة أُكملت؛ القيمة نفسها لم تُنسخ في هذا الملف." },

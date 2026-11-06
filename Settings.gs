@@ -225,6 +225,13 @@ function staffPinLockState_() {
  * read it must never block an action.
  */
 function staffActor_() {
+  // Identity is the staff row that authenticated this call (ADR 0007). The platform
+  // account is a fallback for actions that have no session, and 'staff' for the rest —
+  // it is never a claim that the row is unknown.
+  const session = activeStaff_();
+  if (session && session.id && !session.legacy) {
+    return 'staff:' + String(session.id).slice(0, 40) + ':' + String(session.role || '');
+  }
   try {
     const email = Session.getActiveUser().getEmail();
     return email ? 'staff:' + String(email).toLowerCase().slice(0, 120) : 'staff';
@@ -330,7 +337,8 @@ function parseServicesInput_(raw) {
 
 /** Current values for every catalog field, with the secret redacted. */
 function getClinicSettings(pin) {
-  if (!verifyStaffPin_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'booking:read:clinic');
+  if (!guard.ok) return guard;
   try {
     const props = PropertiesService.getScriptProperties();
     const values = {};
@@ -380,7 +388,8 @@ function getClinicSettings(pin) {
  * crafted request can never touch a secret or an internal key.
  */
 function saveClinicSettings(payload, pin) {
-  if (!verifyStaffPin_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'settings:write');
+  if (!guard.ok) return guard;
   const input = payload && payload.values ? payload.values : {};
   const map = settingsFieldMap_();
   const unknown = Object.keys(input).filter(function (key) { return !map[key]; });
@@ -515,7 +524,8 @@ function dropSettingsCaches_() {
  * borrowed browser cannot lock the clinic out.
  */
 function saveStaffPin(currentPin, newPin, pin) {
-  if (!verifyStaffPin_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'staff:manage');
+  if (!guard.ok) return guard;
   if (!verifyStaffPin_(currentPin)) return { ok: false, message: 'الرمز الحالي غير صحيح.' };
   const next = String(newPin || '').trim();
   if (next.length < CK_MIN_PIN_LENGTH) return { ok: false, message: 'الرمز الجديد يجب أن يكون ' + CK_MIN_PIN_LENGTH + ' حرفًا على الأقل.' };
@@ -524,9 +534,11 @@ function saveStaffPin(currentPin, newPin, pin) {
   if (nextHash === String(props.getProperty('ADMIN_PIN_HASH') || '').toLowerCase()) {
     return { ok: false, message: 'اختاروا رمزًا مختلفًا عن الحالي.' };
   }
+  const previousHash = String(props.getProperty('ADMIN_PIN_HASH') || '').toLowerCase();
   props.setProperty('ADMIN_PIN_HASH', nextHash);
   props.deleteProperty('ADMIN_PIN');
   props.deleteProperty('CK_MUST_CHANGE_PIN');
+  syncStaffPinHash_(previousHash, nextHash);
   invalidateSlotCache_();
   const auditStored = auditBestEffort_('', staffActor_(), 'STAFF_PIN_CHANGED', '', '', 'updated from the clinic dashboard');
   return { ok: true, warning: auditStored ? '' : 'تم تغيير الرمز لكن تعذر تسجيله في سجل التدقيق.' };
@@ -695,7 +707,8 @@ function deleteOwnRequestData(reference, phone, reason) {
 
 /** Restore a group (or everything) to the shipped defaults. */
 function resetClinicSettings(groupKey, pin) {
-  if (!verifyStaffPin_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'settings:write');
+  if (!guard.ok) return guard;
   const props = PropertiesService.getScriptProperties();
   const targetKeys = [];
   CK_SETTINGS_CATALOG.forEach(function (group) {

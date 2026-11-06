@@ -199,7 +199,7 @@ function checkResponses(rule, root) {
 /** The shared status vocabulary: every value used somewhere, every value declared. */
 function checkVocabulary(vocabulary) {
   if (!vocabulary) return;
-  const files = ['Code.gs', 'Settings.gs', 'Llm.gs', 'WhatsApp.gs'];
+  const files = ['Code.gs', 'Staff.gs', 'Settings.gs', 'Llm.gs', 'WhatsApp.gs'];
   const used = new Set();
   files.forEach((relative) => {
     const source = readSource(ROOT, relative);

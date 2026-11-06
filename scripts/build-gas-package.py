@@ -96,7 +96,7 @@ def build_fonts_sheet(css: str, fonts_dir: Path) -> tuple[str, str]:
 # touching the disk, so scripts/check-rehearsal.js can verify that the rehearsal document and
 # the checklist name every file (and no file that is not built).
 GENERATED_FILES = ("Index.html", "Fonts.html")
-COPIED_FILES = ("Code.gs", "Llm.gs", "Settings.gs", "WhatsApp.gs", "appsscript.json")
+COPIED_FILES = ("Code.gs", "Staff.gs", "Llm.gs", "Settings.gs", "WhatsApp.gs", "appsscript.json")
 
 
 def bundle_files() -> list[str]:

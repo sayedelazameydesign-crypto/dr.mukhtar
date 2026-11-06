@@ -112,7 +112,7 @@ jobs:
       - name: Syntax gate (JS)
         run: |
           node --check app.js
-          node -e "['Code.gs','Llm.gs','Settings.gs'].forEach((f)=>new Function(require('fs').readFileSync(f,'utf8'))); console.log('Apps Script sources parse');"
+          node -e "['Code.gs','Staff.gs','Llm.gs','Settings.gs'].forEach((f)=>new Function(require('fs').readFileSync(f,'utf8'))); console.log('Apps Script sources parse');"
 
       - name: Python syntax gate
         run: python3 -m py_compile scripts/build-gas-package.py scripts/preview.py
