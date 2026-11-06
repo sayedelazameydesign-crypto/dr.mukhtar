@@ -43,9 +43,9 @@
 | تاريخ القياس | 2026-11-06 |
 | بيئة القياس | jsdom موجود (البوابة عملت) |
 | الشبكة | متخطّاة (--offline) |
-| جاهز | **8** |
-| يحتاج إجراء | **2** |
-| غير مُتحقَّق | **4** |
+| جاهز | **9** |
+| يحتاج إجراء | **1** |
+| غير مُتحقَّق | **5** |
 | معلومات | 2 |
 | الحكم | `not-ready` |
 
@@ -90,10 +90,11 @@
 
 | Item | Result | Detail | Owner |
 | --- | --- | --- | --- |
+| config.export — ملف خصائص مُصدَّر (Script Properties) | ❌ **FAIL (needs user action)** | لا يوجد تصدير — القراءة من قالب العيادة، وقيم الخادم الحقيقية مجهولة | CC (المستودع) |
 | clinic.name — اسم العيادة الحقيقي | ✅ **PASS** | عيادة دكتور مختار (clinic.json) | المستخدم |
 | clinic.phone — هاتف العيادة | ✅ **PASS** | 2011… (مخفي جزئيًا) · clinic.json | المستخدم |
-| clinic.doctor — اسم الطبيب | ❌ **FAIL (needs user action)** | غير مضبوط — تظهر شارة «لم يُتحقق بعد» | المستخدم |
-| clinic.license — رقم الترخيص | ❌ **FAIL (needs user action)** | غير مضبوط | المستخدم |
+| clinic.doctor — اسم الطبيب | ✅ **PASS** | مضبوط (clinic.json) | المستخدم |
+| clinic.license — رقم الترخيص | ⏸️ **NOT VERIFIED** | إعفاء مؤقت — الرقم لم يُوفَّر، ولا يُعدّ مستوفى | المستخدم |
 | clinic.services — أنواع الزيارات | ℹ️ info | القالب الافتراضي (كشف جديد · متابعة) | المستخدم |
 | clinic.source — مصدر بيانات العيادة | ℹ️ info | قُرئ من القالب (بلا تصدير حقيقي) — أي أن الحالة أعلاه هي حالة «لم يُضبط بعد» وليست حالة عيادتك | المستخدم |
 | gate.workflows — عقود سير العمل والأسرار | ✅ **PASS** | · manifest secret GOOGLE_REFRESH_TOKEN_DEV is not referenced by any workflow (declared-only is allowed, keep it delibera | CC (المستودع) |

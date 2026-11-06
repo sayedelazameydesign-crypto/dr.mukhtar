@@ -13,8 +13,11 @@
  *                                the demo badge visible on the page and every empty field
  *                                must keep its neutral placeholder. Gaps are reported, not
  *                                hidden, and the verdict says «ليس جاهزًا للتشغيل».
- *   production no `demoMode`     all four facts (name, phone, doctor, licence) must be
- *                                present and valid, or the gate fails and the deploy stops.
+ *   production no `demoMode`     the required facts (name, phone, doctor) must be present and
+ *                                valid, or the gate fails and the deploy stops. A field in
+ *                                schema.PENDING (currently the licence, exempted on 2026-11-06)
+ *                                does NOT block — but it is always printed as an open item and
+ *                                never counted as filled or satisfied.
  *
  * Why a file flag instead of an environment variable: the badge on the page and the gate
  * in CI must read the same source. If they can disagree, the badge is decoration.
@@ -50,6 +53,7 @@ try {
 const demoMode = clinic.demoMode === true;
 const result = schema.validate(clinic);
 const missing = schema.REQUIRED.filter((key) => !String(clinic[key] == null ? '' : clinic[key]).trim());
+const pending = schema.PENDING.filter((key) => !String(clinic[key] == null ? '' : clinic[key]).trim());
 
 // The badge is not optional in demo mode: a page that shows example data as if it were a
 // real clinic's data is a misrepresentation, not a placeholder.
@@ -65,6 +69,7 @@ const report = {
   warnings: result.warnings,
   filled: schema.FIELDS.filter((key) => String(clinic[key] == null ? '' : clinic[key]).trim()),
   missing: missing.map((key) => schema.LABELS[key]),
+  pending: pending.map((key) => schema.LABELS[key]),
   demoBadgePresent: hasBadge
 };
 
@@ -96,6 +101,9 @@ if (demoMode) {
     console.log(`  الحقول الفارغة: ${report.missing.join(' · ')}`);
     console.log('  ← تبقى فارغة على الصفحة ببديل محايد، والشارة التجريبية ظاهرة. هذا مسموح في العرض فقط.');
   }
+  if (pending.length) {
+    console.log(`  بند مفتوح (إعفاء مؤقت): ${report.pending.join(' · ')}`);
+  }
   result.warnings.forEach((warning) => console.log(`  ! ${warning}`));
   console.log('\n✓ البوابة تمرّ للعرض التجريبي — وليست شهادة جهوزية للتشغيل.');
   process.exit(0);
@@ -112,5 +120,9 @@ if (missing.length) {
 
 report.ok = true;
 if (asJson) { console.log(JSON.stringify(report, null, 2)); process.exit(0); }
-console.log('\n✓ clinic-ready: النشر الإنتاجي — الحقول الأربعة مكتملة وصالحة.');
+console.log('\n✓ clinic-ready: النشر الإنتاجي — الحقول المطلوبة مكتملة وصالحة.');
+if (pending.length) {
+  console.log(`  بند مفتوح (إعفاء مؤقت): ${report.pending.join(' · ')} — لا يُنشر ولا يُعدّ مستوفى.`);
+  console.log('  ← يُراجع قبل فتح الخدمة للجمهور (docs/go-live.md §2).');
+}
 process.exit(0);

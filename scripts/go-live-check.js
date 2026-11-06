@@ -118,6 +118,13 @@ function checkClinicData() {
     // Without an export the only honest source is the template, whose identity fields are empty.
     properties = Object.fromEntries(Object.entries(template).map(([key, spec]) => [key, spec.value]));
     source = 'القالب (بلا تصدير حقيقي)';
+    // A report with no server export cannot see the clinic's real configuration, so it must
+    // never end "ready" — even when the published clinic.json satisfies the identity items.
+    // Before 2026-11-06 this brake was accidental (the empty licence used to be an action);
+    // now that the licence is a PENDING exemption the brake has to be explicit.
+    add('config.export', 'ملف خصائص مُصدَّر (Script Properties)', 'action',
+      'لا يوجد تصدير — القراءة من قالب العيادة، وقيم الخادم الحقيقية مجهولة',
+      'صدّر Script Properties إلى ملف JSON محلي ثم: node scripts/go-live-check.js --profile <file>');
   }
 
   const filled = (key) => String(properties[key] || '').trim();
@@ -157,9 +164,12 @@ function checkClinicData() {
     doctorOk ? '' : 'أدخله في clinic.json أو «هوية الطبيب»؛ لا يُخترع من الكود');
 
   const licenseOk = (pub('license') || filled('DOCTOR_LICENSE')) !== '';
-  add('clinic.license', 'رقم الترخيص', licenseOk ? 'ready' : 'action',
-    licenseOk ? `مضبوط (${fromWhere('license', 'DOCTOR_LICENSE')})` : 'غير مضبوط',
-    licenseOk ? '' : 'لا تُدخله قبل التحقق منه فعليًا — كتابته غير المحقّقة أسوأ من غيابه');
+  // PENDING — exempted from blocking on 2026-11-06 (schema.PENDING), never reported as ready:
+  // the number does not exist yet, so 'ready' would claim a verification nobody performed.
+  // 'unverified' keeps it visible as an open item without stopping the release.
+  add('clinic.license', 'رقم الترخيص', licenseOk ? 'ready' : 'unverified',
+    licenseOk ? `مضبوط (${fromWhere('license', 'DOCTOR_LICENSE')})` : 'إعفاء مؤقت — الرقم لم يُوفَّر، ولا يُعدّ مستوفى',
+    licenseOk ? '' : 'لا يُدخل قبل التحقق منه فعليًا؛ يبقى بندًا مفتوحًا ويُراجع قبل فتح الخدمة للجمهور');
 
   const services = filled('VISIT_SERVICES');
   if (!PROPS_FILE) {
