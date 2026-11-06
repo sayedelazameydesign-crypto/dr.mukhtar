@@ -106,7 +106,11 @@ jobs:
     { name: 'map without summary_L0 is rejected', map: JSON.stringify({ ...JSON.parse(GOOD_MAP_PROJECT), summary_L0: '' }), expect: 1 },
     { name: 'missing docs/map is rejected', map: null, expect: 1 },
     { name: 'bridge script calling Google directly is rejected', workflow: GOOD_WORKFLOW, expect: 1, bridgeLeak: true },
-    { name: 'built-in GITHUB_TOKEN needs no declaration', workflow: GOOD_WORKFLOW.replace('GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}', 'GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}'), expect: 0, expectWarning: false }
+    { name: 'built-in GITHUB_TOKEN needs no declaration', workflow: GOOD_WORKFLOW.replace('GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}', 'GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}'), expect: 0, expectWarning: false },
+    // The automatic-repair pipeline widens the attack surface, so the contract that guards
+    // it is tested here: a workflow that can write must not also hold the provider key.
+    { name: 'a job holding the provider key and write access is rejected', workflow: GOOD_WORKFLOW.replace('permissions:\n  contents: read\n', 'permissions:\n  contents: write\n').replace('  build:', '  analyse:'), expect: 1 },
+    { name: 'a workflow_run triage job with write access is rejected', workflow: GOOD_WORKFLOW.replace('on: [push]', 'on:\n  workflow_run:\n    workflows: [CI]\n    types: [completed]').replace('permissions:\n  contents: read\n', 'permissions:\n  contents: write\n  actions: read\n'), expect: 1 }
   ];
 
   let failed = 0;
@@ -320,6 +324,56 @@ for (const file of workflowFiles) {
       });
     }
   });
+}
+
+/* ------------------------------------- privilege separation for automated repair */
+/**
+ * A workflow that runs model-generated changes must not be able to write while it reads the
+ * provider credential. This is the single most important rule in the repair pipeline, so it
+ * is enforced here rather than trusted to review:
+ *   1. no workflow may combine `contents: write` (or pull-requests: write for a code path)
+ *      with a GEMINI_API_KEY reference in the SAME job;
+ *   2. a `workflow_run`-triggered workflow is read-only — it reacts to another workflow's
+ *      failure and has no business changing the repository.
+ * Both are checked per job block, because a file-level grep cannot tell which job holds what.
+ */
+const WRITE_PERMISSION = /^\s+(?:contents|pull-requests|actions):\s*write\s*$/m;
+
+/** Parse a permissions block into {scope: level}. Handles both block and `read-all` styles. */
+function permissionsOf(text) {
+  const match = /^permissions:\s*\n((?:\s+[a-z-]+:\s*\w+\s*\n)+)/m.exec(text);
+  if (!match) return {};
+  const parsed = {};
+  match[1].split('\n').filter(Boolean).forEach((line) => {
+    const pair = /^\s+([a-z-]+):\s*(\w+)/.exec(line);
+    if (pair) parsed[pair[1]] = pair[2];
+  });
+  return parsed;
+}
+const canWrite = (permissions) => Object.values(permissions).some((level) => level === 'write');
+
+for (const file of workflowFiles) {
+  const relative = `.github/workflows/${file}`;
+  const text = fs.readFileSync(path.join(WORKFLOW_DIR, file), 'utf8');
+  const topLevel = permissionsOf(text);
+  const blocks = text.split(/^ {2}(?=[a-z0-9-]+:\s*$)/m).slice(1);
+  blocks.forEach((block) => {
+    const name = (block.match(/^([a-z0-9-]+):/) || [])[1] || '(unnamed)';
+    const holdsKey = /GEMINI_API_KEY/.test(block);
+    if (!holdsKey) return;
+    // A job inherits the top-level permissions unless it declares its own.
+    const own = /^\s{4}permissions:/m.test(block) ? permissionsOf(block.replace(/^ {2}/gm, '')) : topLevel;
+    const effective = Object.keys(own).length ? own : topLevel;
+    if (canWrite(effective)) {
+      fail(`${relative} — job "${name}" holds GEMINI_API_KEY and write permission; the analysis job must not be able to push`);
+    }
+    if (/git\s+(?:apply|commit|push)/.test(block)) {
+      fail(`${relative} — job "${name}" holds GEMINI_API_KEY and applies/commits code; split the job`);
+    }
+  });
+  if (/^\s*workflow_run:/m.test(text) && canWrite(topLevel)) {
+    fail(`${relative} — a workflow_run workflow must be read-only (it reacts to another run and cannot be trusted with writes)`);
+  }
 }
 
 /* ------------------------------------------------- manifest ↔ usage parity */

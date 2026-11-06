@@ -75,6 +75,14 @@ check('no unapproved failure-hiding pattern in .github/workflows', findings.leng
 const ci = fs.readFileSync(path.join(WORKFLOWS, 'ci.yml'), 'utf8');
 check('actionlint is not skipped when absent', !/command -v actionlint[\s\S]{0,200}else[\s\S]{0,120}exit 0/.test(ci));
 check('gitleaks does not pass when it cannot run', !/binary_ok.*!=.*1[\s\S]{0,300}exit 0/.test(ci));
+// The syntax gate must cover every script, not just the entrypoints CI happens to run:
+// scripts/env.js shipped unparsable once because nothing imported it.
+check('the syntax gate covers every script under scripts/', () => {
+  const gate = fs.existsSync(path.join(ROOT, 'scripts', 'check-script-syntax.js'));
+  if (!gate) return false;
+  const ciText = fs.readFileSync(path.join(WORKFLOWS, 'ci.yml'), 'utf8');
+  return /run: node scripts\/check-script-syntax\.js/.test(ciText) && !/run: node --check app\.js/.test(ciText);
+});
 check('the jsdom suites are required, not optional', /CELIA_ALLOW_SKIP_UI/.test(fs.readFileSync(path.join(ROOT, 'scripts', 'test-ui-smoke.js'), 'utf8')));
 
 // 2b — the readiness document must be generated, not hand-written.

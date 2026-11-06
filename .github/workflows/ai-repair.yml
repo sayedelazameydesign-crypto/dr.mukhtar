@@ -1,0 +1,263 @@
+name: AI repair (manual, human-gated)
+
+# Four jobs, three privilege levels, one rule: the job that holds the provider key never
+# executes repository code, and the job that executes repository code holds no key.
+#
+#   analyse    — has GEMINI_API_KEY, has NO write permission, runs no project code.
+#                It reads a scan report and asks the model for a diagnosis + a patch.
+#   vet        — no secret, no write permission. Runs the patch guard on the proposal.
+#   verify     — no secret, no write permission. Applies the patch and runs the test suite.
+#   open-pr    — write permission, no secret. Opens a branch + PR only if verify passed.
+#
+# There is no merge, no deploy, and no automatic trigger. A human dispatches this workflow,
+# a human reviews the PR, and the branch protection rules of the repository still apply.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'CI run id to diagnose (blank = latest completed run)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Diagnose and propose only; never open a PR'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-repair-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  analyse:
+    name: Diagnose and propose (holds the key, cannot write)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ vars.NODE_VERSION || '20' }}
+
+      - name: Scan the run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          set -euo pipefail
+          run_id="${RUN_ID:-}"
+          if [ -z "$run_id" ]; then
+            run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?branch=${GITHUB_REF_NAME}&per_page=1" --jq '.workflow_runs[0].id')
+          fi
+          node scripts/ci-error-scanner.js --live --run "$run_id" --json reports/ci-errors.json
+
+      - name: Root-cause analysis (the only step that reads GEMINI_API_KEY)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_PRIMARY == 'groq' && 'llama-3.3-70b-versatile' || 'gemini-2.5-flash' }}
+        run: |
+          set -euo pipefail
+          # A missing key is a deliberate stop, not a silent skip: without it there is no
+          # diagnosis, and this workflow exists to produce one.
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            echo "::error title=no credential::GEMINI_API_KEY is empty; the diagnosis cannot run. Add the secret or use the triage workflow instead."
+            exit 1
+          fi
+          node scripts/ai-root-cause.js --report reports/ci-errors.json --out reports/root-cause.json
+
+      - name: Repair proposal (guard applied inside the script)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_PRIMARY == 'groq' && 'llama-3.3-70b-versatile' || 'gemini-2.5-flash' }}
+        run: node scripts/ai-repair.js --analysis reports/root-cause.json --out-dir reports
+
+      - name: Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo '### AI repair — diagnosis'
+            echo
+            if [ -f reports/root-cause.json ]; then
+              node -e "const r=require('./reports/root-cause.json');console.log('status:',r.status,'—',r.reason||'');(r.analyses||[]).forEach(a=>{console.log('');console.log('**'+a.error_category+'** · confidence '+a.confidence+' · '+a.diagnosis_status);console.log('');console.log(a.root_cause||'');(a.audit&&a.audit.problems||[]).forEach(p=>console.log('- flagged: '+p));});"
+            else
+              echo 'No diagnosis file was produced.'
+            fi
+            echo
+            if [ -f reports/repair-report.json ]; then
+              node -e "const r=require('./reports/repair-report.json');console.log('proposal status:',r.status);(r.reasons||[]).forEach(x=>console.log('- refused: '+x));"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the diagnosis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-repair-diagnosis
+          path: |
+            reports/ci-errors.json
+            reports/root-cause.json
+            reports/repair-report.json
+            reports/repair.patch
+          if-no-files-found: warn
+          retention-days: 14
+
+  verify:
+    name: Guard, apply, test (no key, no write)
+    needs: analyse
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ vars.NODE_VERSION || '20' }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ai-repair-diagnosis
+          path: reports
+
+      - name: Stop unless a patch was actually admitted
+        id: gate
+        run: |
+          set -euo pipefail
+          status=$(node -e "try{console.log(require('./reports/repair-report.json').status)}catch(e){console.log('none')}")
+          # The verdict is always recorded, so the artifact exists even when nothing was
+          # proposed. A missing artifact would make "no patch" indistinguishable from
+          # "the job crashed", and the next job cannot tell those apart.
+          printf '%s\n' "$status" > reports/verdict.txt
+          if [ "$status" = "proposed" ] && [ -s reports/repair.patch ]; then
+            echo "status=proposed" >> "$GITHUB_OUTPUT"
+            echo "An admitted patch was produced."
+          else
+            echo "status=$status" >> "$GITHUB_OUTPUT"
+            echo "No admitted patch (status: $status). A diagnosis without a patch is a valid result."
+          fi
+
+      - name: Patch guard (independent re-run)
+        if: steps.gate.outputs.status == 'proposed'
+        run: node scripts/ai-patch-guard.js --patch reports/repair.patch
+
+      - name: git apply --check
+        if: steps.gate.outputs.status == 'proposed'
+        run: |
+          set -euo pipefail
+          git apply --check --verbose reports/repair.patch
+
+      - name: Apply
+        if: steps.gate.outputs.status == 'proposed'
+        run: |
+          set -euo pipefail
+          git apply reports/repair.patch
+          git --no-pager diff --stat
+          echo "original_sha=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Existing suite (the patch is only as good as these)
+        if: steps.gate.outputs.status == 'proposed'
+        run: |
+          set -euo pipefail
+          node scripts/check-workflows.js
+          node scripts/test-silent-gates.js
+          node scripts/scan-secrets.js
+          node scripts/test-llm-smoke-probe.js
+          node scripts/test-ai-repair.js
+          node scripts/check-doc-evidence.js
+          npm i --no-save --no-audit --no-fund jsdom@25
+          node scripts/test-ui-smoke.js
+
+      - name: Publish the verdict (and the patch, when there is one)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-repair-verdict
+          path: |
+            reports/verdict.txt
+            reports/repair.patch
+            reports/repair-report.json
+          if-no-files-found: error
+          retention-days: 14
+
+  open-pr:
+    name: Open a reviewable PR (write, no key)
+    needs: [analyse, verify]
+    if: needs.verify.result == 'success' && inputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ vars.NODE_VERSION || '20' }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ai-repair-verdict
+          path: reports
+
+      - name: Re-guard before writing anything
+        id: guard
+        run: |
+          set -euo pipefail
+          if [ ! -s reports/repair.patch ]; then
+            echo "::notice title=no patch::No verified patch was produced, so no branch is created."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node scripts/ai-patch-guard.js --patch reports/repair.patch
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create the branch and the PR
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # A repair branch is disposable and named after the run, so a repeated failure
+          # cannot silently reuse an old branch and hide a new one.
+          branch="ai-repair/${GITHUB_RUN_ID}"
+          # The Actions bot identity: no personal account is embedded in this repository.
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git apply reports/repair.patch
+          git add -A
+          git commit -m "fix(ai-repair): proposal for run ${GITHUB_RUN_ID}"
+          git push origin "$branch"
+          {
+            echo 'Automated proposal from the manually dispatched AI repair workflow.'
+            echo
+            if [ -f reports/repair-report.json ]; then
+              node -e "const r=require('./reports/repair-report.json');console.log('**Status:** '+r.status);console.log('');console.log(r.proposal&&r.proposal.rationale||'');"
+            fi
+            echo
+            echo 'Verification: the patch passed the guard and `git apply --check` in a job with no'
+            echo 'secret and no write permission, and the existing suite ran against the patched tree.'
+            echo
+            echo 'A human must review this PR. Nothing is merged or deployed automatically.'
+          } > /tmp/pr-body.md
+          gh pr create --draft --base main --head "$branch" \
+            --title "AI repair proposal — run ${GITHUB_RUN_ID}" \
+            --body-file /tmp/pr-body.md

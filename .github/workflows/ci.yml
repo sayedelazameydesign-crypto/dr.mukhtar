@@ -108,6 +108,34 @@ jobs:
       - name: Python syntax gate
         run: python3 -m py_compile scripts/build-gas-package.py scripts/preview.py
 
+      # Every script is parsed, not just the three the Apps Script gate knows about.
+      # scripts/env.js — the startup environment contract — sat unparsable for a while because
+      # nothing ever imported it. A missing comma is the cheapest defect there is; catching it
+      # late is the only unacceptable outcome.
+      - name: Syntax gate (every script under scripts/)
+        run: node scripts/check-script-syntax.js
+
+      # The provider probe decides whether to call a provider at all; its own suite proves the
+      # disabled/enabled switch and every answer shape, offline.
+      - name: Provider probe (switch, classification, diagnostics)
+        run: node scripts/test-llm-smoke-probe.js
+
+      # Automatic repair: detect → classify → analyse → propose → refuse when unsafe.
+      - name: CI error scanner (classification self-test)
+        run: node scripts/ci-error-scanner.js --self-test
+
+      - name: Root-cause analyser (audits model claims against the repo)
+        run: node scripts/ai-root-cause.js --self-test
+
+      - name: Patch guard (every unsafe patch shape is refused)
+        run: node scripts/ai-patch-guard.js --self-test
+
+      - name: Repair engine (fails safe on every unsafe input)
+        run: node scripts/ai-repair.js --self-test
+
+      - name: Repair pipeline seam + workflow privilege boundaries
+        run: node scripts/test-ai-repair.js
+
       # The execution-logic page cites test assertions by name; a renamed assertion would
       # otherwise turn the table into decoration.
       - name: Execution-logic citations exist in the tests

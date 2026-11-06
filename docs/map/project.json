@@ -1114,6 +1114,83 @@
       "path": "scripts/check-doc-evidence.js",
       "layer": "tooling",
       "role": "cited test assertions must exist verbatim"
+    },
+    {
+      "id": "tool.ci-error-scanner",
+      "kind": "script",
+      "path": "scripts/ci-error-scanner.js",
+      "layer": "tooling",
+      "role": "automatic repair pipeline"
+    },
+    {
+      "id": "tool.ai-root-cause",
+      "kind": "script",
+      "path": "scripts/ai-root-cause.js",
+      "layer": "tooling",
+      "role": "automatic repair pipeline"
+    },
+    {
+      "id": "tool.ai-repair",
+      "kind": "script",
+      "path": "scripts/ai-repair.js",
+      "layer": "tooling",
+      "role": "automatic repair pipeline"
+    },
+    {
+      "id": "tool.ai-patch-guard",
+      "kind": "script",
+      "path": "scripts/ai-patch-guard.js",
+      "layer": "tooling",
+      "role": "automatic repair pipeline"
+    },
+    {
+      "id": "tool.check-script-syntax",
+      "kind": "script",
+      "path": "scripts/check-script-syntax.js",
+      "layer": "tooling",
+      "role": "automatic repair pipeline"
+    },
+    {
+      "id": "tool.llm-smoke-probe",
+      "kind": "script",
+      "path": "scripts/llm-smoke-probe.js",
+      "layer": "tooling",
+      "role": "automatic repair pipeline"
+    },
+    {
+      "id": "tool.test-ai-repair",
+      "kind": "script",
+      "path": "scripts/test-ai-repair.js",
+      "layer": "tooling",
+      "role": "automatic repair pipeline"
+    },
+    {
+      "id": "tool.test-llm-smoke-probe",
+      "kind": "script",
+      "path": "scripts/test-llm-smoke-probe.js",
+      "layer": "tooling",
+      "role": "automatic repair pipeline"
+    },
+    {
+      "id": "doc.ai-repair",
+      "kind": "doc",
+      "path": "docs/ai-repair.md",
+      "layer": "docs",
+      "role": "repair pipeline and its refusal rules"
+    },
+    {
+      "id": "ci.error-triage",
+      "kind": "workflow",
+      "path": ".github/workflows/ci-error-triage.yml",
+      "layer": "infra",
+      "role": "read-only failure scan"
+    },
+    {
+      "id": "ci.ai-repair",
+      "kind": "workflow",
+      "path": ".github/workflows/ai-repair.yml",
+      "layer": "infra",
+      "role": "manual, human-gated repair"
     }
   ],
   "edges": [
@@ -2664,6 +2741,94 @@
         [
           "tool.doc-evidence",
           "ci.workflow"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/test-ai-repair.js asserts the privilege split; check-workflows.js rejects a key+write job",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.test-ai-repair",
+          "tool.ci-error-scanner"
+        ],
+        [
+          "tool.test-ai-repair",
+          "tool.ai-root-cause"
+        ],
+        [
+          "tool.test-ai-repair",
+          "tool.ai-repair"
+        ],
+        [
+          "tool.test-ai-repair",
+          "tool.ai-patch-guard"
+        ],
+        [
+          "tool.test-ai-repair",
+          "ci.error-triage"
+        ],
+        [
+          "tool.test-ai-repair",
+          "ci.ai-repair"
+        ]
+      ]
+    },
+    {
+      "type": "imports",
+      "evidence": "scripts/ai-repair.js:20 require(\"./ai-patch-guard.js\")",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.ai-repair",
+          "tool.ai-patch-guard"
+        ],
+        [
+          "tool.ai-repair",
+          "tool.ai-root-cause"
+        ],
+        [
+          "tool.ai-root-cause",
+          "tool.ci-error-scanner"
+        ],
+        [
+          "ci.ai-repair",
+          "tool.ai-repair"
+        ],
+        [
+          "ci.ai-repair",
+          "tool.ai-root-cause"
+        ],
+        [
+          "ci.error-triage",
+          "tool.ci-error-scanner"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/test-llm-smoke-probe.js exercises scripts/llm-smoke-probe.js offline",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.test-llm-smoke-probe",
+          "tool.llm-smoke-probe"
+        ]
+      ]
+    },
+    {
+      "type": "imports",
+      "evidence": "scripts/live-llm-smoke.js:20 require(\"./llm-smoke-probe\")",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.llm-smoke-probe",
+          "env.GEMINI_API_KEY"
         ]
       ]
     }

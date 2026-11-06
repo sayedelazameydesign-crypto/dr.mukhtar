@@ -52,7 +52,10 @@ try {
 // changes on every run makes --check permanently red and teaches people to ignore it.
 const runArgs = [path.join(ROOT, 'scripts', 'go-live-check.js'), '--json'];
 if (offline) runArgs.push('--offline');
-const run = spawnSync(process.execPath, runArgs, { cwd: ROOT, encoding: 'utf8' });
+// The child inherits this process's environment, including NODE_PATH. Without it the
+// report measures "jsdom is missing" rather than the repository, and a locally installed
+// jsdom would disappear from the counts the document records.
+const run = spawnSync(process.execPath, runArgs, { cwd: ROOT, encoding: 'utf8', env: process.env });
 let report;
 try {
   report = JSON.parse(run.stdout);

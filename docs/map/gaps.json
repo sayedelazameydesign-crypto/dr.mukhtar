@@ -277,6 +277,24 @@
         "evidence": "node scripts/check-workflows.js (map parses, no undeclared/dead ids); grep of _site assembly in pages.yml shows the docs kept internal by allow-list",
         "note": "Publishing a whole docs/ tree would also publish secrets.md and the readiness audit; the allow-list stays."
       }
+    },
+    {
+      "id": "G22",
+      "type": "silent_breakage",
+      "status": "closed",
+      "severity": "high",
+      "evidence": "scripts/env.js:35 — a missing comma between ENV_SPECS entries; no gate parsed the file",
+      "fix": "scripts/check-script-syntax.js parses every script under scripts/, and CI runs it before the tests",
+      "closed_at": "2026-11-06"
+    },
+    {
+      "id": "G23",
+      "type": "unverified_behaviour",
+      "status": "open",
+      "severity": "med",
+      "evidence": ".github/workflows/ai-repair.yml, .github/workflows/ci-error-triage.yml — never executed on GitHub",
+      "fix": "run the triage workflow once on a real failed run and confirm the report artifact; run ai-repair with dry_run=true against a seeded failure",
+      "evidence_needed": "a workflow run URL with a completed scan job"
     }
   ],
   "questions": [

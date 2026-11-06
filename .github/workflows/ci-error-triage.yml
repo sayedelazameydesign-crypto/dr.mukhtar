@@ -1,0 +1,99 @@
+name: CI error triage
+
+# READ-ONLY by construction.
+#
+# This workflow answers one question: "what failed, and how does it classify?" It cannot
+# change the repository (no write permission), it receives no provider key, and it does not
+# check out or execute pull-request code. The output is an artifact a human — or the
+# separate, manually dispatched repair workflow — can read.
+#
+# Why a separate file: the quality job in ci.yml must stay fast and secret-free, and a job
+# that can read Actions logs needs `actions: read` + `checks: read`. Those permissions have
+# no business in the job that builds the site.
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Run id to scan (blank = the latest completed run of this branch)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+concurrency:
+  group: ci-error-triage-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: Scan and classify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only scan failures; a successful run has nothing to triage (and still gets a notice,
+    # so "no report" can never be confused with "no data").
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'success'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ vars.NODE_VERSION || '20' }}
+
+      - name: Resolve the run to scan
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          run_id="${INPUT_RUN_ID:-${EVENT_RUN_ID:-}}"
+          if [ -z "$run_id" ]; then
+            run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?branch=${GITHUB_REF_NAME}&per_page=1" --jq '.workflow_runs[0].id')
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Scanning run $run_id"
+
+      - name: Scan (read-only) and write the report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
+        run: node scripts/ci-error-scanner.js --live --run "$RUN_ID" --json reports/ci-errors.json
+
+      - name: Snippet for the job summary
+        if: success()
+        run: |
+          node - <<'JS'
+          const report = require('./reports/ci-errors.json');
+          const lines = [
+            `### CI error scan — ${report.counts.findings} finding(s)`,
+            '',
+            `code failures: **${report.counts.code_failures}** · cancelled: ${report.counts.cancelled} · skipped: ${report.counts.skipped} · repeated patterns: ${report.counts.repeated_patterns}`,
+            report.complete ? '' : '> **Incomplete scan** — some runs or jobs could not be read. Absence of findings is not a green result.',
+            '',
+            '| severity | category | job › step | message |',
+            '| --- | --- | --- | --- |'
+          ].filter(Boolean);
+          report.findings.forEach((finding) => {
+            lines.push(`| ${finding.severity} | ${finding.category} | ${finding.job || '?'} › ${finding.step || '?'} | ${String(finding.message).replace(/\|/g, '\\|').slice(0, 160)} |`);
+          });
+          require('node:fs').appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
+          JS
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-error-report
+          path: reports/ci-errors.json
+          if-no-files-found: error
+          retention-days: 14
