@@ -20,6 +20,8 @@
 | Build | `python3 scripts/build-gas-package.py` | ✅ 97,089 B + 475,498 B |
 | Deploy site | `.github/workflows/pages.yml` | ⚠️ workflow never observed running |
 | Deploy backend | paste `gas/` into Apps Script | ⚠️ **never executed** |
+| Pilot week | `docs/pilot/professor-week.md` | ⚠️ not run — needs the owner's Google account |
+| Growth | `docs/growth/doctors-playbook.md` · `pitch/` | ✅ documents + printed sheet, gated by `check-pilot-docs.js` |
 | Google bridge | `test-google-bridge.js` + `google/selftest.js --local` ✅ 29 tests | live bootstrap ⚠️ owner-side |
 ## 3. Components
 

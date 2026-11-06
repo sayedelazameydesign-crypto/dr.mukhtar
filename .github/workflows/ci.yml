@@ -58,6 +58,12 @@ jobs:
       - name: Rehearsal checklist is well formed and holds no secret
         run: node scripts/check-rehearsal.js
 
+      # The pilot runbook and the growth playbook are acted on by the owner, so drift in
+      # them is a real defect: this keeps them tied to the rehearsal checklist, the
+      # printed sheet and the claims we are allowed to make.
+      - name: Pilot + growth documents agree with the rehearsal gate
+        run: node scripts/check-pilot-docs.js
+
 
       - name: actionlint (pinned; the runner image does not ship it)
         env:
