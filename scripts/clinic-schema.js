@@ -25,10 +25,23 @@ const LABELS = {
   license: 'رقم الترخيص'
 };
 
-// The four facts a page must carry before it can call itself a real clinic's page.
+// The facts a page must carry before it can call itself a real clinic's page.
 // `note`, `whatsapp` and `address` are published facts too, but they have honest
 // neutral states on the page ("يُضاف من إعداد العيادة"), so they are not release blockers.
-const REQUIRED = ['clinicName', 'phone', 'doctorName', 'license'];
+const REQUIRED = ['clinicName', 'phone', 'doctorName'];
+
+/**
+ * Temporarily exempted from REQUIRED — never from honesty.
+ *
+ * DECISION (2026-11-06, owner): the doctor's registration number is not available yet, and
+ * waiting for it must not block publishing. So `license` moved out of REQUIRED and into
+ * PENDING: the release gate passes without it, and every consumer must report it as an OPEN
+ * item. Nothing may describe a pending field as filled, verified or satisfied — the page keeps
+ * its neutral "لم تُسجَّل بعد" state (index.html), and `go-live-check` reports it as unverified
+ * rather than ready. Review trigger: before opening the service to the public
+ * (docs/go-live.md §2).
+ */
+const PENDING = ['license'];
 
 /**
  * Egyptian mobile numbers are 11 digits: 010/011/012/015 followed by 8 digits.
@@ -142,7 +155,8 @@ function validate(clinic) {
   }
 
   const missing = REQUIRED.filter((key) => !String(source[key] == null ? '' : source[key]).trim());
-  return { ok: Object.keys(errors).length === 0, errors, warnings, missing };
+  const pending = PENDING.filter((key) => !String(source[key] == null ? '' : source[key]).trim());
+  return { ok: Object.keys(errors).length === 0, errors, warnings, missing, pending };
 }
 
 /** An empty publishable object with the documentation comment. */
@@ -160,7 +174,7 @@ function emptyClinic() {
 }
 
 module.exports = {
-  FIELDS, LABELS, REQUIRED,
+  FIELDS, LABELS, REQUIRED, PENDING,
   normalizeDigits, compactPhone, canonicalPhone, phoneProblem,
   validate, emptyClinic
 };

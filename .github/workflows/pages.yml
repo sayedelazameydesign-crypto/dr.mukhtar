@@ -83,7 +83,9 @@ jobs:
 
       # The release gate reads the same clinic.json the page reads. In demo mode it passes
       # only because the badge is visible; with demoMode removed it refuses to publish until
-      # the clinic name, phone, doctor and licence are all present and valid.
+      # the clinic name, phone and doctor name are present and valid. The licence is a
+      # documented temporary exemption (docs/go-live.md §2): it never blocks, and it is never
+      # reported as satisfied — a pending item, not a filled one.
       - name: Clinic data gate (demo with badge, or complete for production)
         run: node scripts/clinic-ready.js
 

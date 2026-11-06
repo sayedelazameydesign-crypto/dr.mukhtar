@@ -92,7 +92,10 @@ check('emptyClinic() publishes no name', empty.clinicName === '');
 check('emptyClinic() publishes no phone', empty.phone === '');
 check('emptyClinic() publishes no doctor', empty.doctorName === '');
 check('emptyClinic() publishes no licence', empty.license === '');
-check('emptyClinic() lists all four facts as missing', schema.validate(empty).missing.length === 4);
+check('emptyClinic() lists the three required facts as missing', schema.validate(empty).missing.length === 3);
+check('emptyClinic() reports the licence as pending, not as required', schema.validate(empty).pending.join(',') === 'license');
+check('the exemption list is exactly [license] — it cannot grow silently', schema.PENDING.length === 1 && schema.PENDING[0] === 'license');
+check('the licence is no longer a release blocker', schema.REQUIRED.indexOf('license') === -1);
 
 /* ---------------------- clinic-ready gate: production must fail, demo must pass ---------- */
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'clinic-ready-'));
@@ -116,16 +119,29 @@ const runSandboxGate = () => spawnSync(process.execPath, [path.join(sandbox, 'sc
 let outcome;
 writeClinic({ clinicName: '', phone: '', doctorName: '', license: '' });
 outcome = runSandboxGate();
-check('production gate FAILS when all four facts are empty', outcome.status === 1, `exit ${outcome.status}`);
-check('production gate names every empty fact', /اسم العيادة/.test(outcome.stdout) && /رقم الترخيص/.test(outcome.stdout));
+check('production gate FAILS when the required facts are empty', outcome.status === 1, `exit ${outcome.status}`);
+check('production gate names every empty required fact',
+  /اسم العيادة/.test(outcome.stdout) && /هاتف العيادة/.test(outcome.stdout) && /اسم الطبيب/.test(outcome.stdout));
+check('the exempted licence is NOT listed among the missing requirements', !/الفارغ:.*رقم الترخيص/.test(outcome.stdout), outcome.stdout.slice(0, 160));
 
 writeClinic(GOOD);
 outcome = runSandboxGate();
-check('production gate PASSES when all four facts are filled', outcome.status === 0, `exit ${outcome.status}: ${outcome.stdout.slice(0, 120)}`);
+check('production gate PASSES when the required facts are filled', outcome.status === 0, `exit ${outcome.status}: ${outcome.stdout.slice(0, 120)}`);
 
+// The exemption (2026-11-06): an empty licence does not stop the release, and is never
+// reported as filled. Both halves are asserted, because allowing the publish is the easy
+// part — silently counting it as done is the failure mode that matters.
 writeClinic({ ...GOOD, license: '' });
 outcome = runSandboxGate();
-check('production gate FAILS when only the licence is empty', outcome.status === 1, `exit ${outcome.status}`);
+const exemptReport = JSON.parse(outcome.stdout);
+check('production gate PASSES when only the licence is empty (temporary exemption)', outcome.status === 0, `exit ${outcome.status}`);
+check('the empty licence is reported as an open item', (exemptReport.pending || []).indexOf('رقم الترخيص') !== -1, JSON.stringify(exemptReport.pending));
+check('the empty licence is never counted as filled', (exemptReport.filled || []).indexOf('رقم الترخيص') === -1, JSON.stringify(exemptReport.filled));
+check('the empty licence is never counted as missing either', (exemptReport.missing || []).indexOf('رقم الترخيص') === -1, JSON.stringify(exemptReport.missing));
+
+writeClinic({ ...GOOD, doctorName: '' });
+outcome = runSandboxGate();
+check('a REQUIRED fact still blocks: empty doctor name fails the gate', outcome.status === 1, `exit ${outcome.status}`);
 
 writeClinic({ ...GOOD, phone: '0100123456' });
 outcome = runSandboxGate();
@@ -154,5 +170,5 @@ if (failures.length) {
   console.log(`\nClinic schema suite FAILED (${failures.length} of ${passed + failures.length} checks).`);
   process.exit(1);
 }
-console.log(`Clinic schema suite passed: ${passed} checks (phone both ways, names/licence, empty-file neutrality, production vs demo gate).`);
+console.log(`Clinic schema suite passed: ${passed} checks (phone both ways, names/licence, empty-file neutrality, production vs demo gate, licence exemption).`);
 process.exit(0);
