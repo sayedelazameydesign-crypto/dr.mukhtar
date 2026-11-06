@@ -108,6 +108,39 @@ jobs:
       - name: Python syntax gate
         run: python3 -m py_compile scripts/build-gas-package.py scripts/preview.py
 
+      # Every script is parsed, not just the three the Apps Script gate knows about.
+      # scripts/env.js — the startup environment contract — sat unparsable for a while because
+      # nothing ever imported it. A missing comma is the cheapest defect there is; catching it
+      # late is the only unacceptable outcome.
+      - name: Syntax gate (every script under scripts/)
+        run: node scripts/check-script-syntax.js
+
+      # The provider probe decides whether to call a provider at all; its own suite proves the
+      # disabled/enabled switch and every answer shape, offline.
+      - name: Provider probe (switch, classification, diagnostics)
+        run: node scripts/test-llm-smoke-probe.js
+
+      # Automatic repair: detect → classify → analyse → propose → refuse when unsafe.
+      - name: CI error scanner (classification self-test)
+        run: node scripts/ci-error-scanner.js --self-test
+
+      - name: Root-cause analyser (audits model claims against the repo)
+        run: node scripts/ai-root-cause.js --self-test
+
+      - name: Patch guard (every unsafe patch shape is refused)
+        run: node scripts/ai-patch-guard.js --self-test
+
+      - name: Repair engine (fails safe on every unsafe input)
+        run: node scripts/ai-repair.js --self-test
+
+      - name: Repair pipeline seam + workflow privilege boundaries
+        run: node scripts/test-ai-repair.js
+
+      # The execution-logic page cites test assertions by name; a renamed assertion would
+      # otherwise turn the table into decoration.
+      - name: Execution-logic citations exist in the tests
+        run: node scripts/check-doc-evidence.js
+
       - name: Settings parity (live catalog vs demo mirror)
         run: node scripts/check-settings-parity.js
 
@@ -193,6 +226,15 @@ jobs:
 
       - name: Zero-Card ledger is valid JSON
         run: node -e "const d=require('./docs/free-tiers.json'); if(!Array.isArray(d.services)||!d.services.length) throw new Error('services missing'); d.services.forEach(s=>{if(!('card_required' in s)) throw new Error('card_required missing for '+s.service)}); console.log('free-tiers.json OK:', d.services.length, 'services');"
+
+      # The rotation clock docs/secrets.md §6 describes but nothing ever checked. It reads
+      # names and dates only, never a value, and it can only fail after someone has recorded
+      # a rotation date: a secret that was never set is reported, not treated as overdue.
+      # No `|| echo ::warning` here — that would hide a real overdue rotation.
+      - name: Secret rotation window
+        run: |
+          node scripts/rotation-reminders.js --self-test
+          node scripts/rotation-reminders.js --warn-days 30 --max-days 45
 
       - name: Secret scan (built-in, always on)
         run: node scripts/scan-secrets.js

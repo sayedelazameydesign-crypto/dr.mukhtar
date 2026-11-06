@@ -66,8 +66,19 @@ function walk(dir) {
   return out;
 }
 
+/**
+ * Files a `git commit` would include right now: tracked files plus anything staged.
+ *
+ * The readiness document records the count this scanner reports, and a document cannot
+ * contain a measurement of the commit that adds the document. Staged files bridge that:
+ * `git add` then `--write` produces the number the commit will actually have, so the
+ * table does not flip 104 → 105 on every docs-only commit. `ls-files` alone lists only the
+ * index, so the two modes stay distinguishable (`--all` still means "including untracked").
+ */
 function trackedFiles() {
-  const args = includeUntracked ? ['ls-files', '--cached', '--others', '--exclude-standard'] : ['ls-files'];
+  const args = includeUntracked
+    ? ['ls-files', '--cached', '--others', '--exclude-standard']
+    : ['ls-files', '--cached'];
   try {
     const out = execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     return out.split('\n').map((line) => line.trim()).filter(Boolean);

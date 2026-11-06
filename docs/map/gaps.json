@@ -263,6 +263,38 @@
         "evidence": "node scripts/test-privacy-health.js -> health payload without name/phone/reference, red on Sheets outage, red on temporary PIN, red on full queue, public endpoint closed without HEALTH_TOKEN",
         "note": "No external monitor is wired yet; the endpoint exists and stays closed until an owner sets HEALTH_TOKEN deliberately."
       }
+    },
+    {
+      "id": "G21",
+      "type": "architecture_doc_invisible_on_site",
+      "evidence": "docs/map/project.json includes doc.agents/readme/secrets/manifest/free-tiers/exit-plan/todo/google-setup/publish but not docs/lifecycle.md or docs/code-logic.md; docs/publish.md §'kept internal' lists docs/ wholesale | measured 2026-11-05",
+      "impact": "The two pages that explain where the project stands and how it decides are in the repository but reachable from no published page; a reader of the live site (or an incoming developer) never sees them",
+      "fix": "Declare both docs in the map; point the in-app privacy summary at the real notice on the published site; record that docs/ remains unpublished by design",
+      "severity": "low",
+      "status": "resolved",
+      "resolution": {
+        "date": "2026-11-05",
+        "evidence": "node scripts/check-workflows.js (map parses, no undeclared/dead ids); grep of _site assembly in pages.yml shows the docs kept internal by allow-list",
+        "note": "Publishing a whole docs/ tree would also publish secrets.md and the readiness audit; the allow-list stays."
+      }
+    },
+    {
+      "id": "G22",
+      "type": "silent_breakage",
+      "status": "closed",
+      "severity": "high",
+      "evidence": "scripts/env.js:35 — a missing comma between ENV_SPECS entries; no gate parsed the file",
+      "fix": "scripts/check-script-syntax.js parses every script under scripts/, and CI runs it before the tests",
+      "closed_at": "2026-11-06"
+    },
+    {
+      "id": "G23",
+      "type": "unverified_behaviour",
+      "status": "open",
+      "severity": "med",
+      "evidence": ".github/workflows/ai-repair.yml and ci-error-triage.yml exist only on the PR branch; GitHub refuses `gh workflow run` for a workflow absent from the default branch (HTTP 404), so neither can be executed before merge",
+      "fix": "after merge: dispatch ci-error-triage once against a real failed run and confirm the artifact; then dispatch ai-repair with dry_run=true",
+      "evidence_needed": "a workflow run URL with a completed scan job"
     }
   ],
   "questions": [
