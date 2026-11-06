@@ -1,7 +1,7 @@
 {
   "name": "celia-kids-clinic",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Reproducible dev-only test dependencies (no runtime dependency: the app runs on Google Apps Script)",
   "scripts": {
     "test": "node scripts/test-privacy-health.js && node scripts/test-gas-simulated.js && node scripts/test-ui-smoke.js",
