@@ -119,18 +119,28 @@ test('the page is Arabic RTL, keyboard-skippable, and names no model provider', 
   // No model provider *named in visible copy* (the internal id="geminiStatus" is code,
   // not prose). Mirrors scripts/test-ui-smoke.js.
   expect(await page.locator('body').innerText()).not.toMatch(/Gemini/i);
-  // No *invented* phone targets: with an empty clinic.json there must be no tel: link;
-  // with the published profile, every tel: link must carry exactly the published digits
-  // (never a made-up number, never a prefix-truncated one).
+  // No *invented* phone targets: every tel: link must carry digits published in clinic.json —
+  // the clinic's own number, or the builder's support line. Nothing else, ever: a made-up or
+  // prefix-truncated number sends a parent to a stranger.
   const profile = await page.request.get('/clinic.json').then((res) => res.json()).catch(() => ({}));
   const digits = String(profile?.phone ?? '').replace(/\D/g, '');
+  const developerDigits = String(profile?.developerPhone ?? '').replace(/\D/g, '');
+  const published = [digits, developerDigits].filter((value) => value.length >= 6);
   const telLinks = page.locator('a[href^="tel:"]');
-  if (digits.length >= 6) {
+  if (published.length) {
     expect(await telLinks.count()).toBeGreaterThan(0);
     const hrefs = await telLinks.evaluateAll((els) => els.map((el) => el.getAttribute('href') || ''));
-    for (const href of hrefs) expect(href.replace(/^tel:/, '').replace(/\D/g, '')).toBe(digits);
+    for (const href of hrefs) expect(published).toContain(href.replace(/^tel:/, '').replace(/\D/g, ''));
   } else {
     expect(await telLinks.count()).toBe(0);
+  }
+  // The support line is only allowed to appear inside the block that says it is not the clinic.
+  if (developerDigits.length >= 6) {
+    const credit = page.locator('[data-developer]');
+    await expect(credit).toBeVisible();
+    await expect(credit).toContainText('ليس رقم العيادة');
+    await expect(credit.locator(`a[href="tel:${developerDigits}"]`)).toHaveCount(1);
+    await expect(page.locator('[data-config="phone"] a')).toHaveAttribute('href', `tel:${digits}`);
   }
 });
 

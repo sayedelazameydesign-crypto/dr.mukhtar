@@ -13,7 +13,8 @@
  * visible gap, because a parent would act on it.
  */
 
-const FIELDS = ['clinicName', 'phone', 'whatsapp', 'address', 'note', 'doctorName', 'license'];
+const FIELDS = ['clinicName', 'phone', 'whatsapp', 'address', 'note', 'doctorName', 'license',
+  'developer', 'developerPhone'];
 
 const LABELS = {
   clinicName: 'اسم العيادة',
@@ -22,7 +23,9 @@ const LABELS = {
   address: 'العنوان',
   note: 'ملاحظة الطلب',
   doctorName: 'اسم الطبيب',
-  license: 'رقم الترخيص'
+  license: 'رقم الترخيص',
+  developer: 'المطوّر',
+  developerPhone: 'هاتف الدعم التقني'
 };
 
 // The facts a page must carry before it can call itself a real clinic's page.
@@ -126,7 +129,9 @@ function validate(clinic) {
     }
   });
 
-  ['phone', 'whatsapp'].forEach((key) => {
+  // The builder's number is published too, but it is a *different* fact: it must validate
+  // like any other Egyptian number, and it is never allowed to stand in for the clinic's.
+  ['phone', 'whatsapp', 'developerPhone'].forEach((key) => {
     if (errors[key]) return;
     if (!String(source[key] == null ? '' : source[key]).trim()) return;
     const problem = phoneProblem(source[key]);

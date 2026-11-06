@@ -162,6 +162,23 @@ fs.writeFileSync(path.join(sandbox, 'index.html'), html);
 outcome = runSandboxGate();
 check('demo mode does not excuse an invalid value', outcome.status === 1, `exit ${outcome.status}`);
 
+
+/* ------------------------------------------- the builder's support line (2026-11-06) --- */
+// A second published number is still a published number: it validates like one, and an
+// empty value stays empty rather than becoming a plausible-looking default.
+{
+  const good = schema.validate({ developerPhone: '01126212452' });
+  check('a valid support number is accepted', good.ok, JSON.stringify(good.errors));
+  const bad = schema.validate({ developerPhone: '011262' });
+  check('a too-short support number is rejected', !bad.ok && !!bad.errors.developerPhone, JSON.stringify(bad.errors));
+  const junk = schema.validate({ developerPhone: 'اتصل بي' });
+  check('a non-numeric support number is rejected', !junk.ok && !!junk.errors.developerPhone);
+  const blank = schema.validate({ developerPhone: '' });
+  check('an empty support number stays empty and is not an error', blank.ok && !blank.errors.developerPhone);
+  const named = schema.validate({ developer: 'سيد العزامي' });
+  check('the builder can be named without a number', named.ok, JSON.stringify(named.errors));
+}
+
 fs.rmSync(sandbox, { recursive: true, force: true });
 
 /* ------------------------------------------------------------------------ verdict */

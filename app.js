@@ -850,6 +850,27 @@
   // clinic.json is a plain, non-secret file next to this script. Every field is optional:
   // an empty value stays empty, the page never invents a number, and a missing or broken
   // file changes nothing at all.
+  // The platform's builder is credited by name, with a support line that is explicitly
+  // *not* the clinic. Two numbers on one page are a hazard: a parent who taps the wrong
+  // one reaches a person who cannot touch their appointment. Hence the visible label.
+  function setDeveloper(name, phone) {
+    const block = $('[data-developer]');
+    if (!block) return;
+    const href = telHref(phone);
+    if (name) setFact('developer', name);
+    $$('[data-config="developerPhone"]').forEach((node) => {
+      if (!phone) { node.textContent = ''; return; }
+      if (!href) { node.textContent = phone; return; }
+      const link = document.createElement('a');
+      link.href = href;
+      link.className = 'phone-link ltr';
+      link.textContent = phone;
+      link.setAttribute('dir', 'ltr');
+      link.setAttribute('aria-label', `اتصل بدعم المنصّة (ليس العيادة) على ${phone}`);
+      node.replaceChildren(link);
+    });
+    block.hidden = !(name || phone);
+  }
   function applyPublishedClinic(data) {
     if (!data || typeof data !== 'object') return;
     const text = (value) => String(value === undefined || value === null ? '' : value).trim();
@@ -858,11 +879,16 @@
     const address = text(data.address);
     const doctor = text(data.doctorName);
     const licence = text(data.license);
-    if (!name && !phone && !address && !doctor && !licence) return;
+    const developer = text(data.developer);
+    const developerPhone = text(data.developerPhone);
+    if (!name && !phone && !address && !doctor && !licence && !developer && !developerPhone) return;
     // Announced facts only: the visit services and hours keep coming from the settings,
     // because a published file must never be able to invent a booking slot.
     if (name) { setFact('clinicName', name); state.clinicName = name; }
     if (phone) { setPhone(phone); state.filled = Object.assign({}, state.filled, { phone: true }); }
+    // Deliberately after setPhone and touching nothing it set: the credit cannot become the
+    // clinic's phone, and clearing it can never clear the clinic's number.
+    if (developer || developerPhone) setDeveloper(developer, developerPhone);
     if (address) { setFact('address', address); state.filled = Object.assign({}, state.filled, { address: true }); }
     // The doctor's identity travels in the same file: in stage A there is no deployment
     // behind the page, so a fact that is not published here does not exist at all.
