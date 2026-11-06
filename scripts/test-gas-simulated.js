@@ -850,6 +850,83 @@ assert.equal(context.getClinicSettings(bootstrapHash).ok, false, 'the bootstrap 
   console.log('Schema drift guarded: a drifted header fails loudly and logs schema_drift, a formatted-but-headerless sheet fails, stray formatting below data yields no phantom record, and neutralising the guard is caught.');
 }
 
+// ---------------------------------------------------------------------------
+// Ordering and propagation. Two questions the simulator can answer before any
+// real account is involved:
+//   (a) does the guard break the very first run on an empty sheet?
+//   (b) does the throw reach a human, or is it swallowed by a broad catch?
+// ---------------------------------------------------------------------------
+{
+  const CK = vm.runInContext('CK', context);
+  const originalHeaders = Array.from(CK.REQUEST_HEADERS);
+  const keepRequests = sheets.get(CK.REQUESTS);
+  const resetGuard = () => { context.sheetSchemaIndex_ = {}; };
+  // The suite rotates the staff PIN several times; rather than depend on where it
+  // ended up, install a known one for this block and put it back afterwards.
+  const keepHash = propertyValues.get('ADMIN_PIN_HASH');
+  const driftPin = `drift-${crypto.randomBytes(12).toString('hex')}`;
+  propertyValues.set('ADMIN_PIN_HASH', hashPin(driftPin));
+
+  // (a) First run: a brand-new sheet has no header. ensureSheet_ writes it *before*
+  // assertSheetSchema_ runs, so setup must succeed — otherwise a fresh install
+  // could never come up.
+  resetGuard();
+  const virgin = new FakeSheet(CK.REQUESTS);
+  sheets.set(CK.REQUESTS, virgin);
+  assert.equal(virgin.rows.length, 0, 'the sheet starts genuinely empty');
+  let firstRunError = null;
+  try { context.readAllRequests_(); } catch (error) { firstRunError = error; }
+  assert.equal(firstRunError, null, 'an empty sheet is not drift: the header is written before it is checked');
+  assert.deepEqual(virgin.rows[0], originalHeaders, 'the first access installs the declared header');
+
+  // (b) Propagation. A drifted sheet must not be reported as a network problem.
+  const addColumn = () => { CK.REQUEST_HEADERS.splice(1, 0, 'notes'); };
+  const restore = () => { CK.REQUEST_HEADERS.length = 0; originalHeaders.forEach((h) => CK.REQUEST_HEADERS.push(h)); };
+  const oldLayout = () => {
+    const sh = new FakeSheet(CK.REQUESTS);
+    sh.rows = [[...originalHeaders], ['CK-PROP', '2026-11-06 09:00', 'PENDING', '\u0643\u0634\u0641', '\u0633\u0627\u0631\u0629', '01000000000', '2026-11-09', '10:00', '', '2026-11-06 09:00', true, true]];
+    return sh;
+  };
+
+  try {
+    addColumn(); resetGuard(); sheets.set(CK.REQUESTS, oldLayout());
+
+    // Staff board: must name the sheet, not blame the connection.
+    const board = context.getDashboard(driftPin);
+    const driftWarning = (board.warnings || []).find((w) => /\u0623\u0639\u0645\u062f\u0629|schema_drift/.test(w));
+    assert.ok(driftWarning, 'the board carries a schema-drift warning: ' + JSON.stringify(board.warnings));
+    assert.match(driftWarning, new RegExp(CK.REQUESTS), 'the warning names the offending sheet');
+    assert.equal((board.warnings || []).some((w) => /\u0631\u0627\u062c\u0639\u0648\u0627 \u0627\u0644\u0627\u062a\u0635\u0627\u0644/.test(w)), false,
+      'drift is never reported as a connection problem');
+
+    // Health: the envelope ok means "the check ran"; report.ok means "the clinic is
+    // healthy". Drift must turn the latter off and name the sheet in the sheets check.
+    const health = context.getHealthReport(driftPin);
+    assert.equal(health.ok, true, 'the health check still runs while the schema is drifted');
+    assert.equal(health.report.ok, false, 'the health report goes red on drift');
+    const sheetsCheck = health.report.checks.find((check) => check.id === 'sheets');
+    assert.equal(sheetsCheck.ok, false, 'the sheets check is the one that fails');
+    assert.match(sheetsCheck.detail, new RegExp(CK.REQUESTS), 'the failing check names the sheet');
+    assert.match(sheetsCheck.detail, /schema_drift/, 'and names the cause, not a generic outage');
+
+    // Guardian: fails closed, but the internal text is not handed to a parent.
+    const booked = context.createRequest({
+      guardianName: '\u0633\u0627\u0631\u0629', phone: '01000000000', day: '2026-11-09',
+      time: '10:00', visitType: '\u0643\u0634\u0641 \u062c\u062f\u064a\u062f', consent: true
+    });
+    assert.equal(booked.ok, false, 'no request is accepted while the schema is drifted');
+    assert.equal(/\u0623\u0639\u0645\u062f\u0629|\u0627\u0644\u0639\u0645\u0648\u062f/.test(booked.message), false,
+      'the guardian is not shown internal column details');
+    restore();
+  } finally {
+    restore();
+    sheets.set(CK.REQUESTS, keepRequests);
+    resetGuard();
+    propertyValues.set('ADMIN_PIN_HASH', keepHash);
+  }
+  console.log('Guard ordering and propagation proven: an empty sheet is not drift, and drift reaches the board, the health check and the guardian as itself — never as a connection problem.');
+}
+
 console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, a secret-free clinic profile, dashboard-editable settings (validation, services, PIN hashing and migration), slot starts that always fit inside opening hours, one open request per phone per day, and the daily per-number cap.')
 ;
 console.log('Reminder: these mocked-service tests do not establish Google quotas, permissions, live deployment behavior, or legal readiness.');

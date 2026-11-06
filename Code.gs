@@ -226,15 +226,24 @@ function assertSheetSchema_(sheet, headers, label) {
       expected: headers[i],
       found: live[i] || ''
     });
-    throw new Error('مخطط ورقة ' + label + ' لا يطابق ما يتوقعه الكود عند العمود ' + (i + 1) +
+    const drift = new Error('مخطط ورقة ' + label + ' لا يطابق ما يتوقعه الكود عند العمود ' + (i + 1) +
       ': المتوقع «' + headers[i] + '» والموجود «' + (live[i] || 'فارغ') +
       '». أُوقف التنفيذ عمدًا — لا تعدّل الترويسة يدويًا فوق بيانات قائمة.');
+    // Callers catch broadly. Without a marker, every catch site reports drift as a
+    // generic "cannot reach Sheets", which is the one thing an operator must not
+    // be told: the sheet is reachable, its columns are wrong.
+    drift.code = 'SCHEMA_DRIFT';
+    drift.sheet = label;
+    throw drift;
   }
   const index = {};
   headers.forEach(function (header, position) { index[header] = position; });
   sheetSchemaIndex_[label] = index;
   return index;
 }
+
+/** True when an error is the schema guard refusing, not a service being down. */
+function isSchemaDrift_(error) { return !!error && error.code === 'SCHEMA_DRIFT'; }
 
 function ensureSheet_(ss, name, headers) {
   let sheet = ss.getSheetByName(name);
@@ -407,6 +416,12 @@ function createRequest(payload) {
     logEvent_(savedLocally ? 'warn' : 'info', 'request_created', { verified: verified, queued: savedLocally, audit_stored: auditStored });
     return { ok: true, booking: publicBooking_(record), savedLocally: savedLocally, warning: warning };
   } catch (error) {
+    // Fail closed either way, but the internal reason belongs in the log and on the
+    // staff board — not in a message read by a parent.
+    if (isSchemaDrift_(error)) {
+      logEvent_('error', 'booking_blocked_by_schema_drift', { sheet: error.sheet });
+      return { ok: false, message: 'العيادة لا تستطيع استقبال الطلبات الآن. تواصلوا معنا هاتفيًا.' };
+    }
     return { ok: false, message: error.message || 'تعذر حفظ الطلب.' };
   } finally {
     lock.releaseLock();
@@ -439,10 +454,23 @@ function getDashboard(pin) {
   // lately?" without reading the Audit sheet (which may be exactly what is broken).
   markStaffSeen_();
   try { syncOutageQueue_(); }
-  catch (error) { warnings.push('تعذر مزامنة سجل الطلبات مع Sheets؛ الطلبات الاحتياطية محفوظة للمراجعة عند عودة الخدمة.'); }
+  catch (error) {
+    if (isSchemaDrift_(error)) warnings.push('توقف: مزامنة الطابور الاحتياطي متوقفة بسبب أعمدة ورقة «' + error.sheet + '» (schema_drift).');
+    else warnings.push('تعذر مزامنة سجل الطلبات مع Sheets؛ الطلبات الاحتياطية محفوظة للمراجعة عند عودة الخدمة.');
+  }
   let bookings = [];
   try { bookings = readAllRequests_(); }
-  catch (error) { warnings.push('تعذر الوصول إلى Google Sheets. راجعوا الاتصال قبل اتخاذ إجراء.'); }
+  catch (error) {
+    if (isSchemaDrift_(error)) {
+      // The board would otherwise be empty with a "check the connection" note, and
+      // the clinic would chase a network that is fine. Say what is actually wrong.
+      warnings.push('توقف: أعمدة ورقة «' + error.sheet + '» لا تطابق ما يتوقعه النظام، فالطلبات لا تُقرأ. ' +
+        'لا تعدّلوا الأعمدة يدويًا — التفاصيل في سجل الأخطاء (schema_drift).');
+      logEvent_('error', 'dashboard_blocked_by_schema_drift', { sheet: error.sheet });
+    } else {
+      warnings.push('تعذر الوصول إلى Google Sheets. راجعوا الاتصال قبل اتخاذ إجراء.');
+    }
+  }
   const closures = [];
   try { closures.push.apply(closures, readClosures_()); }
   catch (error) { warnings.push('تعذر قراءة إغلاقات الدوام.'); }
@@ -507,11 +535,20 @@ function healthCheck_() {
     const sheet = getSpreadsheet_().getSheetByName(CK.REQUESTS);
     if (!sheet) add('sheets', false, 'ورقة Requests غير موجودة؛ شغّلوا initializeCeliaKids().');
     else {
+      // Deliberately not getSheetByName alone: that only proves the tab exists. This
+      // endpoint is the one an external monitor watches, so it has to notice a sheet
+      // whose columns no longer match the code — otherwise the site stays green while
+      // every read is wrong.
+      assertSheetSchema_(sheet, CK.REQUEST_HEADERS, CK.REQUESTS);
       sheetOk = true;
       requestRows = Math.max(0, sheet.getLastRow() - 1);
       add('sheets', true, '');
     }
-  } catch (error) { add('sheets', false, error.message || 'تعذر الوصول إلى Sheets'); }
+  } catch (error) {
+    add('sheets', false, isSchemaDrift_(error)
+      ? 'أعمدة ورقة «' + error.sheet + '» لا تطابق النظام (schema_drift).'
+      : (error.message || 'تعذر الوصول إلى Sheets'));
+  }
 
   let calendarOk = false;
   try { calendarOk = !!getCalendar_(); add('calendar', calendarOk, calendarOk ? '' : 'تعذر العثور على تقويم العيادة'); }
@@ -571,8 +608,13 @@ function getHealthReport(pin) {
     logEvent_('info', 'health_check', { ok: report.ok, queued: report.counters.queued_requests });
     return { ok: true, report: report };
   } catch (error) {
-    logEvent_('error', 'health_check_failed', { code: 'HEALTH' });
-    return { ok: false, message: 'تعذر تشغيل فحص الصحة.' };
+    // The endpoint still goes red, but a red light with no cause is a light nobody
+    // can act on. Schema drift is named so the operator knows it is not an outage.
+    const drift = isSchemaDrift_(error);
+    logEvent_('error', 'health_check_failed', { code: drift ? 'SCHEMA_DRIFT' : 'HEALTH', sheet: drift ? error.sheet : '' });
+    return { ok: false, message: drift
+      ? 'فحص الصحة أحمر: أعمدة ورقة «' + error.sheet + '» لا تطابق النظام.'
+      : 'تعذر تشغيل فحص الصحة.' };
   }
 }
 

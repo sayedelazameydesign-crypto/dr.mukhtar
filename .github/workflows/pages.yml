@@ -175,4 +175,18 @@ jobs:
             exit 1
           fi
           bytes=$(wc -c < /tmp/live.html | tr -d ' ')
-          echo "live site OK: ${bytes} bytes, sha256 $(sha256sum /tmp/live.html | cut -d' ' -f1)"
+          digest=$(sha256sum /tmp/live.html | cut -d' ' -f1)
+          echo "live site OK: ${bytes} bytes, sha256 ${digest}"
+          # A CI log is transient and rarely read. The step summary is what ends up on
+          # the run page and can be quoted straight into the readiness ledger.
+          {
+            echo "### Live site verified"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| URL | \`${URL}\` |"
+            echo "| HTTP | ${code} |"
+            echo "| Bytes | ${bytes} |"
+            echo "| sha256 | \`${digest}\` |"
+            echo "| Run | ${GITHUB_RUN_NUMBER} |"
+          } >> "$GITHUB_STEP_SUMMARY"
