@@ -72,6 +72,42 @@
     try { return ctx.win.location.href || ''; } catch (_) { return ''; }
   }
 
+  /* Build a lens snapshot with DOM nodes, never with an HTML string: regex-stripping
+     <script> out of markup misses closing tags with whitespace and leaves inline
+     handlers behind. Cloned nodes are imported into the lens document and scripts /
+     on* attributes are removed through the DOM API before insertion. */
+  function stripInteractive(root) {
+    if (!root.querySelectorAll) return;
+    Array.prototype.slice.call(root.querySelectorAll('script')).forEach(function (el) {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    Array.prototype.slice.call(root.querySelectorAll('*')).forEach(function (el) {
+      Array.prototype.slice.call(el.attributes || []).forEach(function (attr) {
+        if (/^on/i.test(attr.name) || (/^(href|src)$/i.test(attr.name) && /^\s*javascript:/i.test(attr.value))) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+  }
+
+  function fillMagnifier(ctx, frame) {
+    var target = frame.contentDocument;
+    if (!target || !target.head || !target.body || target.body.hasAttribute('data-wd-snapshot')) return;
+    target.body.setAttribute('data-wd-snapshot', '');
+    Array.prototype.slice.call(ctx.doc.head.querySelectorAll('style, link[rel~="stylesheet"]')).forEach(function (node) {
+      var copy = target.importNode(node, true);
+      stripInteractive(copy);
+      target.head.appendChild(copy);
+    });
+    Array.prototype.slice.call(ctx.doc.body.childNodes).forEach(function (node) {
+      if (node.nodeType !== 1) return;
+      if (node.tagName === 'SCRIPT' || node.hasAttribute('data-wd-ui')) return;
+      var copy = target.importNode(node, true);
+      stripInteractive(copy);
+      target.body.appendChild(copy);
+    });
+  }
+
   function stylesheets(ctx) {
     var list = [];
     Array.prototype.slice.call(ctx.doc.querySelectorAll('link[rel~="stylesheet"]')).forEach(function (el, index) {
@@ -590,18 +626,18 @@
         var size = Math.max(120, Number(ctx.option('magnifierSize', 220)) || 220);
         var lens = ctx.overlay('magnifier', '',
           'width:' + size + 'px;height:' + size + 'px;padding:0;overflow:hidden;border-radius:50%;border:3px solid #4338ca;pointer-events:none;');
-        var head = Array.prototype.slice.call(ctx.doc.head.querySelectorAll('style, link[rel~="stylesheet"]'))
-          .map(function (el) { return el.outerHTML; }).join('');
-        var html = '<!doctype html><html><head><meta charset="utf-8">' + head + '</head><body>' +
-          ctx.doc.body.innerHTML.replace(/<script[\s\S]*?<\/script>/gi, '') + '</body></html>';
         var frame = ctx.doc.createElement('iframe');
         frame.setAttribute('data-wd-ui', '');
         frame.setAttribute('title', 'Page magnifier');
         frame.setAttribute('style', 'border:0;position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:none;');
         frame.style.width = (ctx.win.innerWidth || 1024) + 'px';
         frame.style.height = (ctx.win.innerHeight || 768) + 'px';
-        frame.srcdoc = html;
+        // A fixed, empty srcdoc: page content reaches the lens only as cloned DOM nodes.
+        frame.setAttribute('srcdoc', '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
+        var snapshot = function () { fillMagnifier(ctx, frame); };
+        frame.addEventListener('load', snapshot);
         lens.appendChild(frame);
+        snapshot();
         var mouse = ctx.lastMouse();
         function move(event) {
           var x = event.clientX || 0, y = event.clientY || 0;

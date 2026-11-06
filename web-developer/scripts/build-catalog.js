@@ -42,14 +42,23 @@ const BASE_FOR = {
   'same-site-cookies': 'view-cookie-information'
 };
 
+// Markdown table cells: escape backslashes BEFORE pipes (otherwise an escaped pipe
+// can be turned back into a cell separator), then collapse line breaks.
+function mdCell(value) {
+  return String(value === null || value === undefined ? '' : value)
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\r?\n/g, ' ');
+}
+
 function row(feature) {
-  const label = feature.url ? `[${feature.label}](${feature.url})` : feature.label;
+  const label = feature.url ? `[${mdCell(feature.label)}](${feature.url})` : mdCell(feature.label);
   const location = feature.mode === 'ui'
-    ? `dashboard.js · \`${feature.ui}\``
-    : `engine/features.js · \`${feature.id}\``;
-  const link = BASE_FOR[feature.id] ? ` — via \`${BASE_FOR[feature.id]}\`` : '';
+    ? `dashboard.js · \`${mdCell(feature.ui)}\``
+    : `engine/features.js · \`${mdCell(feature.id)}\``;
+  const link = BASE_FOR[feature.id] ? ` — via \`${mdCell(BASE_FOR[feature.id])}\`` : '';
   const chrome = feature.category === 'Chrome' ? ' (Chrome)' : '';
-  return `| ${label}${chrome} | \`${feature.mode}\` | ${location}${link} | ${feature.description.replace(/\|/g, '\\|')} |`;
+  return `| ${label}${chrome} | \`${mdCell(feature.mode)}\` | ${location}${link} | ${mdCell(feature.description)} |`;
 }
 
 let out = `# Web Developer — feature catalog
