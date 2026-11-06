@@ -29,6 +29,19 @@ class FakeRange {
       this.sheet.failNextSet = false;
       throw new Error('simulated Sheets write failure');
     }
+    // Fidelity with the real Range.setValues: the payload must match the range
+    // exactly. The fake used to grow the sheet and write whatever it was given,
+    // which is *more permissive than production* — a wrong-dimension write passed
+    // every offline test and then threw in a real account. The real exception
+    // message is reproduced so an assertion can match on it.
+    if (values.length !== this.rowCount) {
+      throw new Error('Exception: The number of rows in the data does not match the number of rows in the range.');
+    }
+    for (const row of values) {
+      if (row.length !== this.columnCount) {
+        throw new Error('Exception: The number of columns in the data does not match the number of columns in the range.');
+      }
+    }
     values.forEach((row, rowOffset) => {
       const target = this.row - 1 + rowOffset;
       while (this.sheet.rows.length <= target) this.sheet.rows.push([]);
@@ -36,8 +49,12 @@ class FakeRange {
     });
     return this;
   }
-  setFontWeight() { return this; }
-  setBackground() { return this; }
+  // Real sheets count formatting as "occupied": a bold or coloured cell in an
+  // otherwise empty row still moves getLastRow(). The fake used to ignore both
+  // calls entirely, which is why the stray-formatting case was unrepresentable
+  // (see FakeSheet.getLastRow).
+  setFontWeight() { this.sheet.markFormatted(this.row - 1 + this.rowCount); return this; }
+  setBackground() { this.sheet.markFormatted(this.row - 1 + this.rowCount); return this; }
   createTextFinder(value) {
     const range = this;
     return {
@@ -55,14 +72,36 @@ class FakeRange {
 }
 
 class FakeSheet {
-  constructor(name) { this.name = name; this.rows = []; this.failNextSet = false; }
-  getLastRow() { return this.rows.length; }
+  constructor(name) {
+    Object.assign(this, { name, rows: [], failNextSet: false, formattedUpTo: 0 });
+  }
+  /** Records that rows up to `rowIndex` (1-based) carry formatting. */
+  markFormatted(rowIndex) { this.formattedUpTo = Math.max(this.formattedUpTo, rowIndex); return this; }
+  /**
+   * Last row with content OR formatting — the real semantics. A stray bold cell
+   * in row 8 of an empty sheet reports 8, which is exactly the case that made
+   * ensureSheet_ skip the header and readAllRequests_ invent a phantom record.
+   */
+  getLastRow() { return Math.max(this.rows.length, this.formattedUpTo); }
+  /** Last column with content, as the real getLastColumn(). */
+  getLastColumn() {
+    let widest = 0;
+    for (const row of this.rows) widest = Math.max(widest, row.length);
+    return widest;
+  }
+  getName() { return this.name; }
   appendRow(row) { this.rows.push([...row]); return this; }
   getRange(row, column, rowCount = 1, columnCount = 1) {
     return new FakeRange(this, row, column, rowCount, columnCount);
   }
-  // Whole-sheet reads (findOpenDuplicate_ scans for an existing open request).
-  getDataRange() { return new FakeRange(this, 1, 1, Math.max(this.rows.length, 1), 12); }
+  /**
+   * Whole-sheet reads (findOpenDuplicate_ scans for an existing open request).
+   * Returns the actual data bounding box; it used to hardcode 12 columns, which
+   * silently assumed the Requests width on the Audit (7) and Closures (5) sheets.
+   */
+  getDataRange() {
+    return new FakeRange(this, 1, 1, Math.max(this.rows.length, 1), Math.max(this.getLastColumn(), 1));
+  }
   setFrozenRows() { return this; }
 }
 
@@ -90,6 +129,9 @@ class FakeCalendar {
     return event;
   }
   getEventById(id) { return this.events.find((event) => event.id === id && !event.deleted) || null; }
+  // initializeCeliaKids logs and returns calendar.getName(); without it the whole
+  // one-time setup function could not be called from the offline suite at all.
+  getName() { return 'Celia Kids (simulated)'; }
 }
 
 // The real deployment stores a SHA-256 hash and the browser sends the same hash.
@@ -116,6 +158,8 @@ let uuidSequence = 1;
 const sheets = new Map();
 const calendar = new FakeCalendar();
 const spreadsheet = {
+  // initializeCeliaKids records ss.getId() as CELIA_SHEET_ID on first run.
+  getId() { return 'simulated-spreadsheet-id'; },
   getSheetByName(name) { if (!googleUp) throw new Error('simulated Sheets outage'); if (name === 'Audit' && !auditUp) throw new Error('simulated Audit outage'); return sheets.get(name) || null; },
   insertSheet(name) {
     if (!googleUp) throw new Error('simulated Sheets outage');
@@ -201,7 +245,19 @@ BACKEND_FILES.forEach((file) => {
     console.log('[sim] WhatsApp.gs omitted on purpose (CELIA_OMIT_WHATSAPP_GS=1)');
     return;
   }
-  const target = ['gas/' + file, file].find((candidate) => fs.existsSync(candidate));
+  // gas/ is generated and untracked, so a stale bundle sitting in the working tree
+  // used to shadow the source silently: every suite passed while testing yesterday's
+  // backend. If both exist they must be identical, or the run is a lie — fail loudly
+  // and say which command fixes it.
+  const bundled = 'gas/' + file;
+  if (fs.existsSync(bundled) && fs.existsSync(file)
+      && fs.readFileSync(bundled, 'utf8') !== fs.readFileSync(file, 'utf8')) {
+    throw new Error(
+      `${bundled} differs from ${file}: the suite would test a stale bundle. `
+      + 'Rebuild it (python3 scripts/build-gas-package.py) or delete gas/ to test the sources.'
+    );
+  }
+  const target = [bundled, file].find((candidate) => fs.existsSync(candidate));
   if (!target) {
     if (file === 'Code.gs') throw new Error('Apps Script backend not found (gas/Code.gs or Code.gs)');
     if (file === 'Llm.gs') throw new Error('Llm.gs not found; it is part of the Apps Script bundle');
@@ -636,6 +692,163 @@ assert.equal(propertyValues.has('CK_MUST_CHANGE_PIN'), false, 'the flag clears a
 const readinessAfter = context.validateConfig().checks.find((c) => c.id === 'admin_pin');
 assert.equal(readinessAfter.ok, true, 'readiness passes once the doctor owns the PIN — ' + readinessAfter.detail);
 assert.equal(context.getClinicSettings(bootstrapHash).ok, false, 'the bootstrap PIN stops working immediately');
+
+// ---------------------------------------------------------------------------
+// initializeCeliaKids — the one-time setup path. It was uncallable from this
+// suite until FakeSheet gained getLastColumn()/getName() and FakeCalendar gained
+// getName(); the three methods it touches did not exist, so the function that
+// creates every sheet and writes every header row had zero coverage.
+// ---------------------------------------------------------------------------
+{
+  // CK is a top-level `const` inside the vm script scope, so it is not a property
+  // of the context object; it is only reachable by evaluating in that same context.
+  const CK = vm.runInContext('CK', context);
+
+  // Fresh install: drop every sheet and the recorded spreadsheet id, keeping the
+  // doctor's PIN configuration so the run exercises setup, not PIN bootstrap.
+  sheets.clear();
+  propertyValues.delete('CELIA_SHEET_ID');
+  const firstRun = context.initializeCeliaKids();
+
+  assert.equal(typeof firstRun, 'string', 'initializeCeliaKids returns the operator-facing summary');
+  assert.match(firstRun, /Celia Kids \(simulated\)/, 'the summary names the calendar it bound');
+  assert.equal(propertyValues.get('CELIA_SHEET_ID'), 'simulated-spreadsheet-id', 'the spreadsheet id is recorded for later runs');
+
+  // Array.from copies the vm-realm arrays into this realm: deepStrictEqual compares
+  // prototypes, and an Array created inside the vm context is not an Array here.
+  for (const [name, expected] of [[CK.REQUESTS, Array.from(CK.REQUEST_HEADERS)], [CK.AUDIT, Array.from(CK.AUDIT_HEADERS)], [CK.CLOSURES, Array.from(CK.CLOSURE_HEADERS)]]) {
+    const sheet = sheets.get(name);
+    assert.ok(sheet, `initializeCeliaKids creates the ${name} sheet`);
+    assert.deepEqual(sheet.rows[0], expected, `the ${name} header row is exactly the declared schema`);
+    assert.equal(sheet.getLastRow(), 1, `the ${name} sheet holds a header row and nothing else`);
+    assert.equal(sheet.getLastColumn(), expected.length, `the ${name} header spans every declared column`);
+  }
+
+  // Second run must be a no-op, not a second header row: the header guard in
+  // ensureSheet_ is what makes setup safe to re-run after a partial failure.
+  const secondRun = context.initializeCeliaKids();
+  assert.match(secondRun, /Celia Kids \(simulated\)/, 'a re-run still reports success');
+  for (const name of [CK.REQUESTS, CK.AUDIT, CK.CLOSURES]) {
+    assert.equal(sheets.get(name).getLastRow(), 1, `re-running setup does not duplicate the ${name} header`);
+  }
+
+  // The header row is formatted, and real sheets count formatting as occupied:
+  // this is the case that used to be unrepresentable, so a regression in the
+  // header guard can no longer hide behind a getLastRow() that ignores it.
+  const requestsSheet = sheets.get(CK.REQUESTS);
+  assert.ok(requestsSheet.formattedUpTo >= 1, 'the frozen header row carries formatting');
+  assert.equal(requestsSheet.getLastRow(), 1, 'formatting on the header row does not invent extra rows');
+
+  // A stray bold cell far below the data must not make the sheet look populated.
+  // ensureSheet_ only writes a header when the sheet is empty, so a sheet that
+  // merely *looks* non-empty would silently keep no header at all.
+  const stray = new FakeSheet(CK.REQUESTS);
+  stray.markFormatted(8);
+  assert.equal(stray.getLastRow(), 8, 'a stray formatted row is reported as the last row (real Sheet semantics)');
+  assert.equal(stray.rows.length, 0, 'but it still holds no data');
+
+  console.log('Setup path covered: initializeCeliaKids creates all three sheets with their exact headers, is idempotent on re-run, and records the spreadsheet id.');
+}
+
+// ---------------------------------------------------------------------------
+// Schema drift — the second half of the dual guard. assertSheetSchema_ is only
+// worth what this block proves: make the declared schema and the live sheet
+// disagree and require a loud failure. Without it the guard could be deleted in
+// any refactor and every suite would still pass.
+// ---------------------------------------------------------------------------
+{
+  const CK = vm.runInContext('CK', context);
+  const originalHeaders = Array.from(CK.REQUEST_HEADERS);
+  const keepRequests = sheets.get(CK.REQUESTS);
+  const resetGuard = () => { context.sheetSchemaIndex_ = {}; };
+  const NAME = '\u0633\u0627\u0631\u0629', VISIT = '\u0643\u0634\u0641 \u062c\u062f\u064a\u062f', PHONE = '01000000000';
+  const liveRow = ['CK-DRIFT', '2026-11-06 09:00', 'PENDING', VISIT, NAME, PHONE, '2026-11-09', '10:00', '', '2026-11-06 09:00', true, true];
+
+  // The live sheet: created before the change, still the old 12-column layout.
+  const oldLayout = () => { const sh = new FakeSheet(CK.REQUESTS); sh.rows = [[...originalHeaders], liveRow]; return sh; };
+  // The edit under test: code gains a `notes` column at position 2, the sheet does not.
+  const addColumn = () => { CK.REQUEST_HEADERS.splice(1, 0, 'notes'); };
+  const restore = () => { CK.REQUEST_HEADERS.length = 0; originalHeaders.forEach((h) => CK.REQUEST_HEADERS.push(h)); };
+
+  try {
+    // 1 — declared schema and live sheet disagree: fail loudly, name the column.
+    addColumn(); resetGuard(); sheets.set(CK.REQUESTS, oldLayout());
+    assert.throws(
+      () => context.readAllRequests_(),
+      (error) => /\u0645\u062e\u0637\u0637/.test(error.message) && /2/.test(error.message) && /notes/.test(error.message),
+      'a drifted header must fail loudly and name the column and the expected header'
+    );
+
+    // 2 — the stray-formatting sheet: getLastRow() reports 8, so ensureSheet_ skips
+    // the header write and row 1 reads back empty. Must fail, not fabricate.
+    restore(); resetGuard();
+    const stray = new FakeSheet(CK.REQUESTS);
+    stray.markFormatted(8);
+    sheets.set(CK.REQUESTS, stray);
+    assert.throws(() => context.readAllRequests_(), /\u0645\u062e\u0637\u0637/, 'a formatted but headerless sheet must fail, not read as empty');
+
+    // 3 — a correct sheet passes, and stray formatting *below* real data no longer
+    // invents a phantom record.
+    restore(); resetGuard();
+    const good = oldLayout();
+    good.markFormatted(8);
+    sheets.set(CK.REQUESTS, good);
+    // readAllRequests_ also merges the outage queue, which earlier suites have
+    // filled; only the sheet-derived records are under test here.
+    const read = context.readAllRequests_();
+    assert.equal(read.filter((item) => item.reference === '').length, 0, 'stray formatting below the data yields no phantom record');
+    const mine = read.filter((item) => item.reference === 'CK-DRIFT');
+    assert.equal(mine.length, 1, 'the one real record is read');
+    assert.equal(mine[0].guardianName, NAME, 'the name column still holds the name');
+    assert.equal(mine[0].phone, PHONE, 'the phone column still holds the phone');
+
+    // 4 — the failure is observable, not merely thrown.
+    addColumn(); resetGuard();
+    const logged = [];
+    const originalLog = context.logEvent_;
+    context.logEvent_ = (level, event, payload) => { if (event === 'schema_drift') logged.push(payload); return originalLog(level, event, payload); };
+    sheets.set(CK.REQUESTS, oldLayout());
+    assert.throws(() => context.readAllRequests_(), /\u0645\u062e\u0637\u0637/, 'drift still throws while being logged');
+    context.logEvent_ = originalLog;
+    assert.equal(logged.length, 1, 'schema_drift is logged exactly once');
+    assert.equal(logged[0].sheet, CK.REQUESTS, 'the log names the sheet');
+    assert.equal(logged[0].position, 2, 'the log names the column position');
+    assert.equal(logged[0].expected, 'notes', 'the log records the expected header');
+    assert.equal(logged[0].found, 'createdAt', 'the log records what the sheet actually has there');
+    restore();
+
+    // 5 — mutation check. With the guard neutralised, the same drift reads through
+    // silently and puts the phone into the name field publicBooking_() renders.
+    // Asserted so that deleting the guard fails this suite.
+    addColumn(); resetGuard();
+    const savedGuard = context.assertSheetSchema_;
+    const savedRow = context.rowToRequest_;
+    // Neutralise the guard AND apply the rest of the same realistic edit — the
+    // positional mapping moves by one, which is what a developer adding a column
+    // writes. Without both, the read is merely wide, not shifted.
+    context.assertSheetSchema_ = (sheet, hdrs, label) => { const idx = {}; hdrs.forEach((h, n) => { idx[h] = n; }); return idx; };
+    context.rowToRequest_ = (row) => ({
+      reference: String(row[0] || ''), notes: String(row[1] || ''), createdAt: String(row[2] || ''),
+      status: String(row[3] || ''), visitType: String(row[4] || ''), guardianName: String(row[5] || ''),
+      phone: String(row[6] || ''), day: '', time: String(row[8] || ''), eventId: String(row[9] || ''),
+      updatedAt: String(row[10] || ''), consent: row[11] === true, slotVerified: row[12] === true
+    });
+    sheets.set(CK.REQUESTS, oldLayout());
+    const silent = context.readAllRequests_().filter((item) => item.reference === 'CK-DRIFT');
+    context.assertSheetSchema_ = savedGuard;
+    context.rowToRequest_ = savedRow;
+    assert.equal(silent.length, 1, 'the drifted sheet still yields exactly one record');
+    assert.equal(silent[0].guardianName, PHONE, 'unguarded, the phone lands in the name field publicBooking_ renders');
+    assert.equal(silent[0].phone, '2026-11-09', 'unguarded, the phone column holds a date — silent corruption, no error');
+    assert.equal(silent[0].status, VISIT, 'unguarded, the status column holds the visit type');
+    restore();
+  } finally {
+    restore();
+    sheets.set(CK.REQUESTS, keepRequests);
+    resetGuard();
+  }
+  console.log('Schema drift guarded: a drifted header fails loudly and logs schema_drift, a formatted-but-headerless sheet fails, stray formatting below data yields no phantom record, and neutralising the guard is caught.');
+}
 
 console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, a secret-free clinic profile, dashboard-editable settings (validation, services, PIN hashing and migration), slot starts that always fit inside opening hours, one open request per phone per day, and the daily per-number cap.')
 ;

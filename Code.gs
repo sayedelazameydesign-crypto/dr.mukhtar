@@ -191,10 +191,59 @@ function ensureClinicCalendar_(props) {
   return calendar;
 }
 
+/**
+ * Column positions for one sheet, resolved once per execution and validated
+ * against the live header row before anything is read or written.
+ *
+ * Declared with `var` so it lands on the Apps Script global object: a test (or a
+ * second setup run) can clear it. Every other top-level binding here is `const`.
+ */
+var sheetSchemaIndex_ = {};
+
+/**
+ * Prove the live sheet still has the schema the code assumes, then return a
+ * header -> column-position map.
+ *
+ * rowToRequest_() and requestToRow_() index columns by position. That is only
+ * safe while the sheet's first row is exactly `headers` — and nothing checked.
+ * Adding one column to CK.REQUEST_HEADERS against a sheet created earlier shifted
+ * every field silently: the guardian's phone landed in the *name* column, which
+ * publicBooking_() renders, so a schema edit became a privacy leak with no error
+ * anywhere. Reading a header is one call, so it is done once per execution.
+ *
+ * Fails closed and loudly. It never repairs the sheet: rewriting a header over
+ * live rows is the same defect wearing a helper's clothes.
+ */
+function assertSheetSchema_(sheet, headers, label) {
+  if (sheetSchemaIndex_[label]) return sheetSchemaIndex_[label];
+  const width = Math.max(headers.length, sheet.getLastColumn());
+  const live = sheet.getRange(1, 1, 1, width).getValues()[0].map(function (cell) { return String(cell); });
+  for (let i = 0; i < headers.length; i += 1) {
+    if (live[i] === headers[i]) continue;
+    logEvent_('error', 'schema_drift', {
+      sheet: label,
+      position: i + 1,
+      expected: headers[i],
+      found: live[i] || ''
+    });
+    throw new Error('مخطط ورقة ' + label + ' لا يطابق ما يتوقعه الكود عند العمود ' + (i + 1) +
+      ': المتوقع «' + headers[i] + '» والموجود «' + (live[i] || 'فارغ') +
+      '». أُوقف التنفيذ عمدًا — لا تعدّل الترويسة يدويًا فوق بيانات قائمة.');
+  }
+  const index = {};
+  headers.forEach(function (header, position) { index[header] = position; });
+  sheetSchemaIndex_[label] = index;
+  return index;
+}
+
 function ensureSheet_(ss, name, headers) {
   let sheet = ss.getSheetByName(name);
   if (!sheet) sheet = ss.insertSheet(name);
   if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  // Checked on every access, not only on creation: the dangerous case is a sheet
+  // that already exists. A stray formatted cell also lands here — getLastRow()
+  // counts formatting, so such a sheet skips the header write and reads back empty.
+  assertSheetSchema_(sheet, headers, name);
   return sheet;
 }
 
@@ -968,9 +1017,12 @@ function getSpreadsheet_() {
   if (active) return active;
   throw new Error('لم يتم إعداد Google Sheets. شغّل initializeCeliaKids() أولاً.');
 }
-function requestsSheet_() { return getSpreadsheet_().getSheetByName(CK.REQUESTS) || ensureSheet_(getSpreadsheet_(), CK.REQUESTS, CK.REQUEST_HEADERS); }
-function closuresSheet_() { return getSpreadsheet_().getSheetByName(CK.CLOSURES) || ensureSheet_(getSpreadsheet_(), CK.CLOSURES, CK.CLOSURE_HEADERS); }
-function auditSheet_() { return getSpreadsheet_().getSheetByName(CK.AUDIT) || ensureSheet_(getSpreadsheet_(), CK.AUDIT, CK.AUDIT_HEADERS); }
+// ensureSheet_ is idempotent and now carries the schema guard, so it runs on every
+// access. The previous `getSheetByName(name) || ensureSheet_(...)` short-circuit
+// meant an existing sheet was returned unchecked — exactly the sheet that can drift.
+function requestsSheet_() { return ensureSheet_(getSpreadsheet_(), CK.REQUESTS, CK.REQUEST_HEADERS); }
+function closuresSheet_() { return ensureSheet_(getSpreadsheet_(), CK.CLOSURES, CK.CLOSURE_HEADERS); }
+function auditSheet_() { return ensureSheet_(getSpreadsheet_(), CK.AUDIT, CK.AUDIT_HEADERS); }
 function getCalendar_() {
   const id = PropertiesService.getScriptProperties().getProperty('CALENDAR_ID') || 'primary';
   const calendar = id === 'primary' ? CalendarApp.getDefaultCalendar() : CalendarApp.getCalendarById(id);
@@ -1107,7 +1159,12 @@ function publicBooking_(record) { return { reference: record.reference, status: 
 function readAllRequests_() {
   const sheet = requestsSheet_(); const result = [];
   if (sheet.getLastRow() >= 2) sheet.getRange(2, 1, sheet.getLastRow() - 1, CK.REQUEST_HEADERS.length).getValues().forEach((row) => result.push(rowToRequest_(row)));
-  const map = new Map(); result.forEach((item) => map.set(item.reference, item));
+  // getLastRow() counts formatting as well as content, so a stray bold cell below
+  // the data makes this read past the last real row. Every such row maps to an
+  // all-empty record; without this filter they collapse into one phantom booking
+  // keyed by '' and appear on the staff board.
+  const records = result.filter((item) => item.reference !== '');
+  const map = new Map(); records.forEach((item) => map.set(item.reference, item));
   readOutageQueue_().forEach((item) => { if (!map.has(item.reference)) map.set(item.reference, item); });
   return Array.from(map.values());
 }
