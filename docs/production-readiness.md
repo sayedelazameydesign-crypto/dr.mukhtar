@@ -60,7 +60,7 @@
 | Gap | Type | Severity | Status | Evidence / closure |
 | --- | --- | --- | --- | --- |
 | G1 | untested_critical_path | high | **OPEN** | TODO.md:35-45 'مفتوح قبل التشغيل الحقيقي'; scripts/test-gas-simulated.js:143 stubs UrlFetchApp; no real account run recorded |
-| G2 | unconfigured_contract | high | **OPEN** | gh api: variables 0, secrets 0, branches/main.protected=false (2026-11-05) |
+| G2 | unconfigured_contract | high | **OPEN** | 2026-11-06: the owner's settings page lists 2 repository secrets (GEMINI_API_KEY, which the manifest declares, and AGENTMAIL_API_KEY, which the manifest does not); branch protection and variables stay unreadable to the integration token (403), so none of the three is verified state. Earlier reading (2026-11-05): 0 secrets, 0 variables, protected=false. |
 | G3 | config_drift | high | **resolved** | node scripts/check-config.js /tmp/bad.json → "LLM_TIMEOUT_MS: must be a number within 2000..60000" (exit 1) |
 | G4 | defined_but_unused | med | **resolved** | config/.env.example header states the CELIA_* names are docs-only mirrors; GROQ_API_KEY annotated as reserved |
 | G5 | duplicated_rule | med | **resolved** | node scripts/check-settings-parity.js -> "15 fields match between Settings.gs and app.js, prices round-trip"; node scripts/test-published-clinic.js -> "a file cannot override the clinic hours" / "cannot add or price a visit type" (25 checks) |
@@ -97,7 +97,7 @@
 | clinic.services — أنواع الزيارات | ℹ️ info | القالب الافتراضي (كشف جديد · متابعة) | المستخدم |
 | clinic.source — مصدر بيانات العيادة | ℹ️ info | قُرئ من القالب (بلا تصدير حقيقي) — أي أن الحالة أعلاه هي حالة «لم يُضبط بعد» وليست حالة عيادتك | المستخدم |
 | gate.workflows — عقود سير العمل والأسرار | ✅ **PASS** | · manifest secret GOOGLE_REFRESH_TOKEN_DEV is not referenced by any workflow (declared-only is allowed, keep it delibera | CC (المستودع) |
-| gate.secrets — مسح الأسرار | ✅ **PASS** | Secret scan passed — 162 text files (tracked files), 11 rules, 0 findings. | CC (المستودع) |
+| gate.secrets — مسح الأسرار | ✅ **PASS** | Secret scan passed — 164 text files (tracked files), 11 rules, 0 findings. | CC (المستودع) |
 | gate.parity — تطابق الإعدادات (حيّ/تجريبي) | ✅ **PASS** | Settings parity OK — 16 fields match between Settings.gs and app.js, prices round-trip, and the public profile ships ser | CC (المستودع) |
 | gate.backend — محاكاة الخادم | ✅ **PASS** | Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calen | CC (المستودع) |
 | gate.ui — الواجهة في متصفح | ✅ **PASS** | UI smoke test passed: rendering, booking, reference tracking, staff approval, and the admin assistant all work in demo m | CC (المستودع) |
@@ -121,5 +121,5 @@ NODE_PATH=/tmp/jsd/node_modules node scripts/readiness-report.js          # فح
 ## بروفة Google
 
 كل خطوة في [`docs/google-rehearsal.md`](./google-rehearsal.md) لها حقل `evidence` في
-`scripts/rehearsal-checklist.json` (21 خطوة، التقدّم الحالي **7/21** — S1 مكتملة بأدلة بتاريخ 2026-11-06: المشروع، والحزمة، و`CELIA_SHEET_ID`، والتهيئة، و`whatsappStatus`، وحارس `schema_drift` ذهابًا وعودة). الفجوتان **G1** و**G14** لا
+`scripts/rehearsal-checklist.json` (21 خطوة، التقدّم الحالي **7/21**). الفجوتان **G1** و**G14** لا
 تُغلقان إلا بأدلة من حسابك، ولا يرقّيهما كلام.

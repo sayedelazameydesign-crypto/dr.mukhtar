@@ -65,6 +65,14 @@ jobs:
       - name: Pilot + growth documents agree with the rehearsal gate
         run: node scripts/check-pilot-docs.js
 
+      # The ledger said 5 gaps were open, docs/map/ARCHITECTURE.md said 3, and the ledger's own
+      # note named a third set (all closed). A human plans against those pages, so drift there is
+      # a defect, not a typo. The gate derives the open set from the records, in both directions.
+      - name: Gap documents agree with the ledger (single source of truth)
+        run: |
+          node scripts/test-gap-docs.js
+          node scripts/check-gap-docs.js
+
 
       - name: actionlint (pinned; the runner image does not ship it)
         env:

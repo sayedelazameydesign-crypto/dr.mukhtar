@@ -13,32 +13,22 @@
 | --- | --- | --- |
 | Run | `python3 scripts/preview.py` → `0.0.0.0:8080` | ✅ 200 `/`; 404 `/gas/`, `/scripts/`, `/.git/` |
 | Backend | `node scripts/test-gas-simulated.js` | ✅ exit 0 |
-| Adapter | `node scripts/test-llm-adapter.js` | ✅ 15 tests |
+| Adapter | `node scripts/test-llm-adapter.js` | ✅ passes (the count is the suite's output, not this page's) |
 | DOM | `test-ui-smoke.js`, `test-demo-availability.js` (`jsdom@25`) | ✅ both pass |
-| Contracts | `check-workflows.js --self-test` · `scan-secrets.js` · `env.js` | ✅ 10 cases · 46 files/0 · OK |
+| Contracts | `check-workflows.js --self-test` · `scan-secrets.js` · `env.js` | ✅ all three pass |
 | Config | `node scripts/check-config.js [props.json]` | ⚠️ template only, real export untried |
-| Build | `python3 scripts/build-gas-package.py` | ✅ 97,089 B + 475,498 B |
-| Deploy site | `.github/workflows/pages.yml` | ⚠️ workflow never observed running |
-| Deploy backend | paste `gas/` into Apps Script | ⚠️ **never executed** |
-| Pilot week | `docs/pilot/professor-week.md` | ⚠️ not run — needs the owner's Google account |
-| Growth | `docs/growth/doctors-playbook.md` · `pitch/` | ✅ documents + printed sheet, gated by `check-pilot-docs.js` |
+| Build | `python3 scripts/build-gas-package.py` | ✅ prints the bundle sizes it produced |
+| Deploy | `.github/workflows/pages.yml` (site) · paste `gas/` (backend) | ✅ site runs on main · ⚠️ backend never pasted by a human in this repo's record |
+| Pilot + growth | `docs/pilot/professor-week.md` · `docs/growth/doctors-playbook.md` | ⚠️ pilot not run (owner's account) · ✅ growth docs gated by `check-pilot-docs.js` |
 | Google bridge | `test-google-bridge.js` + `google/selftest.js --local` ✅ 29 tests | live bootstrap ⚠️ owner-side |
 
-## 2b. Engineering plane (AI-native, 2026-11 — CELIA-GITHUB-ENGINEERING-STACK-001)
+## 2b. Engineering plane (CELIA-GITHUB-ENGINEERING-STACK-001)
 
-| Gate | File | Trigger | Verified |
-| --- | --- | --- | --- |
-| CodeQL SAST | `.github/workflows/codeql.yml` | push/PR/weekly | 🆕 runs on this PR; free on public repos |
-| OSV vuln scan | `.github/workflows/osv-scan.yml` | push/PR/weekly | SHA-pinned reusable workflow; SARIF → Security tab |
-| zizmor (Actions) | `.github/workflows/zizmor.yml` | push/PR/weekly | ✅ 0 findings locally (was 48) |
-| OpenSSF Scorecard | `.github/workflows/scorecard.yml` | main/weekly | ⏸ first run after merge |
-| Playwright E2E | `e2e/clinic.spec.mjs` + `e2e.yml` | PR | 5 journeys, demo mode only; Chromium on runner |
-| Lighthouse CI | `.lighthouserc.json` + `e2e.yml` | PR | a11y ≥0.9 is an error; rest are recorded warnings |
-| Release Please | `release-please.yml` (+ manifest/config) | main pushes | opens release PR only; humans merge |
-| Renovate / Dependabot | `renovate.json` · `.github/dependabot.yml` | weekly Monday | Renovate = versions (7-day quarantine), Dependabot = security, zero overlap |
-| Monthly watch | `.github/workflows/monthly-tools-watch.yml` | 1st of month | opens `[monthly-tools-watch]` issue; deduped while open |
-
-Every action in every workflow is pinned to a full commit SHA (comments carry the tag). `main` protection remains an owner step (integration token: 403 — `scripts/bootstrap-github.sh` corrected to the real check-run name). Full plan, decisions and deviations: `docs/engineering-stack.md`.
+CodeQL SAST · OSV scan · zizmor · OpenSSF Scorecard · Playwright E2E (5 journeys, demo mode) ·
+Lighthouse CI (a11y ≥0.9 is an error) · Release Please (opens, never merges) · Renovate (versions,
+7-day quarantine) + Dependabot (security) · monthly tools watch — every action pinned to a full
+commit SHA. Triggers and deviations: `docs/engineering-stack.md`; secrets/variables are enforced by
+`check-workflows.js`. `main` protection remains an owner step (integration token: 403).
 
 ## 3. Components
 
@@ -48,8 +38,6 @@ flowchart TB
     IDX[index.html] --- APP[app.js · api bridge + demo store]
     CSS[app.css] --- FONTS[fonts, self-hosted]
     APP --> WA[wa.me link]
-  end
-  subgraph API[api]
     BRIDGE[google.script.run · 11 methods]
   end
   subgraph DOMAIN[domain]
@@ -59,12 +47,10 @@ flowchart TB
   subgraph DATA[data]
     SHEETS[(Sheets)] & CAL[(Calendar)] & PROPS[Script Properties] & LS[(localStorage)]
   end
-  subgraph INFRA[infra]
     CI[ci.yml gate] --> BUILD[build-gas-package.py] --> IDX
     PAGES[pages.yml] --> IDX
     PREVIEW[preview.py] --> IDX
     GEM[Gemini AI Studio]
-  end
   APP -->|demo| LS
   APP -->|IS_GAS| BRIDGE --> CODE
   CODE --> SHEETS & CAL & PROPS
@@ -133,8 +119,7 @@ With no `GEMINI_API_KEY` the live smoke job skips and the assistant disables; bo
 | Groq | reserved fallback | no | not implemented (G9) |
 
 Avoided on purpose (card required): fly.io, Koyeb, AWS, GCP Cloud Run, Azure, Oracle Cloud, Anthropic API — `docs/free-tiers.json`.
-## 7b. Google bridge
-
+### 7b. Google bridge
 One boundary: `scripts/google/gateway.js` (`LocalAdapter` default, `GoogleAdapter` for Drive/Sheets/Calendar).
 The account is a **profile** (`config/google.profile.<name>.json`, git-ignored) chosen by `GOOGLE_PROFILE`, token name derived (`GOOGLE_REFRESH_TOKEN_<PROFILE>`); no email, raw id or account name in code. Profile now: `dev`, dev/test only. Swap: `docs/google-setup.md` §4, zero code changes.
 ## 8. Conventions found
@@ -144,22 +129,22 @@ The account is a **profile** (`config/google.profile.<name>.json`, git-ignored) 
 - The 30 s availability cache is a quota shield only: any staff action that changes what is bookable drops that day's keys, and approval always re-reads Calendar.
 - Staff gate: constant-time PIN check behind a cache-backed attempt limit (`staffPinFailure_`); audit actor is `staff:<signed-in account>`.
 - Dependency-free tests (`assert`, `vm` stubs); jsdom ad hoc, never declared. Arabic UI, non-medical, Arabic-Indic numerals.
-## 9. Top 10 gaps
+## 9. Open gaps — restated from the ledger, never typed
 
-| # | Sev | Gap |
-| --- | --- | --- |
-| G1 | high | Backend never ran in a real Google account; Sheets/Calendar/locks/audit only vm-simulated. |
-| G2 | high | `main` unprotected, 0 secrets, 0 variables — declared setup never applied. |
-| G3 | high | `GEMINI_TIMEOUT_MS` read at `Llm.gs:113`, absent from `config/clinic.example.json` → unprevalidated. |
-| G4–G9 | med | Closed: `CELIA_*` mirrors documented, availability parity gate, dead root build script removed, foreign files gone, `GROQ_API_KEY` declared-only on purpose. |
-| G10–G13 | low | Closed: jsdom absence fails the suite, demo PIN hint is demo-only, docs drift fixed, actionlint/gitleaks are pinned and fatal now. |
-| G14 | med | Google bridge code-complete but never bootstrapped on a real account. |
-| G15 | high | Availability cache survived staff actions: an approved, moved or closed time stayed on offer for up to 30 s. Fixed (`invalidateSlotCacheFor_`). |
-| G16 | high | Staff PIN gate answered wrong PINs forever. Fixed (5 failures → 15-minute lock in the script cache). |
-| G17 | med | Audit rows said only "staff". Fixed (`staffActor_()` records the signed-in account). |
+`docs/map/gaps.json` is the only source of truth. This page restates it, and
+`node scripts/check-gap-docs.js` fails when the two disagree — because they did: the ledger had
+five open, this page said three, and the ledger's own note named a third set entirely.
 
-Open gaps are G1, G2 and G14; the rest are closed with evidence. Full list: `docs/map/gaps.json`.
+Open gaps: G1 · G2 · G14 · G23 · G26
+
+- **G1** (high) — approval, locking, Sheets schema, Calendar conflicts and the audit queue are proven in a VM only.
+- **G2** (high) — the secrets manifest is declared policy, not enforced state: protection + rotation unverified.
+- **G14** (med) — the bridge's Drive/Sheets/Calendar paths were never bootstrapped on a real account.
+- **G23** (med) — triage/repair workflows have never been watched on a real failing run.
+- **G26** (med) — a run dying between `createEvent` and `updateRequestRow_` leaves an orphan event nobody looks for.
+
+Closed gaps carry a `resolution` object with the command that closed them — read them in the ledger, not in a mirror. Counts are deliberately absent: numbers copied from a gate rot silently.
+
 ## 10. Glossary
 
-- **Request** → `PENDING_APPROVAL`; **approval** creates the Calendar event and flips it to `CONFIRMED`.
-- **Demo mode** — no `google.script.run`: `localStorage`, PIN `2468`, never a confirmation. **Queues** — `CKQ_*`/`CKA_*` buffer failed writes. **Profile** — account selector, never in code.
+- **Request** → `PENDING_APPROVAL`; **approval** creates the Calendar event and flips it to `CONFIRMED`. **Demo mode** — no `google.script.run`: `localStorage`, PIN `2468`, never a confirmation. **Queues** — `CKQ_*`/`CKA_*` buffer failed writes. **Profile** — account selector, never in code.

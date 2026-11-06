@@ -13,7 +13,7 @@
     {
       "id": "G2",
       "type": "unconfigured_contract",
-      "evidence": "gh api: variables 0, secrets 0, branches/main.protected=false (2026-11-05)",
+      "evidence": "2026-11-06: the owner's settings page lists 2 repository secrets (GEMINI_API_KEY, which the manifest declares, and AGENTMAIL_API_KEY, which the manifest does not); branch protection and variables stay unreadable to the integration token (403), so none of the three is verified state. Earlier reading (2026-11-05): 0 secrets, 0 variables, protected=false.",
       "impact": "The secrets manifest is declared policy, not enforced state; rotation and fork-PR protection rely on settings that do not exist yet",
       "fix": "Run sh scripts/bootstrap-github.sh on the owner's gh session (docs/secrets.md §7a-2)",
       "severity": "high"
@@ -347,7 +347,7 @@
     "Should CELIA_* mirrors become the canonical env names for a future non-GAS backend, or be dropped?",
     "Should the demo/dev Google profile stay attached to the developer account, or move to a dedicated system account before any real clinic data exists?"
   ],
-  "note": "G3-G11 triaged this round: resolved items carry a resolution object with command evidence. Still open: G1 (live Google run), G2 (GitHub settings), G4/G5/G12-G14.",
+  "note": "Open set is computed from the records (a gap is open unless its status is resolved/closed) — never restate it by hand. `node scripts/check-gap-docs.js` fails when a derived page or this note disagrees with the records.",
   "new_gap_evidence": {
     "silent_gates_fixed": [
       "S1 setup-status ||true",
