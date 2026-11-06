@@ -989,7 +989,21 @@ function isStaff_(pin) {
   try { return verifyStaffPin_(candidate); }
   catch (error) { return false; }
 }
-function constantTimeEquals_(a, b) { let result = 0; for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i); return result === 0; }
+/**
+ * Compare two secrets without leaking WHERE they differ.
+ *
+ * Length is compared first and is not secret (a PIN digest is always 64 chars). The loop then
+ * runs over the full length of both strings, so a correct prefix is not "equal": comparing
+ * only up to a.length made every prefix of the stored secret pass — silently.
+ */
+function constantTimeEquals_(a, b) {
+  const left = String(a === undefined || a === null ? '' : a);
+  const right = String(b === undefined || b === null ? '' : b);
+  if (left.length !== right.length) return false;
+  let result = 0;
+  for (let i = 0; i < left.length; i += 1) result |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return result === 0;
+}
 function validateRequest_(payload) {
   if (!payload || payload.consent !== true) throw new Error('يلزم تأكيد الموافقة على استخدام بيانات التواصل لإدارة الطلب.');
   const services = clinicServices_();

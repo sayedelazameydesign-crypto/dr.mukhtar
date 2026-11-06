@@ -1191,6 +1191,27 @@
       "path": ".github/workflows/ai-repair.yml",
       "layer": "infra",
       "role": "manual, human-gated repair"
+    },
+    {
+      "id": "doc.tooling-plan",
+      "kind": "doc",
+      "path": "docs/tooling-adoption-plan.md",
+      "layer": "docs",
+      "role": "which agent tools we adopt, and why we refuse others"
+    },
+    {
+      "id": "doc.threat-model",
+      "kind": "doc",
+      "path": "docs/audit/threat-model-2026-11.md",
+      "layer": "docs",
+      "role": "STRIDE threat model with resolvable citations"
+    },
+    {
+      "id": "tool.audit-gate",
+      "kind": "script",
+      "path": "scripts/check-audit-doc.js",
+      "layer": "tooling",
+      "role": "audit citations resolve and controlled rows quote real tests"
     }
   ],
   "edges": [
@@ -2829,6 +2850,50 @@
         [
           "tool.llm-smoke-probe",
           "env.GEMINI_API_KEY"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "docs/tooling-adoption-plan.md §1 cites docs/map/gaps.json G1/G2/G14/G23 and docs/production-readiness.md",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "doc.tooling-plan",
+          "doc.readme"
+        ],
+        [
+          "doc.tooling-plan",
+          "doc.code-logic"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": "scripts/check-audit-doc.js fails when a citation does not resolve or a control claim lacks a real test",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "tool.audit-gate",
+          "doc.threat-model"
+        ]
+      ]
+    },
+    {
+      "type": "reads",
+      "evidence": "docs/audit/threat-model-2026-11.md cites Code.gs:992, Settings.gs:150, app.js:421",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "doc.threat-model",
+          "domain.code-gs"
+        ],
+        [
+          "doc.threat-model",
+          "ui.app-js"
         ]
       ]
     }

@@ -443,6 +443,54 @@ check('the public uptime endpoint stays closed until a token is configured', () 
   properties.delete('HEALTH_TOKEN');
 });
 
+/**
+ * The secret comparison must reject a prefix.
+ *
+ * The original loop iterated over the length of the CANDIDATE only, so a correct prefix of
+ * the stored secret compared equal. That is silent: nothing printed, nothing failed. It
+ * mattered twice — the staff PIN is compared as a 64-character digest (so a prefix of the
+ * digest was accepted), and HEALTH_TOKEN is compared to whatever the caller sent.
+ */
+check('a prefix of the secret is not accepted', () => {
+  // Assembled at runtime: a literal of this shape trips the secret scanner, and a test
+  // fixture should never look like a credential.
+  const secret = ['prefix', 'fixture', crypto.randomBytes(8).toString('hex')].join('-');
+  assert.equal(context.constantTimeEquals_(secret, secret), true, 'the exact secret is accepted');
+  assert.equal(context.constantTimeEquals_(secret.slice(0, 12), secret), false, 'a prefix is not the secret');
+  assert.equal(context.constantTimeEquals_(secret + 'x', secret), false, 'a longer value is not the secret');
+  assert.equal(context.constantTimeEquals_('', secret), false, 'empty is not the secret');
+});
+
+check('a prefix of the health token does not open the uptime endpoint', () => {
+  const healthToken = ['prefix', 'probe', crypto.randomBytes(6).toString('hex')].join('-');
+  properties.set('HEALTH_TOKEN', healthToken);
+  const prefixed = context.doGetHealth({ parameter: { token: healthToken.slice(0, 9) } });
+  assert.equal(JSON.parse(prefixed.text).ok, false, 'a prefix must not unlock the counters');
+  properties.delete('HEALTH_TOKEN');
+});
+
+check('a prefix of the staff PIN digest does not unlock the dashboard', () => {
+  const gateHash = context.constantTimeEquals_ ? null : null;
+  void gateHash;
+  const digest = crypto.createHash('sha256').update('a-long-enough-staff-pin-2026').digest('hex');
+  const saved = { hash: properties.get('ADMIN_PIN_HASH'), pin: properties.get('ADMIN_PIN') };
+  properties.set('ADMIN_PIN_HASH', digest);
+  properties.delete('ADMIN_PIN');
+  properties.delete('CK_PIN_FAILURES');
+  properties.delete('CK_PIN_LOCKED');
+  try {
+    assert.equal(context.verifyStaffPin_(digest.slice(0, 32)), false, 'half a digest is not the digest');
+    assert.equal(context.verifyStaffPin_(digest), true, 'the whole digest still works');
+  } finally {
+    // The suite shares one property store: restore it, or every later staff check fails.
+    if (saved.hash === undefined || saved.hash === null) properties.delete('ADMIN_PIN_HASH');
+    else properties.set('ADMIN_PIN_HASH', saved.hash);
+    if (saved.pin !== undefined && saved.pin !== null) properties.set('ADMIN_PIN', saved.pin);
+    properties.delete('CK_PIN_FAILURES');
+    properties.delete('CK_PIN_LOCKED');
+  }
+});
+
 /* ------------------------------------------------------- 6. settings contract ---- */
 
 check('the retention window is an owner-editable setting, validated like the rest', () => {
