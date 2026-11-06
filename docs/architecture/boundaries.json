@@ -1,0 +1,165 @@
+{
+  "$comment": "Architecture boundaries for the Apps Script layer. Each rule is a *claim about the code* that a script can check. Keep rules few and true: a rule that has to be explained away in a comment is a rule we do not have. Edit here, not in the checker.",
+  "version": 1,
+  "generated_at": "2026-11-06",
+  "sources": [
+    "Code.gs",
+    "Settings.gs",
+    "Llm.gs",
+    "WhatsApp.gs"
+  ],
+  "layers": {
+    "pure": "No Google service, no clock, no random, no logging side effect: input -> output only.",
+    "coordinator": "Orchestrates a command: lock, policy, services, persist, audit. Named '<verb>Request' or listed in coordinators.",
+    "boundary": "Owns a service handle (Sheets/Calendar/Properties/Cache/Lock/UrlFetch) and nothing else."
+  },
+  "rules": [
+    {
+      "id": "B1",
+      "title": "the booking path never calls a model",
+      "why": "A booking must never depend on Gemini, Groq or any provider. The assistant is administrative only.",
+      "files": [
+        "Code.gs"
+      ],
+      "forbiddenInFunctions": [
+        "createRequest",
+        "approveRequest",
+        "proposeAlternative",
+        "moveConfirmedAppointment",
+        "cancelRequest",
+        "completeRequest",
+        "closeDay",
+        "getAvailableSlots",
+        "isSlotAvailable_"
+      ],
+      "exemptFiles": [],
+      "forbiddenInTheseFunctions": [
+        "UrlFetchApp",
+        "Llm.gs",
+        "llmComplete_",
+        "callGemini",
+        "askGeneralQuestion"
+      ]
+    },
+    {
+      "id": "B2",
+      "title": "a pure function stays pure",
+      "why": "A validator that reads Properties or the clock cannot be tested in isolation, and its result stops being a function of its input.",
+      "files": [
+        "Code.gs"
+      ],
+      "forbiddenInFunctions": [
+        "isValidTime_",
+        "paddedStartIndex_",
+        "publicBooking_",
+        "requestToRow_",
+        "rowToRequest_",
+        "normalizeDayCell_",
+        "intervalsOverlap_",
+        "timeToMinutes_",
+        "minutesToTime_",
+        "constantTimeEquals_",
+        "positiveNumber_",
+        "digits_",
+        "zoneOffsetMinutes_",
+        "closureBlocks_"
+      ],
+      "notYetPure": {
+        "validateRequest_": "reads visit types through clinicServices_() and compares against the clock, so it cannot be tested without a property store — extracting readVisitServices_ from the validator is a separate, reviewed change",
+        "isValidDay_": "parses through `new Date('T12:00:00')`; it is pure in effect (no clock read) but not pure in shape, and the gate does not get to assume that",
+        "clinicWeekday_": "no clock read (Date.UTC on a literal), same shape problem as isValidDay_ — the call is deterministic, the scan cannot see it",
+        "retentionCutoff_": "reads the clock by design; it belongs to the coordinator layer, not the pure layer",
+        "visitDuration_": "resolves the duration from Script Properties; duration is policy, so this is a boundary function wearing a domain name"
+      },
+      "forbiddenInTheseFunctions": [
+        "SpreadsheetApp",
+        "CalendarApp",
+        "PropertiesService",
+        "LockService",
+        "CacheService",
+        "UrlFetchApp",
+        "new Date",
+        "Utilities.getUuid"
+      ],
+      "scope": "functions-only, because Code.gs legitimately owns the Google services in its boundary functions"
+    },
+    {
+      "id": "B3",
+      "title": "every mutation takes the script lock before it writes",
+      "why": "LockService is the only thing preventing two approvals from consuming the same slot. Apps Script has no transaction to fall back on.",
+      "files": [
+        "Code.gs"
+      ],
+      "mutators": [
+        "createRequest",
+        "approveRequest",
+        "proposeAlternative",
+        "moveConfirmedAppointment",
+        "cancelRequest",
+        "completeRequest",
+        "closeDay"
+      ],
+      "requireBefore": "LockService.getScriptLock()",
+      "requireAlso": [
+        "releaseLock"
+      ]
+    },
+    {
+      "id": "B4",
+      "title": "a command answers through the response contract",
+      "why": "app.js switches on ok/message/reference/booking. A coordinator that returns a bare boolean or throws breaks the caller silently.",
+      "files": [
+        "Code.gs"
+      ],
+      "commands": [
+        "createRequest",
+        "approveRequest",
+        "proposeAlternative",
+        "moveConfirmedAppointment",
+        "cancelRequest",
+        "completeRequest",
+        "closeDay",
+        "lookupBooking",
+        "askGeneralQuestion",
+        "getDashboard",
+        "getHealthReport"
+      ],
+      "requireKeys": [
+        "ok"
+      ],
+      "filePerCommand": {
+        "lookupOwnRequest": "Settings.gs",
+        "deleteOwnRequestData": "Settings.gs"
+      }
+    },
+    {
+      "id": "B5",
+      "title": "no secret literal in the application sources",
+      "why": "Secrets live in Script Properties. A literal is a leak that outlives the incident.",
+      "files": [
+        "Code.gs",
+        "Settings.gs",
+        "Llm.gs",
+        "WhatsApp.gs"
+      ],
+      "forbiddenPatterns": [
+        "AIza[0-9A-Za-z_-]{20,}",
+        "sk-[A-Za-z0-9]{20,}",
+        "EAAG[A-Za-z0-9]{20,}"
+      ]
+    }
+  ],
+  "statusVocabulary": {
+    "why": "One list, used by the checker and the document. A status that appears only inside a coordinator guard is an unwritten rule.",
+    "values": [
+      "REQUESTED",
+      "PENDING_APPROVAL",
+      "RESCHEDULED",
+      "CONFIRMED",
+      "CANCELLED",
+      "COMPLETED",
+      "DELETED"
+    ],
+    "declaredIn": "Code.gs"
+  }
+}
