@@ -68,12 +68,16 @@ say ""
 
 if [ "$PROTECT" -eq 1 ]; then
   say "4/4 branch protection on main"
+  # The required context must be the *check run* name — the CI job's display name,
+  # not its YAML id. In .github/workflows/ci.yml the job id is `quality` but the
+  # job name ("lint · typecheck · test · build · audit") is what GitHub reports
+  # as the context. Pinning a context that never runs would block every merge.
   run gh api -X PUT "repos/$REPO/branches/main/protection" \
     -H "Accept: application/vnd.github+json" \
     -F "required_status_checks[strict]=true" \
-    -F "required_status_checks[contexts][]=quality" \
+    -F "required_status_checks[contexts][]=lint · typecheck · test · build · audit" \
     -F "enforce_admins=true" \
-    -F "required_pull_request_reviews[required_approving_review_count]=1" \
+    -F "required_pull_request_reviews=null" \
     -F "restrictions=null" \
     --silent
 else

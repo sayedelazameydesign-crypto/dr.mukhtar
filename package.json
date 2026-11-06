@@ -6,9 +6,11 @@
   "scripts": {
     "test": "node scripts/test-privacy-health.js && node scripts/test-gas-simulated.js && node scripts/test-ui-smoke.js",
     "gates": "node scripts/check-workflows.js && node scripts/check-script-syntax.js && node scripts/check-audit-doc.js && node scripts/scan-secrets.js",
-    "readiness": "node scripts/readiness-report.js --offline --require-jsdom"
+    "readiness": "node scripts/readiness-report.js --offline --require-jsdom",
+    "e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "jsdom": "25.0.1"
   }
 }

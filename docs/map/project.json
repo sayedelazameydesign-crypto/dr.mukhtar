@@ -30,7 +30,7 @@
     ],
     "format_note": "Written to the project-map.md contract with two documented deviations: (1) nodes use an explicit `id` field instead of the dotted object key, (2) `edges` and `tests` are grouped by type with one shared `evidence` so each citation stays verifiable; every `source` value below is the `path[:line]` the claim came from. A `tests` index is included alongside the `tests`-typed edges so each suite's pass/fail status is recorded once."
   },
-  "summary_L0": "Arabic RTL booking-intake site for one paediatric clinic; a request is never a confirmation.\nStatic site (index.html + app.css + app.js) runs standalone in demo mode on localStorage and, when hosted by Google Apps Script, swaps its single api() bridge to google.script.run.\nBackend is Code.gs in Apps Script: Sheets is the system of record (Requests/Audit/Closures), Calendar is the availability source, LockService serialises every write, staff approval is the only path to CONFIRMED.\nLlm.gs is the sole LLM boundary (one provider: gemini, chain/budget/circuit/cache in Script Properties); the assistant is optional and booking works with it off.\nRun the site with python3 scripts/preview.py on 0.0.0.0:8080; build the Apps Script bundle with python3 scripts/build-gas-package.py.\nTest offline with node scripts/test-gas-simulated.js, test-llm-adapter.js, test-ui-smoke.js, test-demo-availability.js (jsdom needed for the last two).\nDeploy the site with .github/workflows/pages.yml (main only); deploy the backend by pasting gas/ into Apps Script — never done, never verified in a real Google account.\nNo runtime npm dependencies; tooling is Node 20 / Python 3.11 stdlib only; every external service in docs/free-tiers.json is card_required:false.",
+  "summary_L0": "Arabic RTL booking-intake site for one paediatric clinic; a request is never a confirmation.\nStatic site (index.html + app.css + app.js) runs standalone in demo mode on localStorage and, when hosted by Google Apps Script, swaps its single api() bridge to google.script.run.\nBackend is Code.gs in Apps Script: Sheets is the system of record (Requests/Audit/Closures), Calendar is the availability source, LockService serialises every write, staff approval is the only path to CONFIRMED.\nLlm.gs is the sole LLM boundary (one provider: gemini, chain/budget/circuit/cache in Script Properties); the assistant is optional and booking works with it off.\nRun the site with python3 scripts/preview.py on 0.0.0.0:8080; build the Apps Script bundle with python3 scripts/build-gas-package.py.\nTest offline with node scripts/test-gas-simulated.js, test-llm-adapter.js, test-ui-smoke.js, test-demo-availability.js (jsdom needed for the last two).\nDeploy the site with .github/workflows/pages.yml (main only); deploy the backend by pasting gas/ into Apps Script — never done, never verified in a real Google account.\nNo runtime npm dependencies; tooling is Node 20 / Python 3.11 stdlib only; every external service in docs/free-tiers.json is card_required:false.\nCI now runs in two planes: ci.yml gates (build/test/contract) and e2e.yml (Chromium journeys + Lighthouse a11y ≥0.9); security plane adds CodeQL, OSV, zizmor and Scorecard, all SHA-pinned; see docs/engineering-stack.md (CELIA-GITHUB-ENGINEERING-STACK-001). Release Please opens release PRs; nothing merges without a human.\n",
   "layers": [
     "ui",
     "api",
@@ -1233,6 +1233,97 @@
       "path": "scripts/check-architecture-boundaries.js",
       "layer": "tooling",
       "role": "fails when a pure function, the lock, the response contract or the booking path drifts"
+    },
+    {
+      "id": "ci.codeql",
+      "kind": "workflow",
+      "path": ".github/workflows/codeql.yml",
+      "layer": "infra",
+      "role": "CodeQL SAST to Security tab"
+    },
+    {
+      "id": "ci.osv-scan",
+      "kind": "workflow",
+      "path": ".github/workflows/osv-scan.yml",
+      "layer": "infra",
+      "role": "OSV vuln scan, fail-on-vuln"
+    },
+    {
+      "id": "ci.zizmor",
+      "kind": "workflow",
+      "path": ".github/workflows/zizmor.yml",
+      "layer": "infra",
+      "role": "Actions security audit, SARIF"
+    },
+    {
+      "id": "ci.scorecard",
+      "kind": "workflow",
+      "path": ".github/workflows/scorecard.yml",
+      "layer": "infra",
+      "role": "Weekly supply-chain score, SARIF"
+    },
+    {
+      "id": "ci.release-please",
+      "kind": "workflow",
+      "path": ".github/workflows/release-please.yml",
+      "layer": "infra",
+      "role": "Release PR + changelog, human-merged"
+    },
+    {
+      "id": "ci.e2e",
+      "kind": "workflow",
+      "path": ".github/workflows/e2e.yml",
+      "layer": "infra",
+      "role": "Playwright + Lighthouse, a11y gate"
+    },
+    {
+      "id": "ci.monthly-tools-watch",
+      "kind": "workflow",
+      "path": ".github/workflows/monthly-tools-watch.yml",
+      "layer": "infra",
+      "role": "Monthly free-tier checklist issue"
+    },
+    {
+      "id": "test.e2e-specs",
+      "kind": "job",
+      "path": "e2e/clinic.spec.mjs",
+      "layer": "infra",
+      "role": "test: browser journeys, demo mode"
+    },
+    {
+      "id": "doc.engineering-stack",
+      "kind": "doc",
+      "path": "docs/engineering-stack.md",
+      "layer": "docs",
+      "role": "CELIA-GITHUB-ENGINEERING-STACK-001 plan + evidence"
+    },
+    {
+      "id": "doc.renovate",
+      "kind": "config",
+      "path": "renovate.json",
+      "layer": "infra",
+      "role": "Weekly grouped dep PRs, no automerge"
+    },
+    {
+      "id": "doc.dependabot",
+      "kind": "config",
+      "path": ".github/dependabot.yml",
+      "layer": "infra",
+      "role": "Security updates only, weekly"
+    },
+    {
+      "id": "doc.lighthouse",
+      "kind": "config",
+      "path": ".lighthouserc.json",
+      "layer": "infra",
+      "role": "a11y error gate ≥0.9, desktop preset"
+    },
+    {
+      "id": "doc.release-please",
+      "kind": "config",
+      "path": "release-please-config.json",
+      "layer": "infra",
+      "role": "node release-type, manifest 1.0.0"
     }
   ],
   "edges": [
@@ -2917,6 +3008,34 @@
           "ui.app-js"
         ]
       ]
+    },
+    {
+      "type": "tests",
+      "evidence": "e2e/clinic.spec.mjs:60",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "test.e2e-specs",
+          "ui.index"
+        ],
+        [
+          "test.e2e-specs",
+          "ui.app-js"
+        ]
+      ]
+    },
+    {
+      "type": "tests",
+      "evidence": ".github/workflows/e2e.yml:38",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ci.e2e",
+          "test.e2e-specs"
+        ]
+      ]
     }
   ],
   "tests": [
@@ -2968,6 +3087,13 @@
       "covers": "whole tree",
       "evidence": "CI step 'Secret scan (built-in, always on)'",
       "status": "pass (46 files, 0 findings)"
+    },
+    {
+      "id": "test.e2e-specs",
+      "path": "e2e/clinic.spec.mjs",
+      "covers": "ui.index + ui.app-js + staff board (browser)",
+      "evidence": "e2e/clinic.spec.mjs:60",
+      "status": "runs in CI on PR (Chromium); not executed in the authoring sandbox"
     }
   ],
   "commands": [
@@ -3070,6 +3196,21 @@
       "cmd": "gh api repos/.../pages",
       "verified": true,
       "result": "404 — Pages site still absent, so Deploy site fails at the explanatory gate"
+    },
+    {
+      "cmd": "npx playwright test --list",
+      "verified": true,
+      "result": "5 tests collected (Chromium); execution happens in the PR's e2e job"
+    },
+    {
+      "cmd": "zizmor --persona regular --min-confidence medium .",
+      "verified": true,
+      "result": "exit 0 — no findings (was 48)"
+    },
+    {
+      "cmd": "node scripts/check-workflows.js",
+      "verified": true,
+      "result": "Secrets contract OK — 12 workflows"
     }
   ],
   "risks": [

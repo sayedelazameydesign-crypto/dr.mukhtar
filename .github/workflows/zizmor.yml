@@ -1,0 +1,44 @@
+name: zizmor
+
+# Static analysis of the GitHub Actions workflows themselves: excessive permissions,
+# template injection, dangerous triggers, unpinned actions, artipacked credentials.
+# Findings fail the build and (on success-path) are also uploaded to Security →
+# Code scanning as SARIF. Free; needs no secrets.
+#
+# Repo policy (enforced in scripts/check-workflows.js): third-party actions are pinned
+# to full commit SHAs — which is why this job can stay strict. The single accepted
+# exception is documented inline in ci-error-triage.yml (workflow_run, read-only).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 5 * * 1' # Mondays 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zizmor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Actions security (zizmor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
+        with:
+          persona: regular
+          # Medium+ confidence only: the clinic needs a gate that cannot cry wolf,
+          # not a pedantic one that gets ignored.
+          min-confidence: medium

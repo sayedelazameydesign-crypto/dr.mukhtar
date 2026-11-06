@@ -12,7 +12,7 @@ name: CI error triage
 # no business in the job that builds the site.
 
 on:
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] bounded by construction: read-only token, never checks out PR head code, and scripts/check-workflows.js forbids workflow_run + write in this repo.
     workflows: ['CI']
     types: [completed]
   workflow_dispatch:
@@ -40,11 +40,12 @@ jobs:
     # so "no report" can never be confused with "no data").
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'success'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: ${{ vars.NODE_VERSION || '20' }}
 
@@ -91,7 +92,7 @@ jobs:
 
       - name: Upload the report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ci-error-report
           path: reports/ci-errors.json

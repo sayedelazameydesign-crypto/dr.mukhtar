@@ -58,6 +58,7 @@ Three runtimes, one source of truth:
 
 ```bash
 python3 scripts/preview.py                  # local preview on 0.0.0.0:8080 (hides gas/, scripts/, dotfiles)
+npx playwright test                         # browser E2E, Chromium, demo mode (npm run e2e; needs: npx playwright install chromium)
 node scripts/test-gas-simulated.js          # backend: locking, conflicts, outages, queues
 node scripts/test-llm-adapter.js            # adapter: retry/backoff, circuit, budget, cache, PII, sanitising
 node scripts/test-ui-smoke.js               # DOM journey (needs: npm ci, see package.json)
@@ -122,5 +123,6 @@ New module, route, env name, table or provider → update the map in the same PR
 - [ ] `docs/free-tiers.json` + `docs/exit-plan.md` updated if a provider/limit changed
 - [ ] New secret/variable? → manifest + `.env.example` + workflow + `docs/secrets.md` in the same PR
 - [ ] `node scripts/check-workflows.js` and `node scripts/scan-secrets.js` pass
+- [ ] Workflow changes: every action pinned to a full commit SHA (comment the tag), `persist-credentials: false` on read-only checkouts, `zizmor --persona regular --min-confidence medium .` clean — the CI zizmor gate enforces this
 - [ ] README/TODO reflect the change; no TODO left without an issue
 - [ ] Demo mode never claims a real confirmation

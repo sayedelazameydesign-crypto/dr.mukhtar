@@ -1,0 +1,97 @@
+name: E2E + Lighthouse
+
+# Verification gate for the *user-facing* site, in the only mode CI can ever exercise:
+# the demo build served by scripts/preview.py. Fake data only — 01000000000-class
+# numbers, a localStorage demo store, zero contacts with the real clinic.
+#
+#   e2e        — Playwright (Chromium): booking journey, tracking/privacy, staff PIN,
+#                RTL/keyboard basics. Browsers are installed on the runner, never committed.
+#   lighthouse — @lhci/cli: accessibility is an *error-level* gate (≥0.9); performance,
+#                SEO and best-practices report as warnings with recorded floors.
+#
+# $0, no secrets.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Browser E2E (Chromium, demo mode)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ vars.NODE_VERSION || '20' }}
+
+      - name: Locked install (package-lock.json is the contract)
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the demo-mode journeys
+        run: npx playwright test
+
+      - name: Upload the report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  lighthouse:
+    name: Lighthouse CI (accessibility enforced)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ vars.PYTHON_VERSION || '3.11' }}
+
+      # ubuntu-latest ships Chrome stable; chrome-launcher (via @lhci/cli) finds it
+      # with no download step and no extra action.
+      - name: Serve the static site
+        run: |
+          nohup python3 scripts/preview.py > /tmp/preview.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/ > /dev/null; then
+              echo "preview server is up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::preview server did not come up on 8080"
+          cat /tmp/preview.log
+          exit 1
+
+      - name: Lighthouse audit (filesystem upload, no external storage)
+        run: npx --yes @lhci/cli@0.16.0 autorun
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 7
