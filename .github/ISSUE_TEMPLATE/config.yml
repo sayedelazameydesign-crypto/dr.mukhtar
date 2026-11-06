@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔐 إبلاغ عن ثغرة أمنية
+    url: https://github.com/sayedelazameydesign-crypto/dr.mukhtar/security/advisories/new
+    about: لا تنشر تفاصيل الثغرة علنًا. استخدم private advisory (الأسماء فقط؛ القيم لا تُذكَر).
+  - name: 📮 تقرير صحة النظام (للمالك)
+    url: https://github.com/sayedelazameydesign-crypto/dr.mukhtar/blob/main/SECURITY.md
+    about: قناة الإبلاغ عن مشاكل التشغيل والبيانات موضحة في SECURITY.md.

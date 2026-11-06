@@ -1,8 +1,24 @@
-# Celia Kids — استقبال مواعيد الأطفال · إصدار 2026
+# Celia Kids — بوابة مواعيد عيادة أطفال
+
+<p align="center"><img src="brand.svg" alt="Celia Kids — هوية العيادة" width="280"></p>
+
+<p align="center">
+  <a href="https://github.com/sayedelazameydesign-crypto/dr.mukhtar/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sayedelazameydesign-crypto/dr.mukhtar/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/sayedelazameydesign-crypto/dr.mukhtar/actions/workflows/e2e.yml"><img alt="E2E + Lighthouse" src="https://github.com/sayedelazameydesign-crypto/dr.mukhtar/actions/workflows/e2e.yml/badge.svg"></a>
+</p>
+
+> **الطلب لا يعني التأكيد.** ولي الأمر يختار نوع الزيارة، واليوم، والوقت المفضل — ثم **يراجع فريق
+> العيادة الطلب بشريًا** قبل إنشاء أي حدث في Google Calendar. لا تأكيدات تلقائية، ولا بيانات طبية
+> تُجمع (الاسم ورقم التواصل ووقت مفضل فقط).
+
+## ✦ جرّب الآن — ٣٠ ثانية، بلا حساب
+
+**[افتح الديمو الحي ←](https://sayedelazameydesign-crypto.github.io/dr.mukhtar/)** — الصفحة عربية (RTL) وتفتح في
+**وضع العرض التجريبي**: بيانات وهمية بالكامل، ورمز موظف تجريبي `2468` (غير صالح لأي تشغيل حقيقي)،
+وتُحفظ في `localStorage` متصفحك فقط. المسار كامل: طلب موعد ← رقم مرجعي ← تتبع الطلب ← قبول/رفض/اقتراح
+وقت بديل من لوحة العيادة.
 
 واجهة عربية (RTL) لطلب مواعيد عيادة أطفال واحدة، مبنية على مبدأ واحد: **الطلب لا يعني التأكيد**.
-ولي الأمر يختار نوع الزيارة واليوم والوقت، ثم يراجع فريق العيادة الطلب بشريًا ويؤكده قبل إنشاء
-الحدث في Google Calendar.
 
 لا تُجمع أي بيانات طبية: الاسم ورقم التواصل ووقت مفضل فقط.
 
@@ -12,6 +28,26 @@
 **أين تعدّل ماذا؟** إعدادات العيادة (الهوية، الدوام، أنواع الزيارات، رمز الدخول) تُعدَّل من الواجهة
 وتظهر فور الحفظ بلا نشر. أمّا تغيير التصميم أو نص ثابت في الصفحة فهو تعديل ملفات ويحتاج نشرًا.
 الجدول الكامل في `docs/settings.md` ← «حالة كل تعديل».
+
+<details>
+<summary><strong>English summary</strong> — for international visitors</summary>
+
+Celia Kids is an Arabic-first (RTL) appointment-request front door for a single pediatric clinic.
+It is deliberately **not** a chatbot and **not** an automated booking system: a guardian picks a visit
+type, day and preferred time; the clinic confirms **humanly** before any calendar event is created.
+
+- **Live demo (no signup, fake data):** https://sayedelazameydesign-crypto.github.io/dr.mukhtar/ — RTL Arabic UI,
+  booking → reference code → tracking → staff approval board (demo staff PIN `2468`).
+- **No medical data is collected** — guardian name, contact, preferred time only. Google Sheets/Calendar are the
+  system of record, behind a single gateway (`scripts/google/gateway.js`).
+- **Status:** pre-pilot. CI is green (typecheck/tests/audit/build, Playwright E2E in Chromium, Lighthouse a11y,
+  CodeQL, OSV-Scanner, zizmor, OpenSSF Scorecard) but **no real booking has ever flowed end-to-end** in a live
+  clinic account; see `docs/production-readiness.md` for the honest ledger (26 gaps; 5 open, incl. G26).
+- The detailed docs are Arabic-first; `docs/map/ARCHITECTURE.md` and the readiness ledger are the canonical
+  technical entry points.
+- Security reports: see [`SECURITY.md`](SECURITY.md). Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+</details>
 
 ---
 
@@ -273,4 +309,12 @@ gh api -X POST repos/sayedelazameydesign-crypto/dr.mukhtar/pages -f source.branc
 
 ## الترخيص
 
-الخطوط: Almarai وIBM Plex Sans Arabic بترخيص SIL OFL 1.1 (النسخ في `assets/fonts/`).
+- **الكود**: رخصة [MIT](LICENSE) — يُحتفظ بإشعار حقوق النشر والترخيص في كل نسخة.
+- **الخطوط**: Almarai وIBM Plex Sans Arabic بترخيص SIL OFL 1.1 (النسخ في `assets/fonts/`).
+- **الهوية البصرية** (`brand.svg` وشعار «Celia Kids»): **مستثناة من رخصة الكود** — علامة العيادة؛
+  لا يمنح أي ترخيص هنا أي حق في استخدام اسم/شعار العيادة أو نسب الخدمات إليها.
+
+## المجتمع
+
+[المساهمة](CONTRIBUTING.md) · [مدونة السلوك](CODE_OF_CONDUCT.md) · [الأمان والإبلاغ](SECURITY.md) ·
+[خارطة الطريق](ROADMAP.md) · [القالب للقضايا](.github/ISSUE_TEMPLATE/) · [القالب لطلبات السحب](.github/PULL_REQUEST_TEMPLATE.md)

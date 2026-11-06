@@ -1,0 +1,32 @@
+name: 💡 اقتراح ميزة
+description: فكرة للمناقشة — ليست وعدًا بالتنفيذ
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        شكرًا لفكرتك. ملاحظة صريحة: لا تُفتح ميزات جديدة (دفع، تذكيرات، تقارير) قبل أول تشغيل
+        حقيقي — هذه قاعدة المشروع الحالية وليست ذوق المشرف.
+  - type: textarea
+    id: problem
+    attributes:
+      label: ما المشكلة التي تحلها؟
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: الاقتراح
+      description: كيف تتصور الحل؟ (يمكن أن يكون بسيطًا)
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: قيود المشروع
+      options:
+        - label: أدرك أن المشروع بلا مزودي دفع/بدون بطاقة بنكية وبدون بيانات طبية
+          required: true
+        - label: أدرك أن التأكيد دائمًا بشري ولا يوجد تأكيد تلقائي
+          required: true
