@@ -998,6 +998,50 @@ assert.ok(ownerLogin.token && ownerLogin.token.length >= 24, 'a session token is
 assert.equal(JSON.stringify(ownerLogin).indexOf(ownerPin), -1, 'the credential is never echoed back');
 assert.equal(ownerLogin.permissions.indexOf('staff:manage') !== -1, true, 'the owner may manage staff');
 
+// A role change must not leave an existing privileged session usable.
+staffSheetRows[1][2] = 'RECEPTION';
+assert.equal(context.listStaff(ownerLogin.token).ok, false, 'old administrator session is denied after a role change');
+assert.equal(context.getDashboard(ownerLogin.token).ok, false, 'a mismatched role denies the old session entirely');
+const downgradedLogin = context.login(ownerHash);
+assert.equal(downgradedLogin.staff.role, 'RECEPTION', 'a fresh login receives the current role');
+assert.equal(context.listStaff(downgradedLogin.token).ok, false, 'the fresh session cannot manage staff');
+staffSheetRows[1][2] = 'CLINIC_ADMIN';
+assert.equal(context.listStaff(ownerLogin.token).ok, true, 'the original session works again only when the row matches');
+
+// Provider exception text can contain secrets or personal data: logs keep fixed codes only.
+{
+  const marker = `sensitive-${crypto.randomBytes(12).toString('hex')}`;
+  const lines = [];
+  const savedConsole = context.console;
+  const savedSeedStaff = context.ensureStaffSeeded_;
+  const savedStaffSheet = context.staffSheet_;
+  const savedSetProperty = properties.setProperty;
+  context.console = { log: (line) => lines.push(line), info: (line) => lines.push(line),
+    warn: (line) => lines.push(line), error: (line) => lines.push(line) };
+  try {
+    context.ensureStaffSeeded_ = () => { throw new Error(marker); };
+    assert.equal(context.login(ownerHash).ok, false);
+    context.ensureStaffSeeded_ = savedSeedStaff;
+    properties.setProperty = (key, value) => {
+      if (key.startsWith('CK_SESSION_')) throw new Error(marker);
+      return savedSetProperty.call(properties, key, value);
+    };
+    assert.equal(context.login(ownerHash).code, 'SESSION_UNAVAILABLE');
+    properties.setProperty = savedSetProperty;
+    context.staffSheet_ = () => { throw new Error(marker); };
+    assert.equal(context.syncStaffPinHash_(ownerHash, hashPin('unused')), false);
+    assert.equal(lines.some((line) => line.includes('staff_lookup_failed')), true);
+    assert.equal(lines.some((line) => line.includes('session_store_failed')), true);
+    assert.equal(lines.some((line) => line.includes('staff_pin_sync_failed')), true);
+    assert.equal(lines.some((line) => line.includes(marker)), false, 'no exception text appears in staff logs');
+  } finally {
+    context.console = savedConsole;
+    context.ensureStaffSeeded_ = savedSeedStaff;
+    context.staffSheet_ = savedStaffSheet;
+    properties.setProperty = savedSetProperty;
+  }
+}
+
 const doctorPin = rolesPin('doctor');
 const receptionPin = rolesPin('reception');
 assert.equal(context.addStaff('د. مختار سيد كامل', 'DOCTOR', hashPin(doctorPin), ownerLogin.token).ok, true, 'the owner adds a doctor');
