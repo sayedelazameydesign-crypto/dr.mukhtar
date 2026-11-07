@@ -37,8 +37,8 @@
       "title": "النشر كتطبيق ويب",
       "closes": [],
       "steps": [
-        { "id": "S3.1", "action": "Deploy → Web app (Execute as Me, Anyone)", "expected": "رابط /exec يعمل", "evidence": "" },
-        { "id": "S3.2", "action": "افتح الرابط", "expected": "صفحة عربية RTL بلا شارة تجريبية", "evidence": "" },
+        { "id": "S3.1", "action": "Deploy → Web app (Execute as Me, Anyone)", "expected": "رابط /exec يعمل", "evidence": "2026-11-07 · https://script.google.com/macros/s/AKfycbyHD9U3mJp4tRzaEZONwPngG27EJXaievjcRbtXWY9A2saoNjnueHLFkgoRZQN1j4aW/exec يعمل بلا تسجيل دخول: طلب HTTPS غير مُصادَق (بلا أي جلسة Google) أعاد صفحة حجز HTML كاملة، لا إعادة توجيه إلى accounts.google.com. الدليل لا يثبت «Execute as Me» بعد — إثباته يحتاج كتابة (S4.1) تُنشئ صفًا في شيت العيادة." },
+        { "id": "S3.2", "action": "افتح الرابط", "expected": "صفحة عربية RTL بلا شارة تجريبية", "evidence": "2026-11-07 · الصفحة عربية RTL بعنوان «Celia Kids — عيادة دكتور مختار | طب الأطفال وحديثي الولادة»، بلا شارة «وضع تجريبي»، وفيها رابط واتساب بصيغة دولية wa.me/201113593643 وساعات 09:00–03:00 — أي أنها حزمة المستودع الحالية لا نسخة ما قبل إصلاح رقم واتساب." },
         { "id": "S3.3", "action": "أدخل من لوحة العيادة: اسم الطبيب، رقم الترخيص (بعد التحقق منه فعليًا)، وأنواع الزيارات وأسعارها", "expected": "node scripts/go-live-check.js يُظهر «اسم الطبيب» مضبوطًا لا كبند يحتاج إجراءً، ويُظهر «رقم الترخيص» كبند «غير مُتحقَّق» (إعفاء مؤقت) لا كبند «يحتاج إجراء» ولا مستوفى، وتختفي شارة «لم يُتحقق بعد»", "evidence": "" }
       ]
     },
