@@ -117,7 +117,7 @@
         <div class="hero-copy">
           <p class="eyebrow"><svg aria-hidden="true"><use href="#i-steth"/></svg> عيادة أطفال · طلب موعد إلكتروني</p>
           <h1>موعد طفلكم يبدأ بخطوة <em>واضحة</em>، ونؤكده بأنفسنا.</h1>
-          <p class="hero-description">اختاروا نوع الزيارة والوقت المناسب لكم، ثم يراجع فريق العيادة الجدول ويؤكد الموعد معكم هاتفيًا أو عبر واتساب قبل إضافته إلى جدول الطبيب. الطلب لا يُعد تأكيدًا قبل مراجعة العيادة.</p>
+          <p class="hero-description">اختاروا نوع الزيارة والوقت، وتراجع العيادة الطلب وتؤكد الموعد معكم. الطلب لا يصبح تأكيدًا قبل مراجعتنا.</p>
           <div class="hero-actions">
             <a class="primary-button hero-cta" href="#bookingView"><span>ابدأوا طلب موعد</span><svg class="button-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
             <a class="ghost-button" href="#trackCard">لديكم طلب سابق؟</a>
@@ -257,11 +257,14 @@
               <div><strong>خصوصية الأسرة أولًا</strong><p>نجمع الاسم ورقم التواصل فقط لإدارة الطلب. لا نطلب ولا نخزّن أي بيانات صحية في هذا النموذج. <a href="./privacy.html">التفاصيل وحق الحذف</a></p></div>
             </section>
 
-            <section class="side-card helper-card">
-              <strong>زيارتكم الأولى؟</strong>
-              <p>أحضروا دفتر التحصينات وبطاقة التأمين إن وُجدت. خصصوا وقتًا كافيًا؛ الكشف الجديد ٦٠ دقيقة.</p>
-              <div class="helper-tags"><span>تأكيد هاتفي</span><span>تذكير قبل الموعد</span><span>إمكانية إعادة الجدولة</span></div>
-            </section>
+            <details class="side-details">
+  <summary>نصائح قبل الزيارة</summary>
+  <section class="side-card helper-card">
+                <strong>زيارتكم الأولى؟</strong>
+                <p>أحضروا دفتر التحصينات وبطاقة التأمين إن وُجدت. خصصوا وقتًا كافيًا؛ الكشف الجديد ٦٠ دقيقة.</p>
+                <div class="helper-tags"><span>تأكيد هاتفي</span><span>تذكير قبل الموعد</span><span>إمكانية إعادة الجدولة</span></div>
+              </section>
+</details>
           </aside>
         </div>
 
@@ -400,10 +403,13 @@
               <div class="dashboard-title"><div><p class="section-kicker">بحاجة لمراجعة</p><h3>الطلبات المعلقة</h3></div><span id="pendingCount" class="count-chip">٠</span></div>
               <div id="pendingList" class="request-list"></div>
             </section>
-            <section class="dashboard-card">
-              <div class="dashboard-title"><div><p class="section-kicker">جدول الطبيب</p><h3>هذا الأسبوع</h3></div><span class="calendar-mark" aria-hidden="true"><svg><use href="#i-calendar"/></svg></span></div>
-              <div id="weekList" class="request-list"></div>
-            </section>
+            <details class="side-details">
+  <summary>مواعيد الأسبوع</summary>
+  <section class="dashboard-card">
+                <div class="dashboard-title"><div><p class="section-kicker">جدول الطبيب</p><h3>هذا الأسبوع</h3></div><span class="calendar-mark" aria-hidden="true"><svg><use href="#i-calendar"/></svg></span></div>
+                <div id="weekList" class="request-list"></div>
+              </section>
+</details>
           </div>
           <details class="admin-tools">
   <summary>إغلاق يوم أو إجازة</summary>

@@ -630,3 +630,38 @@ details.admin-tools > summary::before {
 }
 details.admin-tools[open] > summary::before { content: "－"; }
 details.admin-tools > .dashboard-card { border: 0; box-shadow: none; margin-block: 4px 8px; }
+
+/* --- simplification pass 2: less to read, less to tap --- */
+.hero-description { max-width: 48ch; }
+
+.booking-progress { gap: 8px; margin-block: 6px 14px; }
+.booking-progress li { padding: 6px 10px; font-size: 0.82rem; }
+.booking-progress li b { inline-size: 20px; block-size: 20px; font-size: 0.72rem; }
+
+details.side-details {
+  border: 1px solid rgba(11, 52, 70, 0.10);
+  border-radius: 14px;
+  background: #fff;
+  padding: 2px 6px;
+}
+details.side-details > summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+  color: #0b3446;
+  padding: 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+details.side-details > summary::-webkit-details-marker { display: none; }
+details.side-details > summary::before { content: "＋"; color: #a8823c; font-weight: 700; }
+details.side-details[open] > summary::before { content: "－"; }
+details.side-details > section { border: 0; box-shadow: none; }
+
+#staffPin { font-size: 1.05rem; padding-block: 12px; }
+
+@media (max-width: 720px) {
+  .booking-progress li span { font-size: 0.76rem; }
+  .section { padding-block: 26px; }
+}
