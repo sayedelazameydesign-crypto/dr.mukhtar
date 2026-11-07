@@ -94,8 +94,11 @@ steps:
 
 - Secrets always arrive through `env:`; they are never inlined inside `run:` text. The contract
   checker fails the build if you do.
-- The live smoke job is skipped for fork PRs (`if: github.event.pull_request.head.repo.fork != true`),
-  because forks cannot read repository secrets by design.
+- The live smoke job is skipped for **all** PRs, including same-repository PRs. It runs only
+  on a push to `main` or a manual dispatch on `main`, and only when `LLM_SMOKE_ENABLED` is
+  exactly `true`. This reduces accidental exposure to PR code; it does not protect a repository
+  secret from someone who can change the workflow itself. Restrict repository write access and
+  independently verify branch and environment protection; this workflow cannot prove them.
 - Environment secrets are invisible to any job without `environment: production`.
 
 ## 4b. Three stores, one set of names

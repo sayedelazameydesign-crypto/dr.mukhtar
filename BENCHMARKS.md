@@ -14,7 +14,7 @@
 |---|-----------|---------------------|----------------|
 | 1 | حجم الموقع الثابت كاملًا (`_site` المسموح) | 604,011 بايت | `du -sb index.html privacy.html app.css app.js 404.html manifest.webmanifest robots.txt sitemap.xml clinic.json brand.svg assets` |
 | 2 | `app.js` (واجهة كاملة، بلا bundler) | 115,831 بايت | `wc -c app.js` |
-| 3 | ملفات التوثيق تحت `docs/` | 41 ملف · 556,872 بايت | `find docs -name '*.md' | wc -l` |
+| 3 | ملفات التوثيق تحت `docs/` | 41 ملف · 557,177 بايت | `find docs -name '*.md' | wc -l` |
 | 4 | ملفات الفحص تحت `scripts/` | 19 ملف `test-*.js` | `ls scripts/test-*.js | wc -l` |
 | 5 | مسارات CI (سير العمل) | 12 ملف `.yml` — كلها SHA-pinned | `ls .github/workflows/*.yml | wc -l` |
 | 6 | فجوات موثقة في السجل | 26 — محلولة 21 · مفتوحة 5 | `node scripts/readiness-report.js --offline` |

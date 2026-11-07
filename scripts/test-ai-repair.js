@@ -47,6 +47,20 @@ function jobBlocks(text) {
   return blocks;
 }
 
+// This is a narrow shape check, not proof against malicious workflow edits. The job must
+// be restricted before it checks out code and receives a provider credential.
+function assertLiveSmokeBoundary(workflow) {
+  const job = jobBlocks(workflow)['live-llm-smoke'];
+  assert.ok(job, 'live LLM smoke job is present');
+  const conditions = [...job.matchAll(/^ {4}if:\s*(.+)$/gm)];
+  assert.equal(conditions.length, 1, 'exactly one job-level condition is required');
+  assert.equal(conditions[0][1].trim(), "(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.LLM_SMOKE_ENABLED == 'true'");
+  assert.equal((String(workflow).match(/\$\{\{\s*secrets\.GEMINI_API_KEY\s*\}\}/g) || []).length, 1);
+  assert.match(job, /GEMINI_API_KEY:\s*\$\{\{\s*secrets\.GEMINI_API_KEY\s*\}\}/);
+  assert.match(job, /run:\s*node scripts\/live-llm-smoke\.js/);
+  assert.doesNotMatch(job, /^\s*ref:\s*\$\{\{/m, 'do not check out a different ref in the secret-bearing job');
+}
+
 let passed = 0;
 const failures = [];
 async function check(name, fn) {
@@ -184,6 +198,13 @@ const PATCH = [
   });
 
   /* -------------------------------------------------------------- workflow shape */
+  const ciWorkflow = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+  await check('the live smoke job is main-only, opt-in and never runs on PRs', () => {
+    assertLiveSmokeBoundary(ciWorkflow);
+    assert.throws(() => assertLiveSmokeBoundary(ciWorkflow.replace("github.ref == 'refs/heads/main'", "github.ref != 'refs/heads/main'")));
+    assert.throws(() => assertLiveSmokeBoundary(ciWorkflow.replace("vars.LLM_SMOKE_ENABLED == 'true'", "vars.LLM_SMOKE_ENABLED != 'true'")));
+    assert.throws(() => assertLiveSmokeBoundary(ciWorkflow.replace("github.event_name == 'push'", "github.event_name == 'pull_request'")));
+  });
   const triage = fs.readFileSync(path.join(ROOT, '.github/workflows/ci-error-triage.yml'), 'utf8');
   const repairFlow = fs.readFileSync(path.join(ROOT, '.github/workflows/ai-repair.yml'), 'utf8');
 

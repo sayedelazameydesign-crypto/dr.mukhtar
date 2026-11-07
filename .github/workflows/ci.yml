@@ -314,10 +314,10 @@ jobs:
           if [ -f package-lock.json ]; then npm audit --audit-level=high; else echo "No npm manifest: zero runtime dependencies by design — skipping audit."; fi
 
   live-llm-smoke:
-    # Optional provider probe: needs a repository secret, so it never runs for
-    # fork PRs (they cannot see secrets by design) and is opt-in for the repo owner.
+    # Never pass the provider credential to checked-out PR code, including same-repo PRs.
+    # Run only for main pushes or a dispatch on main, and only with explicit opt-in.
     name: live LLM smoke (optional)
-    if: github.event.pull_request.head.repo.fork != true
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.LLM_SMOKE_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
