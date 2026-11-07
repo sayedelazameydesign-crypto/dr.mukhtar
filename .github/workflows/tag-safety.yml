@@ -1,0 +1,42 @@
+name: Tag safety checks
+
+# Tags run only local tests here. No deployment, production credentials or live
+# provider calls. The workflow must exist in the tagged commit to run on push.
+on:
+  push:
+    tags: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tag-safety-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-safety:
+    name: Offline safety checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '20'
+
+      - name: Install locked test dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Tag workflow contract
+        run: node scripts/test-tag-safety-workflow.js
+
+      - name: Local test suite
+        run: npm test
+
+      - name: Local safety gates
+        run: npm run gates

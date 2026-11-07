@@ -199,6 +199,9 @@ jobs:
       - name: Trial reconciliation evidence model (synthetic only)
         run: node scripts/test-trial-reconciliation-model.js
 
+      - name: Tag safety workflow contract (static only)
+        run: node scripts/test-tag-safety-workflow.js
+
       - name: Status path inventory self-test (not a readiness gate)
         run: node scripts/test-path-parity-inventory.js
 
