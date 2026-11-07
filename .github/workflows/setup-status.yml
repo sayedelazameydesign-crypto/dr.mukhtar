@@ -95,6 +95,81 @@ jobs:
           }
           NODE
 
+  waapi-test-contact:
+    name: Test contact connection status (read-only)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '20'
+      - name: Verify the read-only probe using fake responses
+        run: node scripts/test-waapi-contact-status.js
+      # This test-only contact is read from existing public config; never print it,
+      # any returned account data, the instance ID, an exception, or the token.
+      - name: Compare the test contact and read client status
+        env:
+          WAAPI_API_TOKEN: ${{ secrets.WAAPI_API_TOKEN }}
+        run: |
+          node --input-type=commonjs <<'STATUS_CHECK'
+          (async () => {
+            const token = process.env.WAAPI_API_TOKEN;
+            const base = 'https://waapi.app/api/v1/instances';
+            function egyptian(raw) {
+              const text = String(raw || '').trim();
+              if (!/^\+?[0-9 ()-]{8,24}$/.test(text)) return '';
+              let digits = text.replace(/\D/g, '');
+              if (digits.startsWith('0020')) digits = digits.slice(2);
+              if (digits.startsWith('0')) digits = '20' + digits.slice(1);
+              return /^20(?:10|11|12|15)\d{8}$/.test(digits) ? digits : '';
+            }
+            async function get(url) {
+              const r = await fetch(url, { method: 'GET', redirect: 'error',
+                headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
+                signal: AbortSignal.timeout(15000) });
+              if (!r.ok || !/^application\/json(?:\s*;|\s*$)/i.test(r.headers.get('content-type') || '') || !r.body) throw new Error('unavailable');
+              const reader = r.body.getReader(); const decoder = new TextDecoder();
+              let size = 0; let text = '';
+              for (;;) {
+                const part = await reader.read();
+                if (part.done) break;
+                size += part.value.byteLength;
+                if (size > 1048576) { await reader.cancel(); throw new Error('large'); }
+                text += decoder.decode(part.value, { stream: true });
+              }
+              return JSON.parse(text + decoder.decode());
+            }
+            try {
+              if (!token || !token.trim()) throw new Error('unavailable');
+              const config = JSON.parse(require('node:fs').readFileSync('clinic.json', 'utf8'));
+              const expected = egyptian(config.developerPhone);
+              if (!expected) throw new Error('unavailable');
+              const list = await get(base);
+              if (list.status !== 'success' || !Array.isArray(list.instances) || list.instances.length !== 1) throw new Error('unavailable');
+              const rawId = list.instances[0] && list.instances[0].id;
+              const id = typeof rawId === 'number' && Number.isSafeInteger(rawId) ? String(rawId) : typeof rawId === 'string' ? rawId : '';
+              if (!/^[1-9]\d{0,18}$/.test(id)) throw new Error('unavailable');
+              const me = await get(base + '/' + id + '/client/me');
+              if (me.status !== 'success' || !me.me || me.me.status !== 'success' || String(me.me.instanceId) !== id ||
+                  !me.me.data || egyptian(me.me.data.formattedNumber) !== expected) throw new Error('unavailable');
+              const observed = await get(base + '/' + id + '/client/status');
+              if (observed.status !== 'success' || !observed.clientStatus || observed.clientStatus.status !== 'success' ||
+                  String(observed.clientStatus.instanceId) !== id ||
+                  !['booting', 'loading_screen', 'qr', 'authenticated', 'auth_failure', 'ready', 'disconnected'].includes(observed.clientStatus.instanceStatus)) throw new Error('unavailable');
+              console.log(observed.clientStatus.instanceStatus === 'ready' ? '::notice title=Test contact status::CONNECTED' : '::notice title=Test contact status::NOT_READY');
+            } catch (_) {
+              console.error('::error title=Test contact status::UNKNOWN');
+              process.exitCode = 1;
+            }
+          })();
+          STATUS_CHECK
+
   report:
     name: declared vs configured
     runs-on: ubuntu-latest
