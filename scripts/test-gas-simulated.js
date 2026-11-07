@@ -320,8 +320,10 @@ assert.ok(slotsAfterApproval.slots.length > 0, 'the rest of the day stays bookab
 
 // A failed Sheet status write after Calendar creation must be recoverable without a duplicate event.
 const recoverable = assertSaved(request('11:00'), 'recovery request');
+assert.equal(context.getAvailableSlots(day, 'كشف جديد').slots.includes('11:00'), true, 'prime the stale cache before the failed write');
 sheets.get('Requests').failNextSet = true;
 assert.equal(context.approveRequest(recoverable.reference, pin).ok, false, 'first attempt reports incomplete persistence');
+assert.equal(context.getAvailableSlots(day, 'كشف جديد').slots.includes('11:00'), false, 'a partial write invalidates the availability cache');
 const countAfterPartialFailure = calendar.events.filter((event) => !event.deleted).length;
 assert.equal(context.approveRequest(recoverable.reference, pin).ok, true, 'retry completes the confirmation');
 assert.equal(calendar.events.filter((event) => !event.deleted).length, countAfterPartialFailure, 'retry reuses the prior event');
@@ -337,6 +339,72 @@ assert.equal(context.cancelRequest(recoverable.reference, 'اختبار', pin).o
 assert.equal(context.getAvailableSlots(day, 'كشف جديد').slots.includes('12:00'), true,
   'a cancelled appointment returns its time to the slot list at once');
 assert.equal(calendar.events.filter((event) => !event.deleted).length, 1, 'cancellation removes the event');
+
+// Read-back failure must not claim confirmation, and retry must reuse the event.
+const notVisible = assertSaved(request('12:00', 'متابعة'), 'read-back request');
+const originalGetEvent = calendar.getEventById;
+calendar.getEventById = () => null;
+assert.equal(context.approveRequest(notVisible.reference, pin).ok, false, 'missing read-back denies confirmation');
+assert.equal(context.findRequest_(notVisible.reference).status, 'PENDING_APPROVAL', 'the sheet stays pending');
+const afterReadFailure = calendar.events.filter((event) => !event.deleted).length;
+calendar.getEventById = originalGetEvent;
+assert.equal(context.approveRequest(notVisible.reference, pin).ok, true, 'retry confirms the saved event');
+assert.equal(calendar.events.filter((event) => !event.deleted).length, afterReadFailure, 'read-back retry creates no duplicate');
+assert.equal(context.cancelRequest(notVisible.reference, 'اختبار', pin).ok, true);
+
+// An ambiguous timeout is recovered automatically only when the exact event exists.
+const uncertain = assertSaved(request('12:00', 'متابعة'), 'ambiguous create request');
+assert.equal(context.getAvailableSlots(day, 'متابعة').slots.includes('12:00'), true, 'prime the cache before the timeout');
+const beforeTimeout = calendar.events.filter((event) => !event.deleted).length;
+calendar.onCreate = () => { throw new Error('simulated ambiguous Calendar timeout'); };
+assert.equal(context.approveRequest(uncertain.reference, pin).ok, true, 'matching saved event recovers without a second approval');
+assert.equal(calendar.events.filter((event) => !event.deleted).length, beforeTimeout + 1, 'automatic recovery creates exactly one event');
+assert.equal(context.getAvailableSlots(day, 'متابعة').slots.includes('12:00'), false, 'timeout clears cached availability');
+assert.equal(context.cancelRequest(uncertain.reference, 'اختبار', pin).ok, true);
+
+const notCreated = assertSaved(request('12:00', 'متابعة'), 'failed create request');
+calendar.onCreate = (event) => { event.deleteEvent(); throw new Error('simulated Calendar failure'); };
+assert.equal(context.approveRequest(notCreated.reference, pin).ok, false, 'no event means no confirmation');
+assert.equal(context.findRequest_(notCreated.reference).status, 'PENDING_APPROVAL');
+assert.equal(context.approveRequest(notCreated.reference, pin).ok, true, 'a later retry can create and verify the event');
+assert.equal(context.cancelRequest(notCreated.reference, 'اختبار', pin).ok, true);
+
+// A concurrent Calendar edit must be rechecked after creating the event.
+const conflictDuringSave = assertSaved(request('12:00', 'متابعة'), 'conflict during save');
+let externalConflict;
+calendar.onCreate = (event) => {
+  externalConflict = calendar.createEvent('external', event.start, event.end, { description: '' });
+};
+assert.equal(context.approveRequest(conflictDuringSave.reference, pin).ok, false, 'new external conflict blocks confirmation');
+assert.equal(context.findRequest_(conflictDuringSave.reference).status, 'PENDING_APPROVAL');
+externalConflict.deleteEvent();
+assert.equal(context.approveRequest(conflictDuringSave.reference, pin).ok, true, 'retry works after the conflict is resolved');
+assert.equal(context.cancelRequest(conflictDuringSave.reference, 'اختبار', pin).ok, true);
+
+// A changed event is refused and must be corrected before it can be confirmed.
+const mismatch = assertSaved(request('12:00', 'متابعة'), 'mismatched event request');
+let alteredEvent;
+calendar.onCreate = (event) => { alteredEvent = event; event.end = new Date(event.end.getTime() + 60000); };
+assert.equal(context.approveRequest(mismatch.reference, pin).ok, false, 'wrong saved duration denies confirmation');
+assert.equal(context.findRequest_(mismatch.reference).status, 'PENDING_APPROVAL');
+assert.equal(context.approveRequest(mismatch.reference, pin).ok, false, 'retry refuses the mismatched event');
+alteredEvent.end = new Date(alteredEvent.end.getTime() - 60000);
+assert.equal(context.approveRequest(mismatch.reference, pin).ok, true, 'corrected event can be confirmed');
+assert.equal(context.cancelRequest(mismatch.reference, 'اختبار', pin).ok, true);
+
+// Marker matching must be exact and duplicates must never be silently selected.
+const fakeMarker = (description) => ({ getDescription: () => description });
+assert.equal(context.calendarEventHasReference_(fakeMarker('مرجع إداري: CK-1234567'), 'CK-123456'), false, 'a prefix is not the reference');
+assert.equal(context.calendarEventHasReference_(fakeMarker('مرجع إداري: CK-123456\nبيانات طبية: غير محفوظة.'), 'CK-123456'), true);
+const ambiguous = assertSaved(request('12:00', 'متابعة'), 'duplicate event request');
+const duplicateStart = context.makeDate_(day, '12:00');
+const duplicateEnd = new Date(duplicateStart.getTime() + 30 * 60000);
+const duplicateA = calendar.createEvent('test', duplicateStart, duplicateEnd, { description: 'مرجع إداري: ' + ambiguous.reference });
+const duplicateB = calendar.createEvent('test', duplicateStart, duplicateEnd, { description: 'مرجع إداري: ' + ambiguous.reference });
+assert.equal(context.approveRequest(ambiguous.reference, pin).ok, false, 'ambiguous duplicate events require human review');
+assert.equal(context.findRequest_(ambiguous.reference).status, 'PENDING_APPROVAL');
+duplicateA.deleteEvent();
+duplicateB.deleteEvent();
 
 // Calendar outage leaves a REQUESTED record, not a false confirmation.
 calendarUp = false;

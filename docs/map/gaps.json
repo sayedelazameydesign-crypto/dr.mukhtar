@@ -333,9 +333,9 @@
       "type": "architectural_drift",
       "status": "open",
       "severity": "med",
-      "evidence": "5 functions in boundaries.json are exempted from the pure-layer rule with a named reason; reconcile (orphaned Calendar events) and verify (event time re-read before CONFIRMED) are absent from approveRequest",
-      "impact": "A run that dies between createEvent and updateRequestRow_ leaves a Calendar event with no CONFIRMED row, and nothing looks for it; a drift in the pure layer would not fail any behavioural test",
-      "fix": "post-G23, as separate changes: (a) extract readVisitServices_ out of validateRequest_, (b) re-read the event time before CONFIRMED, (c) a reconcile pass matching CK- references in the calendar against Sheets rows",
+      "evidence": "5 functions in boundaries.json remain exempted from the pure-layer rule; approval now re-reads event identity, exact reference and times before CONFIRMED in offline simulation, but there is no independent orphan reconciliation or live verification",
+      "impact": "A run that dies between createEvent and updateRequestRow_ can leave a Calendar event without a CONFIRMED row; a later approval attempt may recover a matching event in its search window, but nothing independently reports or reconciles orphans outside that path",
+      "fix": "As separate changes: (a) extract readVisitServices_ out of validateRequest_, (b) verify event read-back in a real account, (c) add a reconcile pass matching CK- references in the calendar against Sheets rows without deleting ambiguous events",
       "evidence_needed": "scripts/check-architecture-boundaries.js printing 0 named exemptions, plus a reconcile test that seeds an orphan event and sees it reported"
     }
   ],

@@ -84,7 +84,7 @@
 | G23 | unverified_behaviour | med | **OPEN** | .github/workflows/ai-repair.yml and ci-error-triage.yml were on the PR branch only; GitHub refuses `gh workflow run` for a workflow absent from the default branch (HTTP 404). They merged in 01c90ba, so the technical blocker is gone and the remaining requirement is a completed run, not a merge |
 | G24 | docs_drift | med | **resolved** | node scripts/check-audit-doc.js → 'Audit gate passed: 16 threat rows, 31 file:line citations, all resolvable.' and the gate runs in CI as 'Threat-model citations resolve and are backed by tests' |
 | G25 | security | high | **resolved** | scripts/test-privacy-health.js: 'a prefix of the secret is not accepted', 'a prefix of the health token does not open the uptime endpoint', 'a prefix of the staff PIN digest does not unlock the dashboard' — all three fail against the old comparison and pass after Code.gs:992 compares length first. |
-| G26 | architectural_drift | med | **OPEN** | 5 functions in boundaries.json are exempted from the pure-layer rule with a named reason; reconcile (orphaned Calendar events) and verify (event time re-read before CONFIRMED) are absent from approveRequest |
+| G26 | architectural_drift | med | **OPEN** | 5 functions in boundaries.json remain exempted from the pure-layer rule; approval now re-reads event identity, exact reference and times before CONFIRMED in offline simulation, but there is no independent orphan reconciliation or live verification |
 
 ## نتيجة تشغيل التقرير
 
