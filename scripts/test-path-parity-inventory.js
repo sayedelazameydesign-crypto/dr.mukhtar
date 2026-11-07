@@ -1,0 +1,23 @@
+#!/usr/bin/env node
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { scan, FILES, CHECKPOINTS } = require('./path-parity-inventory');
+const sources = Object.fromEntries(FILES.map((file) => [file, fs.readFileSync(path.join(__dirname, '..', file), 'utf8')]));
+const result = scan(sources);
+assert.equal(result.code, 'MANUAL_REVIEW_REQUIRED');
+assert.equal(result.ok, false, 'inventory never claims readiness');
+assert.equal(result.checkpoints.length, CHECKPOINTS.length);
+assert.ok(result.hits.some((hit) => hit.file === 'Code.gs'));
+assert.ok(result.hits.some((hit) => hit.file === 'Settings.gs'));
+assert.ok(result.hits.some((hit) => hit.file === 'app.js'));
+assert.ok(result.checkpoints.every((item) => item.state === 'MANUAL_REVIEW_REQUIRED'));
+assert.equal(scan({ ...sources, 'Staff.gs': undefined }).code, 'SOURCE_MISSING', 'missing files fail closed');
+const empty = scan(Object.fromEntries(FILES.map((file) => [file, ''])));
+assert.equal(empty.ok, false, 'zero matches never means compatible');
+assert.ok(empty.checkpoints.every((item) => item.line === null));
+const synthetic = scan({ ...sources, 'Staff.gs': '\nconst candidate = item.status;\nconst statusText = {};\n' });
+assert.ok(synthetic.hits.some((hit) => hit.file === 'Staff.gs' && hit.line === 2));
+assert.ok(synthetic.hits.some((hit) => hit.file === 'Staff.gs' && hit.line === 3));
+console.log('Path-parity inventory tests passed (lexical inventory only; compatibility remains unverified).');

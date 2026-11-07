@@ -181,6 +181,27 @@ jobs:
       - name: Backend simulation tests
         run: node scripts/test-gas-simulated.js
 
+      - name: Operational slot decision model (offline only)
+        run: node scripts/test-operational-slot-model.js
+
+      - name: Cairo slot decision model (local only)
+        run: node scripts/test-cairo-slot-model.js
+
+      - name: Operational slot fault specification (in-memory only)
+        run: node scripts/test-operational-slot-faults.js
+
+      - name: Trial ledger shape (synthetic only)
+        run: node scripts/test-trial-ledger-model.js
+
+      - name: Local path refinement prototype (not GAS)
+        run: node scripts/test-path-refinement-model.js
+
+      - name: Trial reconciliation evidence model (synthetic only)
+        run: node scripts/test-trial-reconciliation-model.js
+
+      - name: Status path inventory self-test (not a readiness gate)
+        run: node scripts/test-path-parity-inventory.js
+
       - name: LLM adapter + config tests
         run: node scripts/test-llm-adapter.js
 

@@ -1282,4 +1282,40 @@ assert.equal(context.getDashboard(secondOwnerLogin.token).ok, true, 'the remaini
 context.logout(ownerLogin.token);
 assert.equal(context.listStaff(ownerLogin.token).ok, false, 'a logged-out token is dead');
 
+// Ten distinct guardians can request one slot; only approval creates an event.
+// This is deliberately NOT a fetchAll or a real concurrent test. The fake lock rejects
+// nested calls immediately, rather than waiting as Apps Script tryLock can. Exercise
+// the contention branch and then retry the other approvals after the first completes.
+for (let round = 0; round < 3; round += 1) {
+  const date = new Date(day + 'T12:00:00');
+  date.setDate(date.getDate() + 21 + round * 7);
+  const fixtureDay = date.toISOString().slice(0, 10);
+  const beforeEvents = calendar.events.filter((event) => !event.deleted).length;
+  const requests = Array.from({ length: 10 }, (_, index) => {
+    const phone = `0100000${String(++parentNumber).padStart(4, '0')}`;
+    return assertSaved(context.createRequest({
+      visitType: 'كشف جديد', guardianName: 'ولي أمر تجريبي', phone,
+      day: fixtureDay, time: '12:00', consent: true
+    }), `round ${round + 1}, request ${index + 1}`);
+  });
+  assert.equal(new Set(requests.map((booking) => booking.reference)).size, 10, 'all request references are distinct');
+  assert.ok(requests.every((booking) => booking.status === 'PENDING_APPROVAL'), 'same-slot requests remain pending');
+  assert.equal(calendar.events.filter((event) => !event.deleted).length, beforeEvents, 'intake creates no event');
+
+  let overlaps = [];
+  calendar.onCreate = () => {
+    overlaps = requests.slice(1).map((booking) => context.approveRequest(booking.reference, secondOwnerLogin.token));
+  };
+  assert.equal(context.approveRequest(requests[0].reference, secondOwnerLogin.token).ok, true, 'first approval succeeds');
+  assert.equal(overlaps.length, 9, 'nine nested approval attempts exercise the fake lock');
+  assert.ok(overlaps.every((result) => !result.ok && /قيد المعالجة/.test(result.message)), 'nested attempts encounter the held lock');
+  const later = requests.slice(1).map((booking) => context.approveRequest(booking.reference, secondOwnerLogin.token));
+  assert.ok(later.every((result) => !result.ok && /لم يعد متاح/.test(result.message)), 'later approvals fail the Calendar conflict check');
+  const states = requests.map((booking) => context.findRequest_(booking.reference));
+  assert.equal(states.filter((record) => record.status === 'CONFIRMED').length, 1, 'exactly one is confirmed in this simulation');
+  assert.equal(states.filter((record) => record.status === 'PENDING_APPROVAL').length, 9, 'other requests stay pending');
+  assert.equal(calendar.events.filter((event) => !event.deleted).length, beforeEvents + 1, 'one event created for the slot');
+}
+console.log('Ten-request simulation: 3 rounds, nested lock contention and sequential conflict checks (not real concurrency).');
+
 console.log('Reminder: these mocked-service tests do not establish Google quotas, permissions, live deployment behavior, or legal readiness.');
