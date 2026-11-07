@@ -14,11 +14,11 @@
 |---|-----------|---------------------|----------------|
 | 1 | حجم الموقع الثابت كاملًا (`_site` المسموح) | 604,011 بايت | `du -sb index.html privacy.html app.css app.js 404.html manifest.webmanifest robots.txt sitemap.xml clinic.json brand.svg assets` |
 | 2 | `app.js` (واجهة كاملة، بلا bundler) | 115,831 بايت | `wc -c app.js` |
-| 3 | ملفات التوثيق تحت `docs/` | 41 ملف · 554,584 بايت | `find docs -name '*.md' | wc -l` |
+| 3 | ملفات التوثيق تحت `docs/` | 41 ملف · 556,262 بايت | `find docs -name '*.md' | wc -l` |
 | 4 | ملفات الفحص تحت `scripts/` | 19 ملف `test-*.js` | `ls scripts/test-*.js | wc -l` |
 | 5 | مسارات CI (سير العمل) | 12 ملف `.yml` — كلها SHA-pinned | `ls .github/workflows/*.yml | wc -l` |
 | 6 | فجوات موثقة في السجل | 26 — محلولة 21 · مفتوحة 5 | `node scripts/readiness-report.js --offline` |
-| 7 | مكوّنات وعلاقات خريطة المعمارية | 151 مكوّن · 95 علاقة · 22 نقطة دخول | `node -e "const p=require('./docs/map/project.json');console.log(p.nodes.length,p.edges.length,p.entrypoints.length)"` |
+| 7 | مكوّنات وعلاقات خريطة المعمارية | 152 مكوّن · 95 علاقة · 22 نقطة دخول | `node -e "const p=require('./docs/map/project.json');console.log(p.nodes.length,p.edges.length,p.entrypoints.length)"` |
 | 8 | تهديدات STRIDE موثقة | 16 صف · 12 مُسيطر · 0 حرجة مفتوحة | `grep -cE '^\| T-' docs/audit/threat-model-2026-11.md` |
 | 9 | فحوص الخصوصية/الاحتفاظ | 24 فحصًا — تشغيل 2026-11-06 ✅ | `node scripts/test-privacy-health.js` |
 | 10 | محاكاة Apps Script (انقطاعات + منافسة قفل) | تمر — شاملة طابورَي الانقطاع ورفض الامتلاء | `node scripts/test-gas-simulated.js` |

@@ -29,6 +29,7 @@ const ENV_SPECS = [
   { name: 'GOOGLE_REFRESH_TOKEN_DEV', secret: true, required: false, pattern: /^1\/\//, hint: 'per-profile token from scripts/google/auth.js' },
   // WhatsApp adapter (docs/prd/whatsapp-cloud-api.md). Optional everywhere: the adapter ships
   // OFF, so CI and every fresh clone validate without a provider credential.
+  { name: 'WAAPI_API_TOKEN', secret: true, required: false, pattern: null, hint: 'manual GitHub Actions read-only WAAPI check' },
   { name: 'WHATSAPP_MODE', secret: false, required: false, pattern: /^(off|dry-run|live)$/, hint: 'off | dry-run | live (default off)' },
   { name: 'WHATSAPP_TOKEN', secret: true, required: false, pattern: /^[A-Za-z0-9_-]{20,}$/, hint: 'Meta WhatsApp Cloud API runtime token; Script Properties only' },
   { name: 'WHATSAPP_PHONE_NUMBER_ID', secret: false, required: false, pattern: /^[0-9]{5,25}$/, hint: 'digits only, from the Meta dashboard' },
