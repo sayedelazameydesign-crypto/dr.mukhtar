@@ -16,7 +16,7 @@ const id = '777';
 const list = { status: 'success', instances: [{ id: 777, owner: 'fixture-private-owner' }] };
 const me = { status: 'success', me: { status: 'success', instanceId: id, data: { formattedNumber: '+20 11 0000 0000', private: 'fixture-private-contact' } } };
 const status = { status: 'success', clientStatus: { status: 'success', instanceId: id, instanceStatus: 'ready', instanceWebhook: 'fixture-private-webhook' } };
-async function check(name, overrides, expected, expectedCode) {
+async function check(name, overrides, expected, expectedCode, expectedStage) {
   const calls = []; const output = [];
   const data = { [prefix]: list, [`${prefix}/${id}/client/me`]: me, [`${prefix}/${id}/client/status`]: status, ...overrides };
   const fakeProcess = { env: { WAAPI_API_TOKEN: secret }, exitCode: 0 };
@@ -35,7 +35,8 @@ async function check(name, overrides, expected, expectedCode) {
   }, fakeProcess, { log: (s) => output.push(s), error: (s) => output.push(s) }, AbortSignal, fakeRequire);
   if (expected === 'UNKNOWN') {
     assert.equal(output.length, 1, name);
-    assert.match(output[0], /^::error title=Test contact status::UNKNOWN \((?:CONFIG|INSTANCE_LIST_READ|INSTANCE_LIST_SHAPE|INSTANCE_COUNT|INSTANCE_ID|CLIENT_INFO_READ|CLIENT_INFO_SHAPE|CONTACT_MISMATCH|CLIENT_STATUS_READ|CLIENT_STATUS_SHAPE)\)$/, name);
+    assert.match(output[0], /^::error title=Test contact status::UNKNOWN \((?:CONFIG|INSTANCE_LIST_READ|INSTANCE_LIST_SHAPE|INSTANCE_NONE|INSTANCE_MULTIPLE|INSTANCE_ID|CLIENT_INFO_READ|CLIENT_INFO_SHAPE|CONTACT_MISMATCH|CLIENT_STATUS_READ|CLIENT_STATUS_SHAPE)\)$/, name);
+    if (expectedStage) assert.equal(output[0], `::error title=Test contact status::UNKNOWN (${expectedStage})`, name);
   } else assert.deepEqual(output, [`::notice title=Test contact status::${expected}`], name);
   assert.equal(fakeProcess.exitCode, expectedCode, name);
   assert.ok(!output.join('').includes(secret) && !output.join('').includes(phone) && !output.join('').includes('fixture-private') && !output.join('').includes(id));
@@ -45,8 +46,8 @@ async function check(name, overrides, expected, expectedCode) {
   assert.equal((await check('matching ready', {}, 'CONNECTED', 0)).length, 3);
   await check('matching disconnected', { [`${prefix}/${id}/client/status`]: { ...status, clientStatus: { ...status.clientStatus, instanceStatus: 'disconnected' } } }, 'NOT_READY', 0);
   await check('another contact', { [`${prefix}/${id}/client/me`]: { ...me, me: { ...me.me, data: { formattedNumber: '+20 10 0000 0000' } } } }, 'UNKNOWN', 1);
-  await check('multiple instances', { [prefix]: { status: 'success', instances: [{ id: 777 }, { id: 888 }] } }, 'UNKNOWN', 1);
-  await check('missing instances', { [prefix]: { status: 'success', instances: [] } }, 'UNKNOWN', 1);
+  await check('multiple instances', { [prefix]: { status: 'success', instances: [{ id: 777 }, { id: 888 }] } }, 'UNKNOWN', 1, 'INSTANCE_MULTIPLE');
+  await check('missing instances', { [prefix]: { status: 'success', instances: [] } }, 'UNKNOWN', 1, 'INSTANCE_NONE');
   await check('invalid instance', { [prefix]: { status: 'success', instances: [{ id: '../other' }] } }, 'UNKNOWN', 1);
   await check('mismatched identity', { [`${prefix}/${id}/client/me`]: { ...me, me: { ...me.me, instanceId: '888' } } }, 'UNKNOWN', 1);
   await check('provider status error', { [`${prefix}/${id}/client/status`]: { ...status, clientStatus: { ...status.clientStatus, status: 'error' } } }, 'UNKNOWN', 1);

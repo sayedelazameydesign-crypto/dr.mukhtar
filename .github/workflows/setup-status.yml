@@ -155,7 +155,7 @@ jobs:
               const list = await get(base);
               stage = 'INSTANCE_LIST_SHAPE';
               if (list.status !== 'success' || !Array.isArray(list.instances)) throw new Error('unavailable');
-              stage = 'INSTANCE_COUNT';
+              stage = list.instances.length === 0 ? 'INSTANCE_NONE' : 'INSTANCE_MULTIPLE';
               if (list.instances.length !== 1) throw new Error('unavailable');
               stage = 'INSTANCE_ID';
               const rawId = list.instances[0] && list.instances[0].id;
