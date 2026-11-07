@@ -352,9 +352,12 @@ npx @google/clasp version "2026 · واجهة مبسطة"
 افتح المحرر ← **Deploy** ← **Manage deployments** ← ✏️ على النشر الحالي ←
 **Version: النسخة الجديدة** ← **Deploy**. الرابط يبقى كما هو، والمحتوى يتحدّث.
 
-**بديل دائم بضغطة (اختياري، مجاني أيضًا):** أضف سرًّا باسم `CLASPRC_JSON` في
-`Settings → Secrets → Actions` بمحتوى `~/.clasprc.json` بعد `clasp login`،
-شغّل workflow يدويًا: `.github/workflows/deploy-gas.yml` (يُنشأ لك عند الطلب).
+**بديل دائم بضغطة (اختياري، مجاني أيضًا):** الworkflow `.github/workflows/deploy-gas.yml`
+جاهز الآن. أضِف إليه ثلاثة أسماء فقط في `Settings → Secrets and variables → Actions`:
+`CLASPRC_JSON` (سرّ، محتوى `~/.clasprc.json`)، و`GAS_SCRIPT_ID` و`GAS_DEPLOYMENT_ID` (متغيّرا
+مستودع، معرّفان عامّان من Project Settings ومن رابط `/exec`). بعدها: **Actions → Deploy to
+Apps Script → Run workflow**، فيتولّى البناء والدفع وإعادة توجيه النشر نفسه إلى النسخة الجديدة.
+لا يمرّ السر عبر السجلّات، ويُحذف ملف الاعتماد في آخر الخطوات.
 
 **تحقّق بعد النشر:** افتح الرابط، تأكد من ظهور «خدمات إضافية» أسفل النموذج،
 وقسم «مواعيد الأسبوع» مطويًّا في لوحة العيادة — هما علامتان على أن النسخة الجديدة هي المعروضة.

@@ -1,0 +1,89 @@
+name: Deploy to Apps Script
+
+# Manual only, on purpose: publishing is a decision, never a side effect of a push.
+# It pushes this repository's gas/ bundle and repoints the EXISTING web-app deployment,
+# so the URL already shared with the clinic keeps working. Free: Apps Script is inside
+# the Google quota and clasp is open source — no billing account is involved.
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: 'Version label (kept in the Apps Script version history)'
+        required: true
+        default: 'Celia Kids — publish'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-gas
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Push bundle and update the live URL
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Build the Apps Script bundle
+        run: python3 scripts/build-gas-package.py
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ vars.NODE_VERSION }}
+
+      - name: Confirm both identifiers are configured
+        env:
+          GAS_SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}
+          GAS_DEPLOYMENT_ID: ${{ vars.GAS_DEPLOYMENT_ID }}
+        run: |
+          if [ -z "$GAS_SCRIPT_ID" ]; then
+            echo '::error::Add repository variable GAS_SCRIPT_ID (Apps Script → Project Settings → Script ID).'
+            exit 1
+          fi
+          if [ -z "$GAS_DEPLOYMENT_ID" ]; then
+            echo '::error::Add repository variable GAS_DEPLOYMENT_ID (the ID inside the published /exec URL).'
+            exit 1
+          fi
+          echo "Both identifiers are present. Values are not printed."
+
+      - name: Write clasp credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then
+            echo '::error::Add repository secret CLASPRC_JSON (contents of ~/.clasprc.json after clasp login).'
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          echo "Credentials file written (mode 600). Contents never logged."
+
+      - name: Bind this folder to the Apps Script project
+        env:
+          GAS_SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}
+        run: printf '{"scriptId":"%s","rootDir":"gas"}\n' "$GAS_SCRIPT_ID" > .clasp.json
+
+      - name: Push gas/ to the project
+        run: npx --yes @google/clasp@2.4.2 push --force
+
+      - name: Create a version and update the live deployment
+        env:
+          GAS_DEPLOYMENT_ID: ${{ vars.GAS_DEPLOYMENT_ID }}
+          LABEL: ${{ inputs.label }}
+        run: |
+          npx --yes @google/clasp@2.4.2 deploy \
+            --deploymentId "$GAS_DEPLOYMENT_ID" \
+            --description "$LABEL"
+
+      - name: Remove the credentials file
+        if: always()
+        run: rm -f "$HOME/.clasprc.json" .clasp.json
