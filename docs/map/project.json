@@ -891,7 +891,7 @@
       "path": "config/.env.example",
       "lang": "env",
       "layer": "infra",
-      "role": "Optional secret name; manual presence check only"
+      "role": "Optional secret name; manual read-only WAAPI check"
     },
     {
       "id": "env.WHATSAPP_TOKEN",
