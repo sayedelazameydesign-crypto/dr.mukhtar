@@ -145,26 +145,39 @@ jobs:
               }
               return JSON.parse(text + decoder.decode());
             }
+            let stage = 'CONFIG';
             try {
               if (!token || !token.trim()) throw new Error('unavailable');
               const config = JSON.parse(require('node:fs').readFileSync('clinic.json', 'utf8'));
               const expected = egyptian(config.developerPhone);
               if (!expected) throw new Error('unavailable');
+              stage = 'INSTANCE_LIST_READ';
               const list = await get(base);
-              if (list.status !== 'success' || !Array.isArray(list.instances) || list.instances.length !== 1) throw new Error('unavailable');
+              stage = 'INSTANCE_LIST_SHAPE';
+              if (list.status !== 'success' || !Array.isArray(list.instances)) throw new Error('unavailable');
+              stage = 'INSTANCE_COUNT';
+              if (list.instances.length !== 1) throw new Error('unavailable');
+              stage = 'INSTANCE_ID';
               const rawId = list.instances[0] && list.instances[0].id;
               const id = typeof rawId === 'number' && Number.isSafeInteger(rawId) ? String(rawId) : typeof rawId === 'string' ? rawId : '';
               if (!/^[1-9]\d{0,18}$/.test(id)) throw new Error('unavailable');
+              stage = 'CLIENT_INFO_READ';
               const me = await get(base + '/' + id + '/client/me');
-              if (me.status !== 'success' || !me.me || me.me.status !== 'success' || String(me.me.instanceId) !== id ||
-                  !me.me.data || egyptian(me.me.data.formattedNumber) !== expected) throw new Error('unavailable');
+              stage = 'CLIENT_INFO_SHAPE';
+              if (me.status !== 'success' || !me.me || me.me.status !== 'success' || String(me.me.instanceId) !== id || !me.me.data) throw new Error('unavailable');
+              const actual = egyptian(me.me.data.formattedNumber);
+              if (!actual) throw new Error('unavailable');
+              stage = 'CONTACT_MISMATCH';
+              if (actual !== expected) throw new Error('unavailable');
+              stage = 'CLIENT_STATUS_READ';
               const observed = await get(base + '/' + id + '/client/status');
+              stage = 'CLIENT_STATUS_SHAPE';
               if (observed.status !== 'success' || !observed.clientStatus || observed.clientStatus.status !== 'success' ||
                   String(observed.clientStatus.instanceId) !== id ||
                   !['booting', 'loading_screen', 'qr', 'authenticated', 'auth_failure', 'ready', 'disconnected'].includes(observed.clientStatus.instanceStatus)) throw new Error('unavailable');
               console.log(observed.clientStatus.instanceStatus === 'ready' ? '::notice title=Test contact status::CONNECTED' : '::notice title=Test contact status::NOT_READY');
             } catch (_) {
-              console.error('::error title=Test contact status::UNKNOWN');
+              console.error('::error title=Test contact status::UNKNOWN (' + stage + ')');
               process.exitCode = 1;
             }
           })();

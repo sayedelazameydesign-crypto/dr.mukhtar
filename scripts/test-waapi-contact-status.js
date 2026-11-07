@@ -33,7 +33,10 @@ async function check(name, overrides, expected, expectedCode) {
     if (body === 'TOO_LARGE') return new Response('x'.repeat(1048577), { status: 200, headers: { 'content-type': 'application/json' } });
     return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
   }, fakeProcess, { log: (s) => output.push(s), error: (s) => output.push(s) }, AbortSignal, fakeRequire);
-  assert.deepEqual(output, [`::${expected === 'UNKNOWN' ? 'error' : 'notice'} title=Test contact status::${expected}`], name);
+  if (expected === 'UNKNOWN') {
+    assert.equal(output.length, 1, name);
+    assert.match(output[0], /^::error title=Test contact status::UNKNOWN \((?:CONFIG|INSTANCE_LIST_READ|INSTANCE_LIST_SHAPE|INSTANCE_COUNT|INSTANCE_ID|CLIENT_INFO_READ|CLIENT_INFO_SHAPE|CONTACT_MISMATCH|CLIENT_STATUS_READ|CLIENT_STATUS_SHAPE)\)$/, name);
+  } else assert.deepEqual(output, [`::notice title=Test contact status::${expected}`], name);
   assert.equal(fakeProcess.exitCode, expectedCode, name);
   assert.ok(!output.join('').includes(secret) && !output.join('').includes(phone) && !output.join('').includes('fixture-private') && !output.join('').includes(id));
   return calls;
