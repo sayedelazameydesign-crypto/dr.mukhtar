@@ -22,7 +22,7 @@ const properties = new Map([
   ['SLOT_MINUTES', '30'],
   ['WORK_DAYS', '0,1,2,3,4'],
   ['GEMINI_API_KEY', 'fake-key'],
-  ['GEMINI_MODEL', 'gemini-test-model'],
+  ['GEMINI_MODEL', 'gemini-3.5-flash-lite'],
   ['LLM_RETRIES', '2'],
   ['LLM_BACKOFF_BASE_MS', '100'],
   ['LLM_BACKOFF_MAX_MS', '200'],
@@ -129,7 +129,7 @@ test('answers through the adapter without exposing the provider to the domain', 
   assert.equal(out.ok, true);
   assert.equal(out.answer, 'إجابة إدارية تجريبية.');
   assert.equal(requests.length, 1);
-  assert.match(requests[0].url, /gemini-test-model/);
+  assert.match(requests[0].url, /gemini-3\.5-flash-lite/);
   assert.equal(requests[0].options.headers['x-goog-api-key'], 'fake-key');
 });
 
@@ -289,6 +289,100 @@ test('llmStatus exposes limits but never the key', () => {
   assert.equal(status.enabled, true);
   assert.ok(!json.includes('fake-key'), 'API key must never be surfaced');
   assert.equal(status.dailyLimit, 3);
+});
+
+test('the shipped default model is the documented free-tier Flash-Lite id', () => {
+  // The value a clinic gets when it pastes a key and sets nothing else.
+  const provider = JSON.parse(vm.runInContext('JSON.stringify(LLM.PROVIDERS.gemini.defaultModel)', context));
+  assert.equal(provider, 'gemini-3.5-flash-lite');
+  assert.equal(context.llmModelProblem_(provider), '', 'the default must satisfy its own pattern');
+});
+
+test('a malformed model id is refused before the network, not after a 404', () => {
+  const saved = properties.get('GEMINI_MODEL');
+  const bad = [
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite',
+    'gemini',
+    'gemini-flash',
+    'Gemini-3.5-Flash-Lite',
+    'gemini 3.5 flash lite',
+    'gemini-3.5-flash-lite/'
+  ];
+  try {
+    for (const id of bad) {
+      properties.set('GEMINI_MODEL', id);
+      reset();
+      const out = context.llmAnswer_('كيف أحجز؟');
+      assert.equal(out.ok, false, `${JSON.stringify(id)} must be refused`);
+      assert.equal(out.code, 'INVALID_MODEL', `${JSON.stringify(id)} must be typed, not a provider 404`);
+      assert.equal(requests.length, 0, `${JSON.stringify(id)} must never reach the provider`);
+    }
+  } finally {
+    if (saved === undefined) properties.delete('GEMINI_MODEL'); else properties.set('GEMINI_MODEL', saved);
+  }
+});
+
+test('an empty GEMINI_MODEL means "unset", so the shipped default is used', () => {
+  const saved = properties.get('GEMINI_MODEL');
+  try {
+    properties.set('GEMINI_MODEL', '');
+    reset();
+    const out = context.llmAnswer_('كيف أحجز؟');
+    assert.equal(out.ok, true);
+    assert.equal(out.model, 'gemini-3.5-flash-lite', 'an empty property must not become an empty model id');
+    assert.equal(requests.length, 1);
+  } finally {
+    if (saved === undefined) properties.delete('GEMINI_MODEL'); else properties.set('GEMINI_MODEL', saved);
+  }
+});
+
+test('a well-formed id this file has never seen is still allowed', () => {
+  // Shape only, never an allowlist: a model released after this file was written must
+  // work without editing code, otherwise the "config, not code" rule is decorative.
+  const saved = properties.get('GEMINI_MODEL');
+  const good = ['gemini-4-flash-lite', 'gemini-3.5-flash-lite-001', 'gemini-3.6-flash', 'gemini-2.5-flash'];
+  try {
+    for (const id of good) {
+      properties.set('GEMINI_MODEL', id);
+      assert.equal(context.llmModelProblem_(id), '', `${id} must be accepted`);
+      reset();
+      const out = context.llmAnswer_('كيف أحجز؟');
+      assert.equal(out.ok, true, `${id} must reach the provider`);
+      assert.equal(requests.length, 1);
+    }
+  } finally {
+    if (saved === undefined) properties.delete('GEMINI_MODEL'); else properties.set('GEMINI_MODEL', saved);
+  }
+});
+
+test('llmStatus separates "enabled" from "usable"', () => {
+  const saved = properties.get('GEMINI_MODEL');
+  try {
+    properties.set('GEMINI_MODEL', 'not-a-model');
+    const broken = context.llmStatus();
+    assert.equal(broken.enabled, true, 'the key is still present');
+    assert.equal(broken.modelValid, false, 'but the id cannot be used');
+    assert.ok(!JSON.stringify(broken).includes('fake-key'));
+    properties.set('GEMINI_MODEL', 'gemini-3.5-flash-lite');
+    assert.equal(context.llmStatus().modelValid, true);
+  } finally {
+    if (saved === undefined) properties.delete('GEMINI_MODEL'); else properties.set('GEMINI_MODEL', saved);
+  }
+});
+
+test('a bad model id is visible in validateConfig but never blocks the clinic', () => {
+  const saved = properties.get('GEMINI_MODEL');
+  try {
+    properties.set('GEMINI_MODEL', 'not-a-model');
+    const report = context.validateConfig();
+    const llm = report.checks.find((check) => check.id === 'llm_optional');
+    assert.equal(llm.ok, false, 'the failing assistant check must be surfaced');
+    assert.match(llm.detail, /غير صالح/);
+    const blocking = report.checks.filter((check) => !check.ok && check.id !== 'llm_optional');
+    assert.equal(report.ok, blocking.length === 0, 'llm_optional stays excluded from the overall verdict');
+  } finally {
+    if (saved === undefined) properties.delete('GEMINI_MODEL'); else properties.set('GEMINI_MODEL', saved);
+  }
 });
 
 const failed = results.filter(([state]) => state === 'FAIL');

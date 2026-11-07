@@ -68,7 +68,7 @@
       "rule": "optional; enables the administrative assistant only"
     },
     "GEMINI_MODEL": {
-      "value": "gemini-2.5-flash",
+      "value": "gemini-3.5-flash-lite",
       "required": false,
       "secret": false,
       "rule": "model name lives in config, never in code"

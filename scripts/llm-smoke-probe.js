@@ -22,7 +22,7 @@
 
 const PROMPT = 'ما هي خطوات تغيير موعد زيارة في العيادة؟ أجب في سطر واحد.';
 const DEFAULT_TIMEOUT_MS = 20000;
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 /** Structural, secret-free facts about a response. */

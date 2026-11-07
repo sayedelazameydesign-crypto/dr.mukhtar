@@ -337,7 +337,7 @@ async function main(argv) {
   const result = await propose({
     analysis: analysis,
     apiKey: apiKey,
-    model: process.env.LLM_MODEL || 'gemini-2.5-flash',
+    model: process.env.LLM_MODEL || 'gemini-3.5-flash-lite',
     fetchImpl: globalThis.fetch,
     transport: apiKey && typeof geminiTransport === 'function' ? geminiTransport : null
   });
