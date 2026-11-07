@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.1](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.4.0...celia-kids-clinic-v1.4.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* report setup checks and verify waapi response ([c5b1534](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/c5b15342b7c77410af8c6b8032a392acab78f1e1))
+* revalidate staff session roles and redact errors ([36d3020](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/36d3020ff554686b8c0618cf84ce038fb435cebd))
+* verify WAAPI read-only and clarify GitHub setup status ([f7fc49c](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/f7fc49c4b6c1a51d56e2ecd91fee3dda4ec225cb))
+
 ## [1.4.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.3.0...celia-kids-clinic-v1.4.0) (2026-11-07)
 
 
