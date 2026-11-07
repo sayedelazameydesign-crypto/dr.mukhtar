@@ -38,7 +38,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: ${{ vars.NODE_VERSION }}
+          node-version: ${{ vars.NODE_VERSION || '20' }}
 
       - name: Confirm both identifiers are configured
         env:
@@ -46,11 +46,11 @@ jobs:
           GAS_DEPLOYMENT_ID: ${{ vars.GAS_DEPLOYMENT_ID }}
         run: |
           if [ -z "$GAS_SCRIPT_ID" ]; then
-            echo '::error::Add repository variable GAS_SCRIPT_ID (Apps Script → Project Settings → Script ID).'
+            echo '::error::Add repository variable GAS_SCRIPT_ID. It is the Script ID in Project Settings (starts with 1 or AKfycb, but it is NOT the id inside the /exec URL).'
             exit 1
           fi
           if [ -z "$GAS_DEPLOYMENT_ID" ]; then
-            echo '::error::Add repository variable GAS_DEPLOYMENT_ID (the ID inside the published /exec URL).'
+            echo '::error::Add repository variable GAS_DEPLOYMENT_ID. It is the id inside the published /exec URL (AKfycb...).'
             exit 1
           fi
           echo "Both identifiers are present. Values are not printed."
