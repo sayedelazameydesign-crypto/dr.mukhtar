@@ -18,6 +18,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  waapi-presence:
+    name: WAAPI secret available (presence only)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      # No checkout and no network calls: repository scripts never see the secret.
+      - name: Check WAAPI token presence
+        env:
+          WAAPI_API_TOKEN: ${{ secrets.WAAPI_API_TOKEN }}
+        run: |
+          if [ -n "$WAAPI_API_TOKEN" ]; then
+            echo 'WAAPI token is available to this job. Provider validity was not tested.'
+          else
+            echo '::error::WAAPI token is not available to this job; check its name and scope.'
+            exit 1
+          fi
+
   report:
     name: declared vs configured
     runs-on: ubuntu-latest

@@ -886,6 +886,14 @@
       "role": "off | dry-run | live; default off, never needed by CI"
     },
     {
+      "id": "env.WAAPI_API_TOKEN",
+      "kind": "env",
+      "path": "config/.env.example",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Optional secret name; manual presence check only"
+    },
+    {
       "id": "env.WHATSAPP_TOKEN",
       "kind": "env",
       "path": ".env.example:51",

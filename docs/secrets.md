@@ -39,6 +39,7 @@ secret follows.
 | --- | --- | --- | --- | --- |
 | `GEMINI_API_KEY` | secret | repo | optional live smoke test; runtime value lives in Script Properties | no |
 | `GROQ_API_KEY` | secret | repo | reserved name for the fallback provider slot (not implemented) | no |
+| `WAAPI_API_TOKEN` | secret | repo | manual Actions presence check only; no WAAPI call or runtime use | no card for the advertised trial; paid terms unverified |
 | `CELIA_ADMIN_PIN` | secret | environment `production` | deployment checklist only | no |
 | `APP_ENV` | variable | repo | workflows (`ci` / `preview` / `production`) | — |
 | `NODE_VERSION` | variable | repo | workflows (`20`) | — |
