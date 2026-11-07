@@ -12,10 +12,10 @@
 
 | # | المقياس | القيمة (2026-11-06) | كيف تعيد قياسه |
 |---|-----------|---------------------|----------------|
-| 1 | حجم الموقع الثابت كاملًا (`_site` المسموح) | 580,195 بايت | `du -sb index.html privacy.html app.css app.js 404.html manifest.webmanifest robots.txt sitemap.xml clinic.json brand.svg assets` |
-| 2 | `app.js` (واجهة كاملة، بلا bundler) | 109,677 بايت | `wc -c app.js` |
-| 3 | ملفات التوثيق تحت `docs/` | 39 ملف · 527,699 بايت | `find docs -name '*.md' | wc -l` |
-| 4 | ملفات الفحص تحت `scripts/` | 18 ملف `test-*.js` | `ls scripts/test-*.js | wc -l` |
+| 1 | حجم الموقع الثابت كاملًا (`_site` المسموح) | 604,011 بايت | `du -sb index.html privacy.html app.css app.js 404.html manifest.webmanifest robots.txt sitemap.xml clinic.json brand.svg assets` |
+| 2 | `app.js` (واجهة كاملة، بلا bundler) | 115,831 بايت | `wc -c app.js` |
+| 3 | ملفات التوثيق تحت `docs/` | 41 ملف · 554,584 بايت | `find docs -name '*.md' | wc -l` |
+| 4 | ملفات الفحص تحت `scripts/` | 19 ملف `test-*.js` | `ls scripts/test-*.js | wc -l` |
 | 5 | مسارات CI (سير العمل) | 12 ملف `.yml` — كلها SHA-pinned | `ls .github/workflows/*.yml | wc -l` |
 | 6 | فجوات موثقة في السجل | 26 — محلولة 21 · مفتوحة 5 | `node scripts/readiness-report.js --offline` |
 | 7 | مكوّنات وعلاقات خريطة المعمارية | 151 مكوّن · 95 علاقة · 22 نقطة دخول | `node -e "const p=require('./docs/map/project.json');console.log(p.nodes.length,p.edges.length,p.entrypoints.length)"` |
