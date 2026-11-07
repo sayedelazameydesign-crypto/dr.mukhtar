@@ -1054,8 +1054,12 @@ function validateConfig() {
   // stop the clinic from booking. `ok` is still excluded from the overall verdict below.
   checks.push({
     id: 'llm_optional',
-    ok: llm.enabled ? llm.modelValid : true,
-    detail: !llm.enabled ? 'غير مفعّل (اختياري)' : (llm.modelValid ? 'مفعّل (اختياري)' : 'مفعّل لكن معرّف النموذج غير صالح — راجعوا GEMINI_MODEL (اختياري)')
+    ok: llm.enabled ? llm.modelIdFormatValid : true,
+    detail: !llm.enabled
+      ? 'غير مفعّل (اختياري)'
+      : (llm.modelIdFormatValid
+        ? 'مفعّل (اختياري) — الصيغة سليمة؛ التشغيل الفعلي لا يُثبته إلا فحص حي'
+        : 'مفعّل لكن صيغة معرّف النموذج غير صالحة — راجعوا GEMINI_MODEL (اختياري)')
   });
 
   return {

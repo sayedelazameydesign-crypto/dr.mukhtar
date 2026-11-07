@@ -355,33 +355,99 @@ test('a well-formed id this file has never seen is still allowed', () => {
   }
 });
 
-test('llmStatus separates "enabled" from "usable"', () => {
+test('llmStatus separates "enabled" from "the id is well-formed" — and promises no more', () => {
   const saved = properties.get('GEMINI_MODEL');
   try {
     properties.set('GEMINI_MODEL', 'not-a-model');
     const broken = context.llmStatus();
     assert.equal(broken.enabled, true, 'the key is still present');
-    assert.equal(broken.modelValid, false, 'but the id cannot be used');
+    assert.equal(broken.modelIdFormatValid, false, 'but the id cannot be sent');
+    // The name must not promise a live check: a well-formed id for a retired model is
+    // still "format valid" here and still 404s at the provider.
+    assert.equal(broken.modelValid, undefined, 'no field may imply the model was reached');
     assert.ok(!JSON.stringify(broken).includes('fake-key'));
     properties.set('GEMINI_MODEL', 'gemini-3.5-flash-lite');
-    assert.equal(context.llmStatus().modelValid, true);
+    assert.equal(context.llmStatus().modelIdFormatValid, true);
   } finally {
     if (saved === undefined) properties.delete('GEMINI_MODEL'); else properties.set('GEMINI_MODEL', saved);
   }
 });
 
-test('a bad model id is visible in validateConfig but never blocks the clinic', () => {
+test('a whitespace-only GEMINI_MODEL falls back to the default instead of being rejected', () => {
+  // Props return "   " as a truthy string, so a careless paste used to bypass the default
+  // and surface as INVALID_MODEL — a configuration that looks set and silently disables
+  // the assistant. Regression test for that exact shape.
   const saved = properties.get('GEMINI_MODEL');
   try {
+    for (const blank of ['   ', '\t', '  \n ']) {
+      properties.set('GEMINI_MODEL', blank);
+      reset();
+      const out = context.llmAnswer_('كيف أحجز؟');
+      assert.equal(out.ok, true, `${JSON.stringify(blank)} must not disable the assistant`);
+      assert.equal(out.model, 'gemini-3.5-flash-lite');
+      assert.equal(requests.length, 1);
+    }
+    // Padding around a real id is normalised, not rejected either.
+    properties.set('GEMINI_MODEL', '  gemini-3.6-flash  ');
+    reset();
+    const padded = context.llmAnswer_('كيف أحجز؟');
+    assert.equal(padded.ok, true);
+    assert.equal(padded.model, 'gemini-3.6-flash', 'the id is trimmed before it is sent');
+  } finally {
+    if (saved === undefined) properties.delete('GEMINI_MODEL'); else properties.set('GEMINI_MODEL', saved);
+  }
+});
+
+test('a bad model id is visible in validateConfig while every other gate stays green', () => {
+  // The claim under test is independence, so the rest of the clinic is made healthy
+  // first: a test that allows other checks to fail proves nothing about this one.
+  const savedModel = properties.get('GEMINI_MODEL');
+  const savedHash = properties.get('ADMIN_PIN_HASH');
+  const savedMustChange = properties.get('CK_MUST_CHANGE_PIN');
+  const savedSheetId = properties.get('CELIA_SHEET_ID');
+  const savedCalendarId = properties.get('CALENDAR_ID');
+  const savedSpreadsheetApp = context.SpreadsheetApp;
+  const savedCalendarApp = context.CalendarApp;
+  const requestsSheet = { getName: () => 'Requests' };
+  try {
+    properties.set('ADMIN_PIN_HASH', 'a'.repeat(64));
+    properties.delete('CK_MUST_CHANGE_PIN');
+    properties.delete('CELIA_SHEET_ID');
+    properties.set('CALENDAR_ID', 'primary');
+    context.SpreadsheetApp = {
+      openById: () => ({ getSheetByName: (name) => (name === 'Requests' ? requestsSheet : null) }),
+      getActiveSpreadsheet: () => ({ getSheetByName: (name) => (name === 'Requests' ? requestsSheet : null) })
+    };
+    context.CalendarApp = {
+      getDefaultCalendar: () => ({ getId: () => 'primary' }),
+      getCalendarById: () => ({ getId: () => 'primary' })
+    };
+
+    // Control: with a good id the report is green, so a red result below is caused by the
+    // model id and not by the fixture.
+    properties.set('GEMINI_MODEL', 'gemini-3.5-flash-lite');
+    const healthy = context.validateConfig();
+    const healthyLlm = healthy.checks.find((check) => check.id === 'llm_optional');
+    assert.equal(healthy.ok, true, `the fixture must be green: ${JSON.stringify(healthy.checks.filter((c) => !c.ok))}`);
+    assert.equal(healthyLlm.ok, true);
+
     properties.set('GEMINI_MODEL', 'not-a-model');
     const report = context.validateConfig();
     const llm = report.checks.find((check) => check.id === 'llm_optional');
     assert.equal(llm.ok, false, 'the failing assistant check must be surfaced');
-    assert.match(llm.detail, /غير صالح/);
-    const blocking = report.checks.filter((check) => !check.ok && check.id !== 'llm_optional');
-    assert.equal(report.ok, blocking.length === 0, 'llm_optional stays excluded from the overall verdict');
+    assert.match(llm.detail, /غير صالحة/);
+    assert.equal(report.ok, true, 'and it must not turn the clinic red');
+    const others = report.checks.filter((check) => check.id !== 'llm_optional');
+    assert.ok(others.every((check) => check.ok), 'every other gate is genuinely green');
   } finally {
-    if (saved === undefined) properties.delete('GEMINI_MODEL'); else properties.set('GEMINI_MODEL', saved);
+    const restore = (key, value) => { if (value === undefined) properties.delete(key); else properties.set(key, value); };
+    restore('GEMINI_MODEL', savedModel);
+    restore('ADMIN_PIN_HASH', savedHash);
+    restore('CK_MUST_CHANGE_PIN', savedMustChange);
+    restore('CELIA_SHEET_ID', savedSheetId);
+    restore('CALENDAR_ID', savedCalendarId);
+    context.SpreadsheetApp = savedSpreadsheetApp;
+    context.CalendarApp = savedCalendarApp;
   }
 });
 

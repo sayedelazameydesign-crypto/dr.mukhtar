@@ -31,8 +31,9 @@ const LLM = {
       id: 'gemini',
       keyProperty: 'GEMINI_API_KEY',
       modelProperty: 'GEMINI_MODEL',
-      // Documented as Stable and free-tier (30 RPM / 1,500 RPD, quota not unlimited).
-      // Verified 2026-11-06 against Google's model page, not inferred from a changelog.
+      // Documented as Stable and free-tier (verified 2026-11-06 on Google's model page,
+      // not inferred from a changelog). The quota itself is per project and model and
+      // changes without notice — no number here is a guarantee; check AI Studio.
       defaultModel: 'gemini-3.5-flash-lite',
       timeoutProperty: 'GEMINI_TIMEOUT_MS',
       buildRequest: function (model, prompt, maxTokens) {
@@ -134,7 +135,11 @@ function llmProviderConfig_(id) {
   const props = llmProperties_();
   const key = props.getProperty(provider.keyProperty);
   if (!key) return null;
-  const model = props.getProperty(provider.modelProperty) || provider.defaultModel;
+  // A property holding only spaces is truthy to JavaScript, so it used to skip the
+  // default and arrive at the adapter as an id that then failed as malformed. Blank
+  // means unset; padding around a real id is normalised rather than rejected.
+  const configuredModel = String(props.getProperty(provider.modelProperty) || '').trim();
+  const model = configuredModel || provider.defaultModel;
   const timeoutMs = llmNumber_(props.getProperty(provider.timeoutProperty), llmConfig_().timeoutMs, 2000, 60000);
   return { provider: provider, id: id, model: model, timeoutMs: timeoutMs, key: key, modelProblem: llmModelProblem_(model) };
 }
@@ -393,8 +398,9 @@ function llmStatus() {
     enabled: limits.chain.some(function (id) { return !!llmProviderConfig_(id); }),
     chain: limits.chain,
     model: limits.chain.map(function (id) { return (llmProviderConfig_(id) || {}).model || null; }).filter(Boolean),
-    // Enabled but unusable is a distinct state: the key is present and the id is not.
-    modelValid: limits.chain.map(llmProviderConfig_).filter(Boolean).every(function (cfg) { return !cfg.modelProblem; }),
+    // Shape only. This answers "could this id be sent?", never "did Google accept it?" —
+    // a well-formed id for a retired model still 404s, and only the live probe can tell.
+    modelIdFormatValid: limits.chain.map(llmProviderConfig_).filter(Boolean).every(function (cfg) { return !cfg.modelProblem; }),
     dailyLimit: limits.dailyLimit,
     usedToday: Number(props.getProperty('LLM_BUDGET_COUNT_' + limits.chain[0]) || 0),
     circuitOpen: limits.chain.some(llmCircuitOpen_)
