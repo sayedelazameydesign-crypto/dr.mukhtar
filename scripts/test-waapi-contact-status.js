@@ -5,6 +5,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'setup-status.yml'), 'utf8');
+function checkOptIn(text) {
+  assert.match(text, /check_test_contact:\s*\n\s+description: [^\n]+\n\s+required: false\n\s+type: boolean\n\s+default: false/, 'contact check must default off');
+  assert.match(text, /waapi-test-contact:\s*\n\s+name:.*\n\s+if: github\.event_name == 'workflow_dispatch' && inputs\.check_test_contact == true/, 'contact check requires explicit opt-in');
+}
+checkOptIn(workflow);
+assert.throws(() => checkOptIn(workflow.replace('default: false', 'default: true')));
+assert.throws(() => checkOptIn(workflow.replace("github.event_name == 'workflow_dispatch' && inputs.check_test_contact == true", "github.event_name == 'workflow_dispatch'")));
 const match = workflow.match(/node --input-type=commonjs <<'STATUS_CHECK'\n([\s\S]*?)\n\s+STATUS_CHECK/);
 assert.ok(match, 'inline contact status probe must exist');
 const program = match[1].split('\n').map((line) => line.replace(/^ {10}/, '')).join('\n');

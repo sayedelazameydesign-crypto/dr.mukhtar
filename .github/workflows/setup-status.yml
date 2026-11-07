@@ -6,6 +6,12 @@ name: Setup status
 
 on:
   workflow_dispatch:
+    inputs:
+      check_test_contact:
+        description: 'Check the test contact status (read-only; no messages)'
+        required: false
+        type: boolean
+        default: false
   schedule:
     - cron: '0 6 * * 1' # Mondays 06:00 UTC — catches drift after rotation
 
@@ -97,7 +103,7 @@ jobs:
 
   waapi-test-contact:
     name: Test contact connection status (read-only)
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.check_test_contact == true
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
