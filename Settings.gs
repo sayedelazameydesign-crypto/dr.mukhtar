@@ -147,7 +147,10 @@ function staffPinState_() {
  * Verify a PIN. Accepts the hash (what the browser sends) or, in demo/tests, the
  * plain value. A legacy plain ADMIN_PIN is upgraded to a hash on first success.
  */
-function verifyStaffPin_(candidate) {
+function verifyStaffPin_(candidate, countFailure) {
+  // A caller checking multiple stores records one final failure, not one per store.
+  // Other callers preserve the original single-store behavior.
+  const recordFailure = countFailure !== false;
   const value = String(candidate || '');
   if (!value) return false;
   if (staffPinLocked_()) {
@@ -160,11 +163,11 @@ function verifyStaffPin_(candidate) {
   if (state.hashed) {
     const hash = isPinHash_(value) ? value.toLowerCase() : pinHash_(value);
     const stored = String(PropertiesService.getScriptProperties().getProperty('ADMIN_PIN_HASH')).toLowerCase();
-    if (!constantTimeEquals_(hash, stored)) { staffPinFailure_(); return false; }
+    if (!constantTimeEquals_(hash, stored)) { if (recordFailure) staffPinFailure_(); return false; }
     staffPinSuccess_();
     return true;
   }
-  if (!constantTimeEquals_(value, state.legacy)) { staffPinFailure_(); return false; }
+  if (!constantTimeEquals_(value, state.legacy)) { if (recordFailure) staffPinFailure_(); return false; }
   staffPinSuccess_();
   migrateLegacyPin_(state.legacy);
   return true;

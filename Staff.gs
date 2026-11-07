@@ -132,13 +132,18 @@ function matchStaffPin_(candidate) {
   }
   const digest = isPinHash_(value) ? value.toLowerCase() : pinHash_(value);
   let matched = null;
+  let inactiveMatch = false;
   try {
     const rows = ensureStaffSeeded_();
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
-      if (!row.active || !row.pinHash) continue;
+      if (!row.pinHash) continue;
+      // A disabled row must not regain access through the legacy property fallback.
       // Evaluate every row so timing does not reveal which row matched.
-      if (constantTimeEquals_(digest, row.pinHash)) matched = row;
+      if (constantTimeEquals_(digest, row.pinHash)) {
+        if (row.active) matched = row;
+        else inactiveMatch = true;
+      }
     }
   } catch (error) {
     logEvent_('error', 'staff_lookup_failed', { message: String(error && error.message || error).slice(0, 120) });
@@ -150,7 +155,8 @@ function matchStaffPin_(candidate) {
     // NO staff id, so the audit keeps the platform label instead of inventing a row.
     let legacy = false;
     try {
-      legacy = typeof verifyStaffPin_ === 'function' && verifyStaffPin_(value);
+      // The outer check records a single failure after both credential stores miss.
+      legacy = !inactiveMatch && typeof verifyStaffPin_ === 'function' && verifyStaffPin_(value, false);
     } catch (error) { legacy = false; }
     if (legacy) return { ok: true, staff: { id: '', name: 'المالك', role: 'CLINIC_ADMIN', legacy: true } };
     if (typeof staffPinFailure_ === 'function') staffPinFailure_();

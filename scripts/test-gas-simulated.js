@@ -557,6 +557,37 @@ assert.equal(context.isStaff_(gateHash), true, 'the correct PIN still works afte
 assert.equal(context.isStaff_(wrongPin()), false, 'and the counter restarted from zero');
 assert.equal(context.staffPinLockState_().locked, false, 'a good login between typos never arms the lock');
 
+// A failed login checks Staff and the legacy property, but must count only once.
+context.staffPinSuccess_();
+for (let attempt = 1; attempt <= 4; attempt += 1) {
+  assert.equal(context.login(wrongPin()).ok, false, `wrong login ${attempt} is refused`);
+  assert.equal(context.staffPinLockState_().locked, false, `login ${attempt} must not lock before five attempts`);
+  assert.equal(Number(sharedScriptCache.get('CK_PIN_FAILURES')), attempt, 'each login increments once');
+}
+assert.equal(context.login(wrongPin()).ok, false, 'the fifth wrong login is refused');
+assert.equal(context.staffPinLockState_().locked, true, 'the fifth wrong login arms the lock');
+context.staffPinSuccess_();
+
+// Preserve the transitional property-only path, including plain PIN migration.
+const savedSeed = context.ensureStaffSeeded_;
+const savedAdminHash = propertyValues.get('ADMIN_PIN_HASH');
+try {
+  context.ensureStaffSeeded_ = () => [];
+  propertyValues.delete('ADMIN_PIN_HASH');
+  propertyValues.set('ADMIN_PIN', 'legacy-plain-pin-value-32-chars');
+  assert.equal(context.login('wrong-legacy-pin').ok, false);
+  assert.equal(Number(sharedScriptCache.get('CK_PIN_FAILURES')), 1, 'a legacy miss counts once');
+  assert.equal(context.login('legacy-plain-pin-value-32-chars').ok, true, 'legacy login still succeeds');
+  assert.equal(propertyValues.get('ADMIN_PIN_HASH'), hashPin('legacy-plain-pin-value-32-chars'));
+  assert.equal(propertyValues.has('ADMIN_PIN'), false, 'legacy login still migrates the plain PIN');
+  assert.equal(sharedScriptCache.has('CK_PIN_FAILURES'), false, 'a successful legacy login clears failures');
+} finally {
+  context.ensureStaffSeeded_ = savedSeed;
+  propertyValues.delete('ADMIN_PIN');
+  propertyValues.set('ADMIN_PIN_HASH', savedAdminHash);
+  context.staffPinSuccess_();
+}
+
 // ---- the audit row names the signed-in account, not just "staff" ----
 // The recorded actor is what answers "who confirmed this appointment?" after a mistake.
 activeUserEmail = 'Doctor@' + MAIL_HOST;
@@ -1004,6 +1035,17 @@ const doctorId = doctorLogin.staff.id;
 assert.equal(context.deactivateStaff(doctorId, ownerLogin.token).ok, true, 'an owner disables a staff member');
 assert.equal(context.getDashboard(doctorLogin.token).ok, false, 'a disabled staff member loses the session already held');
 assert.equal(context.login(hashPin(doctorPin)).ok, false, 'a disabled staff member cannot log in again');
+
+// Disabling the seeded owner must also defeat the legacy ADMIN_PIN_HASH fallback.
+const secondOwnerPin = rolesPin('second-owner');
+assert.equal(context.addStaff('مدير ثانٍ', 'CLINIC_ADMIN', hashPin(secondOwnerPin), ownerLogin.token).ok, true);
+const secondOwnerLogin = context.login(hashPin(secondOwnerPin));
+assert.equal(secondOwnerLogin.ok, true);
+assert.equal(context.deactivateStaff('owner', secondOwnerLogin.token).ok, true);
+assert.equal(context.login(ownerHash).ok, false, 'a disabled owner cannot log in via the legacy property');
+assert.equal(context.getDashboard(ownerHash).ok, false, 'a disabled owner cannot use the credential directly');
+assert.equal(context.getDashboard(ownerLogin.token).ok, false, 'a disabled owner loses the existing session');
+assert.equal(context.getDashboard(secondOwnerLogin.token).ok, true, 'the remaining active owner keeps access');
 context.logout(ownerLogin.token);
 assert.equal(context.listStaff(ownerLogin.token).ok, false, 'a logged-out token is dead');
 
