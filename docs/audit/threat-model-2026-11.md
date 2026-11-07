@@ -24,7 +24,7 @@
 | TB4 | Apps Script → Calendar | `createEvent` | `Code.gs:646` |
 | TB5 | Apps Script → Internet | `UrlFetchApp` (WhatsApp / Gemini) | `WhatsApp.gs:242`, `Llm.gs:40` |
 | TB6 | موظف → لوحة | رمز PIN → أفعال الموظف | `Settings.gs:150` |
-| TB7 | مراقبة → نقطة الصحة | `?token=` → `doGetHealth` | `Code.gs:537` |
+| TB7 | مراقبة → الصحة | `doGetHealth` مساعد غير مربوط بـHTTP؛ `?health=liveness` عام وثابت فقط | `Code.gs:537` |
 
 ---
 
@@ -38,16 +38,17 @@
 | T-04 | Tampering | تغيير حالة طلب عبر إعادة الإرسال | `approveRequest` | قفل + إعادة فحص الحالة + التحقق من الحدث | `Code.gs:630` | **مُسيطَر** · 'overlapping approval is rejected while the script lock is held' | 
 | T-05 | Tampering | تعديل صفوف Sheets يدويًا | ورقة `Requests` | لا شيء — مالك الجدول يستطيع كل شيء | `Code.gs:1085` | **مقبول** — خارج نموذج التهديد، يُدار بالوصول للحساب |
 | T-06 | Repudiation | لا يُعرف أي موظف فعل ماذا | `Audit` | `staffActor_()` — لكن الهوية رمز مشترك | `Code.gs:646` | **مُسيطَر جزئيًا** |
-| T-07 | Info disclosure | تسريب بيانات ولي الأمر في السجلات | `logEvent_` | السجلات تحمل أحداثًا وعدّادات فقط | `Code.gs:124` | **مُسيطَر** — مثبت باختبار · 'health is green on a healthy clinic and carries no personal data' | 
+| T-07 | Info disclosure | تسريب بيانات ولي الأمر في السجلات | `logEvent_` | السجلات تحمل أحداثًا وعدّادات فقط | `Code.gs:124` | **مُسيطَر** — مثبت باختبار · 'health flags the unsafe legacy retention path and carries no personal data' |
 | T-08 | Info disclosure | بيانات ولي الأمر في التقويم | `createEvent` | الوصف يحمل المرجع فقط + «بيانات طبية: غير محفوظة» | `Code.gs:646` | **مُسيطَر** · 'result never claims confirmation' | 
-| T-09 | Info disclosure | نقطة الصحة تُسرّب قائمة الطلبات | `doGetHealth` | رمز إلزامي + مقارنة كاملة ثابتة الزمن + عدّادات فقط | `Code.gs:537`, `Code.gs:999` | **مُسيطَر** — مثبت باختبار 'a prefix of the health token does not open the uptime endpoint' |
+| T-09 | Info disclosure | كشف تفاصيل الصحة أو قائمة الطلبات | `doGetHealth` | مساعد برمز ولا يوجد مسار HTTP له؛ `liveness` ثابت لا يفحص بيانات العيادة | `Code.gs:537`, `Code.gs:999` | **مخاطرة قائمة** — اختبارات محلية فقط؛ لا تفترض جاهزية مراقبة خارجية |
 | T-10 | Spoofing | مقارنة ثابتة الزمن لا تقارن الطول — بادئة صحيحة تُقبل (تاريخيًا) | `constantTimeEquals_` | مقارنة الطول أولًا (غير سرّية: بصمة PIN دائمًا ٦٤ حرفًا) ثم حلقة كاملة ثابتة الزمن | `Code.gs:999`, `scripts/test-privacy-health.js:454` | **مُسيطَر** — مثبت باختبار 'a prefix of the secret is not accepted' و'a prefix of the staff PIN digest does not unlock the dashboard' · الإغلاق G25 |
 | T-11 | DoS | إغراق بوابة الحجز بطلبات | `createRequest` | سقف ٣ طلبات/رقم/يوم | `Code.gs:305` | **مُسيطَر جزئيًا** — لا حدّ على عدد الأرقام |
 | T-12 | DoS | استنزاف حصة Gemini | `llmBudgetReserve_` | حصة يومية وساعية + دائرة قطع | `Llm.gs:161` | **مُسيطَر** · 'a hung slot read falls back instead of spinning' | 
 | T-13 | Elevation | استدعاء دالة موظف من الصفحة العامة | `google.script.run` | كل دالة موظف تتحقق من الرمز أولًا | `Code.gs:626` | **مُسيطَر** — لكن `deleteOwnRequestData` بلا رمز عن قصد (تصميم) · 'the correct PIN is refused while the lock is armed' | 
 | T-14 | Elevation | حقن `<`/`>` في الاسم | `validateRequest_` | تنقية + `textContent` في الواجهة | `Code.gs:1004` | **مُسيطَر** · 'phone never rendered in result' | 
 | T-15 | Info disclosure | `HEALTH_TOKEN` في رابط يُسجَّل في سجلات الوسيط | `?token=` | لا شيء — الرمز في الـURL | `Code.gs:540` | **مخاطرة قائمة** — يُفضَّل ترويسة أو مسار غير مسجَّل |
-| T-16 | Repudiation | حذف بيانات ولي الأمر بلا أثر | `deleteOwnRequestData` | يُبقي صف التدقيق، ويمحو الاسم والهاتف | `Settings.gs:646` | **مُسيطَر** · 'deletion blanks name and phone but keeps the administrative trail' | 
+| T-16 | Repudiation | حذف بيانات ولي الأمر بلا أثر | `deleteOwnRequestData` | يُبقي صف التدقيق، ويمحو الاسم والهاتف | `Settings.gs:646` | **مُسيطَر** · 'deletion blanks name and phone but keeps the administrative trail' |
+| T-17 | Tampering | نص خارجي يبدأ بعلامة صيغة يُكتب في Sheets | `createRequest` | رفض أولي لاسم ولي الأمر والهاتف اللذين يبدآن بـ`=`؛ لا حماية شاملة لمسارات الكتابة أو البيانات القديمة | `Code.gs:1251`, `Code.gs:411` | **مخاطرة قائمة** — G27؛ اختبار محلي فقط، واختبار Google لم يُنفّذ |
 
 ---
 

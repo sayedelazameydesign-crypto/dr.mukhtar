@@ -292,6 +292,38 @@ function assertSaved(result, label) {
   return result.booking;
 }
 
+// Public intake must reject formula-shaped contact fields before Sheets or the
+// outage queue is touched. The fake does not evaluate formulas like real Sheets.
+{
+  const base = { visitType: 'كشف جديد', guardianName: 'ولي أمر تجريبي', phone: '01000000000', day, time: '09:00', consent: true };
+  const attempts = [
+    { guardianName: '=1+1' }, { guardianName: '  =1+1' },
+    { guardianName: '<> =1+1' }, { guardianName: '\u200b=1+1' },
+    { phone: '=01000000000' }, { phone: '  =01000000000' }
+  ];
+  for (const up of [true, false]) {
+    const originalUp = googleUp;
+    const priorSheets = JSON.stringify([...sheets.entries()].map(([name, sheet]) => [name, sheet.rows]));
+    const priorProps = JSON.stringify([...propertyValues.entries()]);
+    const priorEvents = calendar.events.length;
+    try {
+      googleUp = up;
+      for (const fields of attempts) {
+        const result = context.createRequest({ ...base, ...fields });
+        assert.equal(result.ok, false, 'formula-like contact input is rejected');
+        assert.match(result.message, /مساواة/, 'the validation message is actionable');
+        assert.ok(!result.message.includes('=1+1'), 'the rejected value is not echoed');
+      }
+      assert.equal(JSON.stringify([...sheets.entries()].map(([name, sheet]) => [name, sheet.rows])), priorSheets, 'no Sheet is changed');
+      assert.equal(JSON.stringify([...propertyValues.entries()]), priorProps, 'no outage or audit entry is queued');
+      assert.equal(calendar.events.length, priorEvents, 'no Calendar event is created');
+    } finally { googleUp = originalUp; }
+  }
+  const clean = context.validateRequest_({ ...base, guardianName: 'سارة أحمد', phone: '+201000000000' });
+  assert.equal(clean.guardianName, 'سارة أحمد');
+  assert.equal(clean.phone, '+201000000000', 'international prefix is not rewritten');
+}
+
 // Prime the 30-second availability cache before anything is approved. Without this the
 // slot list below would simply be recomputed, and the regression would hide again.
 const primedSlots = context.getAvailableSlots(day, 'كشف جديد');
@@ -913,7 +945,7 @@ assert.equal(context.getClinicSettings(bootstrapHash).ok, false, 'the bootstrap 
     assert.equal(logged[0].sheet, CK.REQUESTS, 'the log names the sheet');
     assert.equal(logged[0].position, 2, 'the log names the column position');
     assert.equal(logged[0].expected, 'notes', 'the log records the expected header');
-    assert.equal(logged[0].found, 'createdAt', 'the log records what the sheet actually has there');
+    assert.equal(logged[0].found, undefined, 'the log must not copy a possibly sensitive header cell');
     restore();
 
     // 5 — mutation check. With the guard neutralised, the same drift reads through
@@ -1070,6 +1102,7 @@ assert.equal(ownerLogin.permissions.indexOf('staff:manage') !== -1, true, 'the o
 staffSheetRows[1][2] = 'RECEPTION';
 assert.equal(context.listStaff(ownerLogin.token).ok, false, 'old administrator session is denied after a role change');
 assert.equal(context.getDashboard(ownerLogin.token).ok, false, 'a mismatched role denies the old session entirely');
+assert.equal(context.generateDailySummary(ownerLogin.token).ok, false, 'daily summary also rejects a role-changed session');
 const downgradedLogin = context.login(ownerHash);
 assert.equal(downgradedLogin.staff.role, 'RECEPTION', 'a fresh login receives the current role');
 assert.equal(context.listStaff(downgradedLogin.token).ok, false, 'the fresh session cannot manage staff');
@@ -1122,6 +1155,93 @@ const receptionLogin = context.login(hashPin(receptionPin));
 assert.equal(doctorLogin.staff.role, 'DOCTOR');
 assert.equal(receptionLogin.staff.role, 'RECEPTION');
 
+// Read-only, staff-session-gated daily summary. All records and dates here are synthetic.
+{
+  const requestSheet = sheets.get('Requests');
+  const originalRows = requestSheet.rows;
+  const today = dateParts(new Date(), 'Africa/Cairo');
+  const todayISO = `${today.year}-${today.month}-${today.day}`;
+  const tomorrow = new Date(`${todayISO}T12:00:00Z`); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const otherDay = tomorrow.toISOString().slice(0, 10);
+  const row = (ref, status, name, date, time, eventId) => [ref, '2026-01-01', status, 'متابعة', name, '01000000000', date, time, eventId, '', true, true];
+  requestSheet.rows = [originalRows[0],
+    row('SUMMARY-1', 'CONFIRMED', 'ثانٍ', todayISO, '12:00', 'event-2'),
+    row('SUMMARY-2', 'CONFIRMED', 'أول', todayISO, '09:00', 'event-1'),
+    row('SUMMARY-3', 'PENDING_APPROVAL', 'معلق', todayISO, '08:00', ''),
+    row('SUMMARY-4', 'COMPLETED', 'مكتمل', todayISO, '08:30', 'event-3'),
+    row('SUMMARY-5', 'CONFIRMED', 'غدًا', otherDay, '07:00', 'event-4'),
+    row('SUMMARY-6', 'CONFIRMED', 'دون حدث', todayISO, '13:00', ''),
+    row('SUMMARY-DUP', 'CONFIRMED', 'قديم', todayISO, '10:00', 'event-old'),
+    row('SUMMARY-DUP', 'CANCELLED', 'قديم', todayISO, '10:00', '')];
+  const expiredToken = 'expired-session-fixture-123456789';
+  properties.setProperty(`CK_SESSION_${expiredToken}`, JSON.stringify({ id: 'owner', role: 'CLINIC_ADMIN', exp: 1 }));
+  function assertReadOnly(run) {
+    const beforeSheets = JSON.stringify([...sheets.entries()].map(([name, sheet]) => [name, sheet.rows]));
+    const beforeProps = JSON.stringify([...propertyValues.entries()]);
+    const beforeEvents = JSON.stringify(calendar.events);
+    let forbidden = 0;
+    const old = { setValue: FakeRange.prototype.setValue, setValues: FakeRange.prototype.setValues, append: FakeSheet.prototype.appendRow,
+      insert: spreadsheet.insertSheet, setProperty: properties.setProperty, deleteProperty: properties.deleteProperty, setProperties: properties.setProperties,
+      defaultCalendar: context.CalendarApp.getDefaultCalendar, calendarById: context.CalendarApp.getCalendarById };
+    const reject = () => { forbidden += 1; throw new Error('forbidden report write or Calendar access'); };
+    FakeRange.prototype.setValue = reject; FakeRange.prototype.setValues = reject; FakeSheet.prototype.appendRow = reject;
+    spreadsheet.insertSheet = reject; properties.setProperty = reject; properties.deleteProperty = reject; properties.setProperties = reject;
+    context.CalendarApp.getDefaultCalendar = reject; context.CalendarApp.getCalendarById = reject;
+    let result;
+    try { result = run(); }
+    finally {
+      FakeRange.prototype.setValue = old.setValue; FakeRange.prototype.setValues = old.setValues; FakeSheet.prototype.appendRow = old.append;
+      spreadsheet.insertSheet = old.insert; properties.setProperty = old.setProperty; properties.deleteProperty = old.deleteProperty; properties.setProperties = old.setProperties;
+      context.CalendarApp.getDefaultCalendar = old.defaultCalendar; context.CalendarApp.getCalendarById = old.calendarById;
+    }
+    assert.equal(forbidden, 0, 'summary attempts no persistent write or Calendar access');
+    assert.equal(JSON.stringify([...sheets.entries()].map(([name, sheet]) => [name, sheet.rows])), beforeSheets, 'summary leaves sheets unchanged');
+    assert.equal(JSON.stringify([...propertyValues.entries()]), beforeProps, 'summary leaves properties unchanged');
+    assert.equal(JSON.stringify(calendar.events), beforeEvents, 'summary leaves calendar unchanged');
+    return result;
+  }
+  try {
+    const summary = assertReadOnly(() => context.generateDailySummary(doctorLogin.token));
+    assert.equal(summary.ok, true); assert.equal(summary.day, todayISO);
+    assert.equal(JSON.stringify(summary.appointments.map((item) => item.guardianName)), JSON.stringify(['أول', 'ثانٍ']));
+    assert.equal(summary.missingEventCount, 1, 'confirmed row without a calendar ID is flagged and excluded');
+    assert.ok(!JSON.stringify(summary).includes('01000000000'), 'summary contains no phone numbers');
+    const empty = context.buildDailySummary_([], todayISO);
+    assert.equal(empty.ok, true); assert.equal(empty.appointments.length, 0); assert.equal(empty.missingEventCount, 0);
+    assert.equal(assertReadOnly(() => context.generateDailySummary(receptionLogin.token)).ok, true);
+    assert.equal(assertReadOnly(() => context.generateDailySummary(ownerHash)).ok, false, 'raw PIN digest is not a report session');
+    assert.equal(assertReadOnly(() => context.generateDailySummary(expiredToken)).ok, false, 'expired session denied without deleting it');
+    assert.equal(assertReadOnly(() => context.generateDailySummary('unknown-token-fixture-123456789')).ok, false);
+    const boundaryRows = [row('MIDNIGHT', 'CONFIRMED', 'حد اليوم', new Date('2031-03-09T22:30:00Z'), '09:00', 'event')];
+    const boundary = context.buildDailySummary_(boundaryRows, '2031-03-10');
+    assert.equal(boundary.appointments.length, 1, 'date cell maps to Cairo, including UTC midnight boundary');
+    assert.equal(context.buildDailySummary_([row('BAD', 'CONFIRMED', 'خطأ', '2031-02-30', '09:00', 'event')], todayISO).ok, false);
+    assert.equal(context.buildDailySummary_([row('BAD', 'CONFIRMED', 'خطأ', todayISO, '99:00', 'event')], todayISO).ok, false);
+    const originalLookup = spreadsheet.getSheetByName;
+    try {
+      spreadsheet.getSheetByName = function(name) { if (name === 'Requests') throw new Error('private exception marker'); return originalLookup.call(this, name); };
+      const failed = assertReadOnly(() => context.generateDailySummary(doctorLogin.token));
+      assert.equal(failed.code, 'SUMMARY_READ_FAILED'); assert.doesNotMatch(failed.message, /private exception marker/);
+      spreadsheet.getSheetByName = function(name) { return name === 'Requests' ? null : originalLookup.call(this, name); };
+      assert.equal(assertReadOnly(() => context.generateDailySummary(doctorLogin.token)).code, 'SUMMARY_SHEET_MISSING');
+    } finally { spreadsheet.getSheetByName = originalLookup; }
+    const originalHeader = requestSheet.rows[0];
+    requestSheet.rows[0] = ['wrong-header'];
+    context.sheetSchemaIndex_ = {}; // simulate a fresh Apps Script invocation
+    assert.equal(assertReadOnly(() => context.generateDailySummary(doctorLogin.token)).code, 'SUMMARY_SCHEMA_DRIFT');
+    requestSheet.rows[0] = originalHeader;
+    context.sheetSchemaIndex_ = {};
+    const staffSheet = sheets.get('Staff');
+    sheets.delete('Staff');
+    assert.equal(assertReadOnly(() => context.generateDailySummary(doctorLogin.token)).ok, false, 'missing staff sheet fails closed without creating it');
+    sheets.set('Staff', staffSheet);
+  } finally {
+    requestSheet.rows = originalRows;
+    properties.deleteProperty(`CK_SESSION_${expiredToken}`);
+  }
+  console.log('Daily summary simulated: staff sessions, Cairo date, ordering, missing events, failure visibility and read-only behavior.');
+}
+
 // the desk: sees the board and moves appointments, cannot approve a child or reconfigure
 assert.equal(context.getDashboard(receptionLogin.token).ok, true, 'the desk reads the board');
 assert.equal(context.approveRequest('ANY-REF', receptionLogin.token).ok, false, 'the desk cannot approve a child');
@@ -1146,6 +1266,7 @@ assert.equal(context.deactivateStaff('owner', ownerLogin.token).ok, false, 'the 
 const doctorId = doctorLogin.staff.id;
 assert.equal(context.deactivateStaff(doctorId, ownerLogin.token).ok, true, 'an owner disables a staff member');
 assert.equal(context.getDashboard(doctorLogin.token).ok, false, 'a disabled staff member loses the session already held');
+assert.equal(context.generateDailySummary(doctorLogin.token).ok, false, 'disabled staff cannot read the daily summary');
 assert.equal(context.login(hashPin(doctorPin)).ok, false, 'a disabled staff member cannot log in again');
 
 // Disabling the seeded owner must also defeat the legacy ADMIN_PIN_HASH fallback.

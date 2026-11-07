@@ -30,6 +30,31 @@ Lighthouse CI (a11y ≥0.9 is an error) · Release Please (opens, never merges) 
 commit SHA. Triggers and deviations: `docs/engineering-stack.md`; secrets/variables are enforced by
 `check-workflows.js`. `main` protection remains an owner step (integration token: 403).
 
+### Offline health snapshot evaluator
+
+`evaluateHealthSnapshot_` in `Code.gs` classifies an explicitly supplied health report and
+caller-supplied clock/freshness limit. It rejects stale, future, malformed, incomplete or
+contradictory reports as unknown and returns only fixed status codes and known failed-check
+IDs. It does not authenticate the report, read services or a clock, schedule work, send an
+alert, or expose an HTTP health endpoint. Passing checks reflect only the limited current
+health checks, not a verification of Calendar writes, Meta, Webhooks or deployment readiness.
+The public `doGet` liveness route (`?health=liveness`) returns only a static `alive` and
+never reads dependencies. A private one-pass recorder writes fixed codes only to an existing,
+exact-schema `Monitoring` sheet; it is not connected to a trigger or mail and does not create
+or repair the sheet. Tests: `node scripts/test-privacy-health.js` (mocked and offline).
+
+### Read-only daily summary
+
+`generateDailySummary` accepts a live staff session with `booking:read:clinic`, validates the
+existing Staff and Requests sheets without creating them, and builds a Cairo-day text view
+from confirmed Requests rows. It does not read Calendar or prove an event still exists;
+rows missing a saved event ID are excluded and flagged. A missing sheet, invalid data or
+schema/read failure is an error rather than an empty day. The separate report does not sync
+queues, change records, send messages or grant scopes. The existing `getDashboard` still
+still performs its own queue sync when the board is loaded. In the local code automatic
+retention is stopped by default; the legacy enabled path has not been made safe. Local tests
+mock Sheets, sessions and Calendar; they do not prove a live deployment.
+
 ## 3. Components
 
 ```mermaid
@@ -135,13 +160,14 @@ The account is a **profile** (`config/google.profile.<name>.json`, git-ignored) 
 `node scripts/check-gap-docs.js` fails when the two disagree — because they did: the ledger had
 five open, this page said three, and the ledger's own note named a third set entirely.
 
-Open gaps: G1 · G2 · G14 · G23 · G26
+Open gaps: G1 · G2 · G14 · G19 · G23 · G26 · G27
 
 - **G1** (high) — approval, locking, Sheets schema, Calendar conflicts and the audit queue are proven in a VM only.
 - **G2** (high) — the secrets manifest is declared policy, not enforced state: protection + rotation unverified.
 - **G14** (med) — the bridge's Drive/Sheets/Calendar paths were never bootstrapped on a real account.
 - **G23** (med) — triage/repair workflows have never been watched on a real failing run.
 - **G26** (med) — a run dying between `createEvent` and `updateRequestRow_` can leave an orphan; a retry searches a limited window, but no independent reconciliation reports all such events.
+- **G27** (high) — local intake now rejects leading-equals names and phones; old outage records and other user-controlled writes still need review and safe round-trip tests.
 
 Closed gaps carry a `resolution` object with the command that closed them — read them in the ledger, not in a mirror. Counts are deliberately absent: numbers copied from a gate rot silently.
 

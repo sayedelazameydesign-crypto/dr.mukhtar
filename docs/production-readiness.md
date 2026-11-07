@@ -18,10 +18,10 @@
 | P-SECURITY | 🟡 | القائمة البيضاء للنشر + `test-publish-contract.js`؛ لا مراجعة أمنية خارجية |
 | P-DATA | ❌ | لا نسخة احتياطية/استعادة مُختبرة لـ Sheets/Calendar (بند بروفة، لا فجوة سجل) |
 | P-CONFIG | 🟡 | الإعداد موثّق ومفحوص؛ **بيانات العيادة الأربعة** لم تُدخل بعد |
-| P-OBSERVABILITY | 🟡 | `Audit` + `logEvent_`؛ لا فحص صحة ولا تنبيه للمشغّل |
+| P-OBSERVABILITY | 🟡 | فحص للموظف ومسار HTTP ثابت للحياة فقط؛ لا مراقبة مجدولة أو تنبيه خارجي |
 | P-RECOVERY | 🟡 | `git revert` + إعادة نشر؛ لا خطة استعادة بيانات |
 | P-USERFLOW | 🟡 | مُثبت في jsdom وفي المحاكاة؛ غير مُثبت في حساب حقيقي (G1) |
-| P-DEPLOY | 🟡 | الموقع منشور ومُتحقَّق؛ Apps Script لم يُنشر قط |
+| P-DEPLOY | 🟡 | الموقع منشور ومُتحقَّق؛ حالة نشر Apps Script الفعلية غير مُتحقَّقة |
 
 ## ما تغيّر ولماذا — سجل مختصر
 
@@ -55,12 +55,12 @@
 
 | الإجمالي | مغلق | مفتوح |
 | --- | --- | --- |
-| **26** | **21** | **5** (G1) (G2) (G14) (G23) (G26) |
+| **27** | **20** | **7** (G1) (G2) (G14) (G19) (G23) (G26) (G27) |
 
 | Gap | Type | Severity | Status | Evidence / closure |
 | --- | --- | --- | --- | --- |
 | G1 | untested_critical_path | high | **OPEN** | TODO.md:35-45 'مفتوح قبل التشغيل الحقيقي'; scripts/test-gas-simulated.js:143 stubs UrlFetchApp; no real account run recorded |
-| G2 | unconfigured_contract | high | **OPEN** | 2026-11-06: the owner's settings page lists 2 repository secrets (GEMINI_API_KEY, which the manifest declares, and AGENTMAIL_API_KEY, which the manifest does not); branch protection and variables stay unreadable to the integration token (403), so none of the three is verified state. Earlier reading (2026-11-05): 0 secrets, 0 variables, protected=false. |
+| G2 | unconfigured_contract | high | **OPEN** | 2026-11-07: the owner shared a settings-page listing of four repository secret names: AGENTMAIL_API_KEY, GEMINI_API_KEY, MAILERLITE_API_KEY and WAAPI_API_TOKEN; their values and validity are not shown. The integration token previously received 403 for secrets, variables and branch protection, so this listing is user-provided, not independently verified; variables and branch protection remain unverified. 2026-11-06: an earlier owner-provided listing showed two names. |
 | G3 | config_drift | high | **resolved** | node scripts/check-config.js /tmp/bad.json → "LLM_TIMEOUT_MS: must be a number within 2000..60000" (exit 1) |
 | G4 | defined_but_unused | med | **resolved** | config/.env.example header states the CELIA_* names are docs-only mirrors; GROQ_API_KEY annotated as reserved |
 | G5 | duplicated_rule | med | **resolved** | node scripts/check-settings-parity.js -> "15 fields match between Settings.gs and app.js, prices round-trip"; node scripts/test-published-clinic.js -> "a file cannot override the clinic hours" / "cannot add or price a visit type" (25 checks) |
@@ -77,14 +77,15 @@
 | G16 | missing_abuse_control | high | **resolved** | Script cache counter with a 5-failure / 15-minute lock, shared across executions; test-gas-simulated.js asserts four typos do not lock, the fifth does, the correct PIN is refused while locked, the window clears, and a good login resets the counter. Removing the lock check fails the suite. |
 | G17 | unattributable_audit | med | **resolved** | staffActor_() records the signed-in account as staff:<email> (lower-cased), degrades to 'staff' when the account cannot be resolved, and the public clinic profile is asserted to carry no email; test-gas-simulated.js checks both branches. |
 | G18 | unbounded_wait | high | **resolved** | scripts/test-ui-smoke.js drives a real Apps Script-shaped runner whose callback never fires: the slot read falls back to the documented preference list, the submit button returns to enabled with its label restored, and the toast says the response did not arrive. Removing the wrapper (mutation) fails 4 assertions. |
-| G19 | missing_data_rights | high | **resolved** | node scripts/test-privacy-health.js -> 21 checks (reference+phone ownership, erasure blanks name/phone but keeps audit trail, live-event and outage-queue refusals, retention window + throttle) |
-| G20 | unobservable_failure | high | **resolved** | node scripts/test-privacy-health.js -> health payload without name/phone/reference, red on Sheets outage, red on temporary PIN, red on full queue, public endpoint closed without HEALTH_TOKEN |
+| G19 | missing_data_rights | high | **OPEN** | index.html:253 privacy card + a consent checkbox only; no erasure path, no retention setting, no guardian-visible notice \| before this change |
+| G20 | unobservable_failure | high | **resolved** | node scripts/test-privacy-health.js -> red on simulated failures, sanitized dependency errors, token-gated helper and no HTTP health route |
 | G21 | architecture_doc_invisible_on_site | low | **resolved** | node scripts/check-workflows.js (map parses, no undeclared/dead ids); grep of _site assembly in pages.yml shows the docs kept internal by allow-list |
 | G22 | silent_breakage | high | **resolved** | node scripts/check-script-syntax.js → 'Syntax gate passed: 45 script(s) under scripts/ parse.' and CI step 'Syntax gate (every script under scripts/)' |
 | G23 | unverified_behaviour | med | **OPEN** | .github/workflows/ai-repair.yml and ci-error-triage.yml were on the PR branch only; GitHub refuses `gh workflow run` for a workflow absent from the default branch (HTTP 404). They merged in 01c90ba, so the technical blocker is gone and the remaining requirement is a completed run, not a merge |
 | G24 | docs_drift | med | **resolved** | node scripts/check-audit-doc.js → 'Audit gate passed: 16 threat rows, 31 file:line citations, all resolvable.' and the gate runs in CI as 'Threat-model citations resolve and are backed by tests' |
 | G25 | security | high | **resolved** | scripts/test-privacy-health.js: 'a prefix of the secret is not accepted', 'a prefix of the health token does not open the uptime endpoint', 'a prefix of the staff PIN digest does not unlock the dashboard' — all three fail against the old comparison and pass after Code.gs:992 compares length first. |
 | G26 | architectural_drift | med | **OPEN** | 5 functions in boundaries.json remain exempted from the pure-layer rule; approval now re-reads event identity, exact reference and times before CONFIRMED in offline simulation, but there is no independent orphan reconciliation or live verification |
+| G27 | security | high | **OPEN** | Before the local fix a synthetic probe showed that validateRequest_ accepted a guardianName starting with '=' and createRequest could pass it to appendRow. The public intake now rejects leading-equals name and phone values before Sheet or outage-queue writes; scripts/test-gas-simulated.js covers both connected and outage mocks. No live Sheet was modified; queued old records and other write paths are not yet fully audited. |
 
 ## نتيجة تشغيل التقرير
 
@@ -102,7 +103,7 @@
 | gate.parity — تطابق الإعدادات (حيّ/تجريبي) | ✅ **PASS** | Settings parity OK — 16 fields match between Settings.gs and app.js, prices round-trip, and the public profile ships ser | CC (المستودع) |
 | gate.backend — محاكاة الخادم | ✅ **PASS** | Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calen | CC (المستودع) |
 | gate.ui — الواجهة في متصفح | ✅ **PASS** | UI smoke test passed: rendering, booking, reference tracking, staff approval, and the admin assistant all work in demo m | CC (المستودع) |
-| gate.privacy — الخصوصية والاحتفاظ وفحص الصحة | ✅ **PASS** | Privacy/health suite passed: 24 checks (reference is not a credential, deletion erases contact data and keeps the audit  | CC (المستودع) |
+| gate.privacy — الخصوصية والاحتفاظ وفحص الصحة | ✅ **PASS** | Privacy/health suite passed: 40 checks (reference is not a credential, deletion erases contact data and keeps the audit  | CC (المستودع) |
 | site.up — الموقع المنشور | ⏸️ **NOT VERIFIED** | تم تخطي الشبكة (--offline) | المستخدم (شبكة) |
 | live.appsScript — الخادم يعمل في حساب Google | ⏸️ **NOT VERIFIED** | لم يُختبر في حساب حقيقي — المحاكاة لا تُغني عنه | المستخدم |
 | live.branchProtection — حماية main (مطلوب PR + CI) | ⏸️ **NOT VERIFIED** | لا يمكن قراءتها بلا صلاحية إدارة المستودع | المستخدم |

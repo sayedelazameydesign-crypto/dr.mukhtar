@@ -26,6 +26,7 @@
   const state = {
     view: 'booking',
     staffPin: '',
+    summaryToken: '',
     permissions: ALL_PERMISSIONS.slice(),
     role: 'CLINIC_ADMIN',
     staffName: '',
@@ -579,6 +580,14 @@
       if (!isStaffSession(args[0])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       return { ok: true, bookings: store.bookings, closures: store.closures, warnings: [] };
     }
+    if (method === 'generateDailySummary') {
+      if (!isStaffSession(args[0])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+      const day = clinicTodayISO();
+      const appointments = store.bookings.filter((item) => item.day === day && item.status === 'CONFIRMED')
+        .map((item) => ({ time: item.time, guardianName: item.guardianName }))
+        .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+      return { ok: true, day, appointments, missingEventCount: 0, demo: true };
+    }
     if (method === 'approveRequest') {
       if (!isStaffSession(args[1])) return { ok: false, message: 'رمز الموظف غير صحيح.' };
       const booking = store.bookings.find((item) => item.reference === args[0]);
@@ -815,9 +824,18 @@
     if (number.startsWith('20')) return number;
     return number.length === 10 && number.startsWith('1') ? `20${number}` : number;
   }
+  function validWhatsAppNumber(phone) {
+    const raw = String(phone || '').trim();
+    if (!/^\+?[0-9\s()-]{8,24}$/.test(raw)) return '';
+    const explicitInternational = /^(?:\+|00)/.test(raw);
+    const number = explicitInternational ? raw.replace(/\D/g, '').replace(/^00/, '') : waNumber(raw);
+    const isEgyptian = /^20(?:10|11|12|15)\d{8}$/.test(number);
+    const isInternational = /^(?:\+|00)/.test(raw) && /^[1-9]\d{7,14}$/.test(number) && !number.startsWith('20');
+    return isEgyptian || isInternational ? number : '';
+  }
   function setWhatsApp(phone) {
-    const digitsOnly = waNumber(phone);
-    const usable = digitsOnly.length >= 10 && digitsOnly.startsWith('20');
+    const digitsOnly = validWhatsAppNumber(phone);
+    const usable = !!digitsOnly;
     const links = $$('#whatsappLink, #whatsappLinkAccess');
     links.forEach((link) => {
       const holder = link.closest('p');
@@ -1563,10 +1581,11 @@
         : savedLocally ? 'تم حفظ الطلب مؤقتًا في نظام العيادة أثناء تعطل Sheets. لن يتأكد الموعد حتى عودة السجل ومراجعته.'
           : booking.slotVerified === false ? 'حُفظ الوقت كتفضيل فقط لأن التقويم لم يكن متاحًا للتحقق. يلزم مراجعة العيادة قبل الموافقة.'
             : 'سيراجع فريق العيادة الطلب، وسيؤكد الموعد أو يتواصل معكم بشأن وقت بديل.');
+    const clinicChat = IS_GAS && $('#whatsappLink') ? $('#whatsappLink').getAttribute('href') : '';
     result.innerHTML = `
       <div class="result-top">
         <span class="result-check" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="m4.5 10.5 3.4 3.4 7.6-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <div><h3>وصل طلبكم إلى العيادة</h3><p>حالة الطلب: <strong>${escapeHTML(formatStatus(booking.status))}</strong>. لم يتأكد الموعد بعد.</p></div>
+        <div><h3>${localDemo ? 'طلب تجريبي محفوظ على هذا الجهاز' : 'تم تسجيل طلبكم'}</h3><p>حالة الطلب: <strong>${escapeHTML(formatStatus(booking.status))}</strong>. لم يتأكد الموعد بعد.</p></div>
       </div>
       <div class="result-meta">
         <span>${escapeHTML(prettyDate(booking.day))}</span>
@@ -1577,6 +1596,7 @@
       <div class="result-actions">
         <button type="button" class="secondary-button" data-copy="${escapeHTML(booking.reference)}">نسخ الرقم المرجعي</button>
         <a class="secondary-button" href="${IS_GAS ? '#' : '#trackCard'}" data-track-ref="${escapeHTML(booking.reference)}">متابعة الحالة</a>
+        ${clinicChat ? `<a class="secondary-button" href="${escapeHTML(clinicChat)}" target="_blank" rel="noopener noreferrer">التواصل مع العيادة عبر واتساب</a>` : ''}
       </div>
       <p class="result-note">${escapeHTML(note)}</p>`;
     result.hidden = false;
@@ -1749,14 +1769,24 @@
         : status === 'RESCHEDULED' ? 'rescheduled' : '';
   }
   function bookingDateTime(booking) { return `${prettyDate(booking.day)} · ${prettyTime(booking.time)}`; }
-  function whatsappLink(booking, proposal = false) {
-    let number = digits(booking.phone);
-    if (number.startsWith('0')) number = `20${number.slice(1)}`;
-    else if (number.length === 10 && number.startsWith('1')) number = `20${number}`;
-    const clinic = IS_GAS ? (state.clinicName || 'عيادة الأطفال') : 'عيادة Celia Kids (عرض تجريبي)';
-    const prefix = proposal ? 'نقترح عليكم وقتًا بديلًا لطلب الموعد' : 'تم تأكيد موعدكم في';
-    const message = `${prefix} لدى ${clinic}: ${prettyDate(booking.day)} الساعة ${prettyTime(booking.time)}. رقم الطلب: ${booking.reference}. للرد أو الاستفسار، تواصلوا مع العيادة.`;
+  function whatsappLink(booking, kind) {
+    // Local demo data must never create an actionable link to a real recipient.
+    if (!IS_GAS || !booking || (kind === 'proposal' ? booking.status !== 'RESCHEDULED' : booking.status !== 'CONFIRMED' || !booking.eventId)) return '';
+    const number = validWhatsAppNumber(booking.phone);
+    if (!number) return '';
+    // Do not put a name, reference, time or visit type in the URL. The staff member
+    // reviews the destination and can add details manually; clicking does not send.
+    const message = kind === 'proposal'
+      ? 'بخصوص طلب الموعد، يرجى التواصل مع العيادة لمراجعة الوقت البديل.'
+      : kind === 'reminder'
+        ? 'تذكير بموعدكم لدى العيادة. يرجى التواصل معنا عند الحاجة.'
+        : 'تم تأكيد موعدكم لدى العيادة. يرجى التواصل معنا عند الحاجة.';
     return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+  }
+  function whatsappAction(booking, kind, label) {
+    const href = whatsappLink(booking, kind);
+    return href ? `<a class="text-button" href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+      : IS_GAS ? '<small>الرابط غير متاح؛ راجعوا الرقم وحالة الموعد وحدث التقويم.</small>' : '';
   }
   function currentWeekBookings(bookings) {
     // Monday-based week, anchored on the clinic's today (not the phone's).
@@ -1775,8 +1805,8 @@
     const actions = canAct ? `
       <div class="request-actions">
         ${isPending ? `${can('booking:approve') ? `<button class="action-approve" data-action="approve" data-ref="${ref}">${booking.status === 'RESCHEDULED' ? 'اعتماد الوقت المقترح' : 'قبول وحجز'}</button>` : ''}${can('booking:reschedule') ? `<button data-action="reschedule" data-ref="${ref}">اقتراح وقت بديل</button><button class="action-danger" data-action="cancel" data-ref="${ref}">رفض / إلغاء</button>` : ''}` : ''}
-        ${isConfirmed ? `${can('booking:reschedule') ? `<button data-action="move" data-ref="${ref}">تعديل الموعد</button>` : ''}${can('booking:no_show') ? `<button data-action="complete" data-ref="${ref}">إكمال الزيارة</button>` : ''}${can('booking:reschedule') ? `<button data-action="cancel" data-ref="${ref}" class="action-danger">إلغاء</button>` : ''}<a class="text-button" href="${whatsappLink(booking)}" target="_blank" rel="noopener noreferrer">رسالة WhatsApp</a>` : ''}
-        ${booking.status === 'RESCHEDULED' ? `<a class="text-button" href="${whatsappLink(booking, true)}" target="_blank" rel="noopener noreferrer">إرسال الاقتراح يدويًا</a>` : ''}
+        ${isConfirmed ? `${can('booking:reschedule') ? `<button data-action="move" data-ref="${ref}">تعديل الموعد</button>` : ''}${can('booking:no_show') ? `<button data-action="complete" data-ref="${ref}">إكمال الزيارة</button>` : ''}${can('booking:reschedule') ? `<button data-action="cancel" data-ref="${ref}" class="action-danger">إلغاء</button>` : ''}${whatsappAction(booking, 'confirmation', 'فتح تأكيد واتساب')}` : ''}
+        ${booking.status === 'RESCHEDULED' ? whatsappAction(booking, 'proposal', 'فتح الاقتراح يدويًا') : ''}
       </div>` : '';
     // A slot the calendar could not confirm is a *preference*, not a booking. The clinic
     // must see that before approving, otherwise "unverified" is a stored flag nobody reads.
@@ -1789,7 +1819,7 @@
           <h4>${escapeHTML(booking.guardianName)} <span class="request-ref">${ref}</span></h4>
           <div class="request-meta">${escapeHTML(booking.visitType)} · ${escapeHTML(bookingDateTime(booking))}<br>${escapeHTML(booking.phone)}</div>
         </div>
-        <span class="status-pill ${statusClass(booking.status)}">${escapeHTML(formatStatus(booking.status))}</span>
+        <span class="status-pill ${statusClass(booking.status)}">${escapeHTML(isConfirmed && !IS_GAS ? 'مؤكد تجريبيًا فقط' : isConfirmed && !booking.eventId ? 'يتطلب مراجعة التقويم' : formatStatus(booking.status))}</span>
       </div>${unchecked}${actions}
     </article>`;
   }
@@ -1811,6 +1841,9 @@
   async function loginStaff(event) {
     event.preventDefault();
     const typed = $('#staffPin').value.trim();
+    state.summaryToken = '';
+    dailySummaryGeneration += 1;
+    dashboardGeneration += 1;
     $('#staffLoginError').hidden = true;
     try {
       // The browser sends the hash, never the PIN itself (matches Settings.gs).
@@ -1830,6 +1863,7 @@
         }
         if (loginAnswer && loginAnswer.ok && loginAnswer.token) {
           credential = loginAnswer.token;
+          state.summaryToken = loginAnswer.token;
           state.permissions = Array.isArray(loginAnswer.permissions) ? loginAnswer.permissions : [];
           state.role = loginAnswer.staff && loginAnswer.staff.role ? loginAnswer.staff.role : '';
           state.staffName = loginAnswer.staff && loginAnswer.staff.name ? loginAnswer.staff.name : '';
@@ -1843,23 +1877,33 @@
       $('#staffLogin').hidden = true;
       $('#staffDashboard').hidden = false;
       renderDashboard(response);
+      refreshDailySummary();
     } catch (error) {
       $('#staffLoginError').textContent = error.message;
       $('#staffLoginError').hidden = false;
     }
   }
+  let dailySummaryGeneration = 0;
+  let dashboardGeneration = 0;
   async function refreshDashboard() {
+    const generation = ++dashboardGeneration;
+    dailySummaryGeneration += 1;
     try {
       const response = await api('getDashboard', state.staffPin);
+      if (generation !== dashboardGeneration) return;
       if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر تحميل لوحة الموظف.');
       renderDashboard(response);
+      refreshDailySummary();
     } catch (error) {
+      if (generation !== dashboardGeneration) return;
+      $('#dailySummary').textContent = 'تعذر تحديث الملخص. راجعوا الاتصال وسجّلوا الدخول من جديد عند الحاجة.';
       $('#staffAlerts').hidden = false;
       $('#staffAlerts').textContent = error.message;
     }
   }
   function renderDashboard(response) {
     const bookings = response.bookings || [];
+    const requestsReadable = response.requestsReadable !== false;
     state.bookings = bookings;
     state.closures = response.closures || [];
     const pending = bookings.filter((item) => ['REQUESTED', 'PENDING_APPROVAL', 'RESCHEDULED'].includes(item.status));
@@ -1867,22 +1911,57 @@
     // phone's, or a doctor reviewing after midnight sees yesterday's numbers.
     const today = clinicTodayISO();
     const todayConfirmed = bookings.filter((item) => item.day === today && ['CONFIRMED', 'COMPLETED'].includes(item.status));
+    const todayUpcoming = todayConfirmed.filter((item) => item.status === 'CONFIRMED')
+      .sort((a, b) => String(a.time).localeCompare(String(b.time)));
     const week = currentWeekBookings(bookings);
     $('#dashboardStats').innerHTML = `
-      <div class="stat-card"><span>بانتظار القرار</span><strong>${arabicNumber(pending.length)}</strong><small>الطلب لا يحجز الوقت حتى اعتماده</small></div>
-      <div class="stat-card"><span>زيارات اليوم</span><strong>${arabicNumber(todayConfirmed.length)}</strong><small>${escapeHTML(prettyDate(today))}</small></div>
-      <div class="stat-card"><span>مواعيد هذا الأسبوع</span><strong>${arabicNumber(week.length)}</strong><small>مؤكدة أو مكتملة</small></div>`;
-    $('#pendingCount').textContent = arabicNumber(pending.length);
-    $('#pendingList').innerHTML = pending.length
+      <div class="stat-card"><span>بانتظار القرار</span><strong>${requestsReadable ? arabicNumber(pending.length) : '—'}</strong><small>الطلب لا يحجز الوقت حتى اعتماده</small></div>
+      <div class="stat-card"><span>زيارات اليوم</span><strong>${requestsReadable ? arabicNumber(todayConfirmed.length) : '—'}</strong><small>${escapeHTML(prettyDate(today))}</small></div>
+      <div class="stat-card"><span>مواعيد هذا الأسبوع</span><strong>${requestsReadable ? arabicNumber(week.length) : '—'}</strong><small>مؤكدة أو مكتملة</small></div>`;
+    $('#todayList').innerHTML = !requestsReadable ? '<div class="empty-list">تعذر قراءة سجل الطلبات؛ لا يمكن تحديد مواعيد اليوم.</div>' : todayUpcoming.length
+      ? todayUpcoming.map((item) => `<article class="request-item"><div class="request-item-top"><div><h4>${escapeHTML(item.guardianName)}</h4><div class="request-meta">${escapeHTML(prettyTime(item.time))}</div></div><span class="status-pill confirmed">${!IS_GAS ? 'تجريبي فقط' : item.eventId ? 'مؤكد' : 'يتطلب مراجعة التقويم'}</span></div>${whatsappAction(item, 'reminder', 'فتح تذكير يدوي')}</article>`).join('')
+      : '<div class="empty-list">لا توجد مواعيد مؤكدة لليوم.</div>';
+    if (!IS_GAS && requestsReadable && todayUpcoming.length) $('#todayList').insertAdjacentHTML('beforeend', '<p class="privacy-reminder">عرض تجريبي على هذا الجهاز فقط؛ روابط التذكير معطّلة.</p>');
+    $('#pendingCount').textContent = requestsReadable ? arabicNumber(pending.length) : '—';
+    $('#pendingList').innerHTML = !requestsReadable ? '<div class="empty-list">تعذر قراءة سجل الطلبات؛ راجعوا التنبيهات.</div>' : pending.length
       ? pending.map((item) => requestCard(item, true)).join('')
       : '<div class="empty-list">لا توجد طلبات بانتظار المراجعة.</div>';
-    $('#weekList').innerHTML = week.length
+    $('#weekList').innerHTML = !requestsReadable ? '<div class="empty-list">تعذر قراءة سجل الطلبات؛ لا يمكن تحديد مواعيد الأسبوع.</div>' : week.length
       ? week.map((item) => requestCard(item, true)).join('')
       : '<div class="empty-list">لا توجد مواعيد مؤكدة هذا الأسبوع.</div>';
     const alertBox = $('#staffAlerts');
     const warnings = response.warnings || [];
     if (warnings.length) { alertBox.hidden = false; alertBox.textContent = warnings.join(' — '); }
     else alertBox.hidden = true;
+  }
+
+  function renderDailySummary(response) {
+    const target = $('#dailySummary');
+    if (!response || !response.ok) {
+      target.textContent = (response && response.message) || 'تعذر جلب الملخص؛ راجعوا الاتصال وسجل الطلبات.';
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(response.day || '')) || !Array.isArray(response.appointments) ||
+        response.appointments.some((item) => !item || typeof item.time !== 'string' || typeof item.guardianName !== 'string')) {
+      target.textContent = 'تعذر عرض الملخص: استجابة البيانات غير مكتملة.';
+      return;
+    }
+    const lines = [response.demo ? 'ملخص تجريبي على هذا الجهاز فقط' : 'ملخص سجل الطلبات — لم يُتحقق من التقويم مباشرة',
+      `تاريخ القاهرة: ${response.day}`, `المواعيد المؤكدة: ${arabicNumber(response.appointments.length)}`];
+    response.appointments.forEach((item) => lines.push(`${prettyTime(item.time)} — ${item.guardianName}`));
+    if (!response.appointments.length && !response.missingEventCount) lines.push('لا توجد مواعيد مؤكدة في السجل لهذا اليوم.');
+    if (response.missingEventCount) lines.push(`تنبيه: ${arabicNumber(response.missingEventCount)} من سجلات اليوم بحالة مؤكدة بلا معرّف حدث؛ لم تُحتسب وتحتاج مراجعة التقويم.`);
+    target.textContent = lines.join('\n');
+  }
+  async function refreshDailySummary() {
+    const generation = ++dailySummaryGeneration;
+    $('#dailySummary').textContent = 'جارٍ قراءة ملخص اليوم…';
+    try {
+      const response = await api('generateDailySummary', IS_GAS ? state.summaryToken : state.staffPin);
+      if (generation === dailySummaryGeneration) renderDailySummary(response);
+    } catch (error) {
+      if (generation === dailySummaryGeneration) $('#dailySummary').textContent = 'تعذر جلب الملخص: لم يصل رد الخادم أو تعذر الاتصال.';
+    }
   }
 
   async function staffAction(button) {
@@ -2003,6 +2082,7 @@
     $('#bookingForm').addEventListener('submit', submitBooking);
     $('#trackForm').addEventListener('submit', trackRequest);
     $('#staffLoginForm').addEventListener('submit', loginStaff);
+    $('#refreshDailySummary').addEventListener('click', refreshDailySummary);
     $('#pendingList').addEventListener('click', (event) => { const button = event.target.closest('[data-action]'); if (button) staffAction(button); });
     $('#weekList').addEventListener('click', (event) => { const button = event.target.closest('[data-action]'); if (button) staffAction(button); });
     $('#closureForm').addEventListener('submit', closeDay);

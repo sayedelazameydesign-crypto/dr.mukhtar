@@ -224,4 +224,56 @@ const RECORD = {
   check('the default version is reported when unset', load().api.whatsappStatus().graphVersion === 'v23.0');
 }
 
+// 13 — WAAPI preview is a fixed, offline fixture, never a path to real recipients.
+{
+  const { api, calls, props, logs } = load({
+    props: { WHATSAPP_MODE: 'live', WHATSAPP_TOKEN: 'test-token-value', WHATSAPP_PHONE_NUMBER_ID: '9876' },
+    fetch: () => { throw new Error('WAAPI preview must never fetch'); }
+  });
+  const savedGet = props.getProperty;
+  props.getProperty = () => { throw new Error('WAAPI preview must never read settings'); };
+  const fixture = api.waapiSandboxPreview_({ phone: RECORD.phone, message: 'SENSITIVE_SAMPLE' });
+  check('WAAPI preview is fixed and ignores inputs', JSON.stringify(fixture) === JSON.stringify(api.waapiSandboxPreview_({ phone: 'another-input', message: 'another-message' })));
+  check('WAAPI preview is explicitly not a send', fixture.mode === 'offline-fixture' && fixture.sent === false);
+  check('WAAPI fixture matches the documented method and route', fixture.method === 'POST' && fixture.path === '/instances/{instance_id}/client/action/send-message');
+  check('WAAPI fixture shows Bearer and JSON without any token', fixture.authorization === 'Bearer <not supplied>' && fixture.contentType === 'application/json');
+  check('WAAPI fixture has the documented message fields and an intentionally invalid recipient', fixture.body.chatId === '0000000' + '@' + 'c.us' && typeof fixture.body.message === 'string');
+  check('real-looking inputs and token do not appear in the fixture', !JSON.stringify(fixture).includes(RECORD.phone) && !JSON.stringify(fixture).includes('SENSITIVE_SAMPLE') && !JSON.stringify(fixture).includes('test-token-value'));
+  check('WAAPI preview touches neither network nor logs', calls.length === 0 && logs.length === 0);
+  props.getProperty = savedGet;
+}
+
+// 14 — a 2xx response is not enough; action success is not delivery confirmation.
+{
+  const { api, calls, logs, props } = load({ props: { WHATSAPP_MODE: 'live' } });
+  props.getProperty = () => { throw new Error('WAAPI classification must never read settings'); };
+  const accepted = api.waapiClassifyResponse_(200, { status: 'success', data: { status: 'success', message: 'SENSITIVE_SAMPLE' } });
+  check('nested WAAPI action success is provider acceptance only', accepted.outcome === 'provider-accepted' && accepted.delivered === null && accepted.deliveryVerified === false);
+  check('no response content leaks into classification', !JSON.stringify(accepted).includes('SENSITIVE_SAMPLE'));
+  const rejected = api.waapiClassifyResponse_(200, { status: 'success', data: { status: 'error', message: 'SENSITIVE_SAMPLE' } });
+  check('HTTP success with action error is never accepted', rejected.outcome === 'provider-reported-error' && !JSON.stringify(rejected).includes('SENSITIVE_SAMPLE'));
+  const unknownCases = [
+    [500, { status: 'success', data: { status: 'success' } }],
+    [429, { status: 'success', data: { status: 'error' } }],
+    [200, null], [200, {}], [200, { status: 'success', data: [] }],
+    [200, { status: 'success', data: { status: 'pending' } }],
+    ['200', { status: 'success', data: { status: 'success' } }]
+  ];
+  check('HTTP failures and malformed or incomplete envelopes remain unknown', unknownCases.every(([status, body]) => api.waapiClassifyResponse_(status, body).outcome === 'unknown'));
+  check('all outcomes refuse automatic retries and leave delivery unverified', [accepted, rejected, ...unknownCases.map(([s, b]) => api.waapiClassifyResponse_(s, b))].every((result) => result.automaticRetry === false && result.deliveryVerified === false && result.delivered === null));
+  check('WAAPI classification uses no network or logs', calls.length === 0 && logs.length === 0);
+}
+
+// 15 — neither the public domain notification path nor the existing Meta adapter uses
+// these disconnected fixture helpers, even when the old live branch is configured.
+{
+  for (const mode of ['off', 'dry-run', 'live']) {
+    const { api, calls } = load({ props: { WHATSAPP_MODE: mode, WHATSAPP_TOKEN: 'test-token-value', WHATSAPP_PHONE_NUMBER_ID: '9876' } });
+    api.waapiSandboxPreview_ = () => { throw new Error('fixture leaked into send path'); };
+    api.waapiClassifyResponse_ = () => { throw new Error('fixture leaked into send path'); };
+    const result = api.whatsappNotify_('confirmation', RECORD);
+    check(`WAAPI fixtures are disconnected from ${mode} notifications`, result.ok === true && calls.length === (mode === 'live' ? 1 : 0));
+  }
+}
+
 console.log(`WhatsApp adapter suite passed: ${passed} checks (off/dry-run send nothing, live is typed, failures never reach booking).`);

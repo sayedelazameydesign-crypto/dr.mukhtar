@@ -69,8 +69,8 @@ function staffSheet_() {
  * Rows as objects. A malformed row is skipped, not trusted: a sheet someone typed into
  * by hand must not become a way to gain a role.
  */
-function readStaffRows_() {
-  const values = staffSheet_().getDataRange().getValues();
+function readStaffRows_(existingSheet) {
+  const values = (existingSheet || staffSheet_()).getDataRange().getValues();
   const rows = [];
   for (let index = 1; index < values.length; index += 1) {
     const row = values[index];
@@ -166,7 +166,7 @@ function matchStaffPin_(candidate) {
   return { ok: true, staff: matched };
 }
 
-function sessionFromToken_(token) {
+function sessionFromToken_(token, readOnly) {
   const value = String(token || '');
   if (value.length < 24) return null;
   const raw = sessionStore_(value);
@@ -175,7 +175,9 @@ function sessionFromToken_(token) {
   try { session = JSON.parse(raw); } catch (error) { return null; }
   if (!session || !session.id || CK_STAFF_ROLES.indexOf(String(session.role)) === -1) return null;
   if (!(Number(session.exp) > Date.now())) {
-    try { PropertiesService.getScriptProperties().deleteProperty(CK_SESSION_PREFIX + value); } catch (error) { /* expired is enough */ }
+    if (!readOnly) {
+      try { PropertiesService.getScriptProperties().deleteProperty(CK_SESSION_PREFIX + value); } catch (error) { /* expired is enough */ }
+    }
     return null;
   }
   return {
@@ -192,12 +194,18 @@ function sessionFromToken_(token) {
  * The credential path exists for the first login and for a stale client; it always
  * produces a real role, never a wildcard.
  */
-function staffRowMatchesSession_(id, role) {
+function staffRowMatchesSession_(id, role, readOnly) {
   const wanted = String(id || '');
   if (!wanted) return false;
   try {
+    // A read-only report must not create a missing Staff sheet or initialise its header.
+    const sheet = readOnly ? getSpreadsheet_().getSheetByName(CK_STAFF) : null;
+    if (readOnly) {
+      if (!sheet || sheet.getLastRow() < 1) return false;
+      assertSheetSchema_(sheet, CK_STAFF_HEADERS, CK_STAFF);
+    }
     // The role stored in an old session must not outlive a change to the staff row.
-    return readStaffRows_().some((row) => row.id === wanted && row.active && row.role === role);
+    return readStaffRows_(sheet).some((row) => row.id === wanted && row.active && row.role === role);
   } catch (error) {
     // A sheet outage must not turn into a permission: fail closed.
     return false;
@@ -282,6 +290,19 @@ function requirePermission_(tokenOrCredential, permission) {
   }
   CK_ACTIVE_SESSION = session;
   return { ok: true, id: session.id, name: session.name, role: session.role, token: session.token };
+}
+
+/** Session-only guard for reports that must not seed sheets, migrate PINs or delete sessions. */
+function requireReadOnlyPermission_(token, permission) {
+  let session;
+  try { session = sessionFromToken_(token, true); }
+  catch (error) { return { ok: false, message: 'تعذّر التحقق من جلسة الموظف الآن.' }; }
+  if (!session) return { ok: false, message: 'انتهت صلاحية الجلسة. سجّلوا الدخول من جديد.' };
+  if (!session.legacy && !staffRowMatchesSession_(session.id, session.role, true)) {
+    return { ok: false, message: 'تعذّر التحقق من صلاحية الموظف؛ راجعوا الاتصال أو سجّلوا الدخول من جديد.' };
+  }
+  if (!roleCan_(session.role, permission)) return { ok: false, message: 'صلاحية غير كافية لهذا الإجراء.' };
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------ staff management ---- */

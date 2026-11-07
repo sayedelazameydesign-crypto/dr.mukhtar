@@ -9,7 +9,7 @@
  * the shell list and at fetch time. Nothing from another origin is touched either.
  */
 
-const CACHE = 'celia-kids-shell-v1';
+const CACHE = 'celia-kids-shell-v2';
 const SHELL = [
   './', './index.html', './privacy.html',
   './app.css?v=2026', './app.js?v=2026',

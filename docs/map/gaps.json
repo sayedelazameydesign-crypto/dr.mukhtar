@@ -13,7 +13,7 @@
     {
       "id": "G2",
       "type": "unconfigured_contract",
-      "evidence": "2026-11-06: the owner's settings page lists 2 repository secrets (GEMINI_API_KEY, which the manifest declares, and AGENTMAIL_API_KEY, which the manifest does not); branch protection and variables stay unreadable to the integration token (403), so none of the three is verified state. Earlier reading (2026-11-05): 0 secrets, 0 variables, protected=false.",
+      "evidence": "2026-11-07: the owner shared a settings-page listing of four repository secret names: AGENTMAIL_API_KEY, GEMINI_API_KEY, MAILERLITE_API_KEY and WAAPI_API_TOKEN; their values and validity are not shown. The integration token previously received 403 for secrets, variables and branch protection, so this listing is user-provided, not independently verified; variables and branch protection remain unverified. 2026-11-06: an earlier owner-provided listing showed two names.",
       "impact": "The secrets manifest is declared policy, not enforced state; rotation and fork-PR protection rely on settings that do not exist yet",
       "fix": "Run sh scripts/bootstrap-github.sh on the owner's gh session (docs/secrets.md §7a-2)",
       "severity": "high"
@@ -241,13 +241,13 @@
       "type": "missing_data_rights",
       "evidence": "index.html:253 privacy card + a consent checkbox only; no erasure path, no retention setting, no guardian-visible notice | before this change",
       "impact": "A guardian could not withdraw or erase contact data, and a request could keep a name and phone forever on a free-tier Sheet",
-      "fix": "privacy.html + Settings.gs lookupOwnRequest/deleteOwnRequestData + RETENTION_MONTHS purge on the staff dashboard + scripts/test-privacy-health.js",
+      "fix": "Keep guardian erasure; redesign retention with a dry-run, fail-closed Calendar checks, concurrency controls and a reviewed backup/deletion policy before enabling automatic purges.",
       "severity": "high",
-      "status": "resolved",
+      "status": "open",
       "resolution": {
-        "date": "2026-11-05",
-        "evidence": "node scripts/test-privacy-health.js -> 21 checks (reference+phone ownership, erasure blanks name/phone but keeps audit trail, live-event and outage-queue refusals, retention window + throttle)",
-        "note": "Legal review under Egyptian law 151/2020 is still open and is not claimed as closed by this gap."
+        "date": "2026-11-07",
+        "evidence": "Explicit guardian erasure is tested offline, but automatic retention now defaults off locally: Code.gs purgeExpiredRequests_ and scripts/test-privacy-health.js.",
+        "note": "The emergency stop is local and not deployed; the old enabled path remains unsafe pending redesign. Retention and legal review are not complete."
       }
     },
     {
@@ -260,8 +260,8 @@
       "status": "resolved",
       "resolution": {
         "date": "2026-11-05",
-        "evidence": "node scripts/test-privacy-health.js -> health payload without name/phone/reference, red on Sheets outage, red on temporary PIN, red on full queue, public endpoint closed without HEALTH_TOKEN",
-        "note": "No external monitor is wired yet; the endpoint exists and stays closed until an owner sets HEALTH_TOKEN deliberately."
+        "evidence": "node scripts/test-privacy-health.js -> red on simulated failures, sanitized dependency errors, token-gated helper and no HTTP health route",
+        "note": "Staff health exists; doGetHealth is not an HTTP route. A static public liveness route and an unscheduled private recording pass do not prove service health. No trigger or alert is wired; Calendar lookup does not prove read/write access."
       }
     },
     {
@@ -337,6 +337,16 @@
       "impact": "A run that dies between createEvent and updateRequestRow_ can leave a Calendar event without a CONFIRMED row; a later approval attempt may recover a matching event in its search window, but nothing independently reports or reconciles orphans outside that path",
       "fix": "As separate changes: (a) extract readVisitServices_ out of validateRequest_, (b) verify event read-back in a real account, (c) add a reconcile pass matching CK- references in the calendar against Sheets rows without deleting ambiguous events",
       "evidence_needed": "scripts/check-architecture-boundaries.js printing 0 named exemptions, plus a reconcile test that seeds an orphan event and sees it reported"
+    },
+    {
+      "id": "G27",
+      "type": "security",
+      "status": "open",
+      "severity": "high",
+      "evidence": "Before the local fix a synthetic probe showed that validateRequest_ accepted a guardianName starting with '=' and createRequest could pass it to appendRow. The public intake now rejects leading-equals name and phone values before Sheet or outage-queue writes; scripts/test-gas-simulated.js covers both connected and outage mocks. No live Sheet was modified; queued old records and other write paths are not yet fully audited.",
+      "impact": "Untrusted text may become a spreadsheet formula when written, with possible privacy or data-integrity consequences.",
+      "fix": "Inventory every untrusted Sheets write, choose a text-safe storage strategy, test write/read round trips and queue replay with representative inputs, then verify safely in an isolated Google account. Preserve existing phone and identifier semantics; do not assume the mock models formula evaluation.",
+      "evidence_needed": "Regression tests for all identified write paths, including requests, closures, staff and audit queues, and a controlled Google Sheets test without patient data."
     }
   ],
   "questions": [
