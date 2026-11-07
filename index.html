@@ -117,7 +117,7 @@
         <div class="hero-copy">
           <p class="eyebrow"><svg aria-hidden="true"><use href="#i-steth"/></svg> عيادة أطفال · طلب موعد إلكتروني</p>
           <h1>موعد طفلكم يبدأ بخطوة <em>واضحة</em>، ونؤكده بأنفسنا.</h1>
-          <p class="hero-description">اختاروا نوع الزيارة والوقت المناسب لكم، ثم يراجع فريق العيادة الجدول ويؤكد الموعد معكم هاتفيًا أو عبر واتساب قبل إضافته إلى جدول الطبيب. الطلب لا يُعد تأكيدًا قبل مراجعة العيادة.</p>
+          <p class="hero-description">اختاروا نوع الزيارة والوقت، وتراجع العيادة الطلب وتؤكد الموعد معكم. الطلب لا يصبح تأكيدًا قبل مراجعتنا.</p>
           <div class="hero-actions">
             <a class="primary-button hero-cta" href="#bookingView"><span>ابدأوا طلب موعد</span><svg class="button-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
             <a class="ghost-button" href="#trackCard">لديكم طلب سابق؟</a>
@@ -257,17 +257,23 @@
               <div><strong>خصوصية الأسرة أولًا</strong><p>نجمع الاسم ورقم التواصل فقط لإدارة الطلب. لا نطلب ولا نخزّن أي بيانات صحية في هذا النموذج. <a href="./privacy.html">التفاصيل وحق الحذف</a></p></div>
             </section>
 
-            <section class="side-card helper-card">
-              <strong>زيارتكم الأولى؟</strong>
-              <p>أحضروا دفتر التحصينات وبطاقة التأمين إن وُجدت. خصصوا وقتًا كافيًا؛ الكشف الجديد ٦٠ دقيقة.</p>
-              <div class="helper-tags"><span>تأكيد هاتفي</span><span>تذكير قبل الموعد</span><span>إمكانية إعادة الجدولة</span></div>
-            </section>
+            <details class="side-details">
+  <summary>نصائح قبل الزيارة</summary>
+  <section class="side-card helper-card">
+                <strong>زيارتكم الأولى؟</strong>
+                <p>أحضروا دفتر التحصينات وبطاقة التأمين إن وُجدت. خصصوا وقتًا كافيًا؛ الكشف الجديد ٦٠ دقيقة.</p>
+                <div class="helper-tags"><span>تأكيد هاتفي</span><span>تذكير قبل الموعد</span><span>إمكانية إعادة الجدولة</span></div>
+              </section>
+</details>
           </aside>
         </div>
 
         <div id="bookingResult" class="result-card" hidden aria-live="polite"></div>
 
-        <section class="lower-tools" aria-label="المتابعة والمساعدة">
+      </section>
+
+      <section class="quiet-tools" aria-labelledby="quietTitle">
+        <div class="quiet-head"><p class="section-kicker">خدمات إضافية</p><h2 id="quietTitle">متابعة طلب سابق أو سؤال إداري</h2></div>
           <div id="trackCard" class="tool-card tracking-card">
             <div class="tool-head"><p class="section-kicker">طلب سابق</p><h3>تابعوا حالة الطلب</h3><p>استخدموا الرقم المرجعي الذي ظهر بعد الإرسال، ورقم الهاتف الذي أرسلتم به الطلب.</p></div>
             <form id="trackForm" class="track-form"><label class="sr-only" for="trackReference">الرقم المرجعي</label><input id="trackReference" type="text" maxlength="40" placeholder="CK-XXXXXXXX" autocomplete="off" spellcheck="false"><label class="sr-only" for="trackPhone">هاتف ولي الأمر</label><input id="trackPhone" type="tel" inputmode="tel" maxlength="22" placeholder="هاتف ولي الأمر" autocomplete="tel"><button class="secondary-button" type="submit">عرض الحالة</button></form>
@@ -281,7 +287,6 @@
             <p class="faq-warning">للأسئلة الإدارية فقط. لا تكتبوا بيانات شخصية أو صحية. المساعد لا يشخّص ولا يصف علاجًا، ولا يستبدل رأي الطبيب.</p>
             <div id="faqAnswer" class="faq-answer" hidden aria-live="polite"></div>
           </div>
-        </section>
       </section>
 
       <section class="section" id="about" aria-labelledby="aboutTitle">
@@ -398,20 +403,26 @@
               <div class="dashboard-title"><div><p class="section-kicker">بحاجة لمراجعة</p><h3>الطلبات المعلقة</h3></div><span id="pendingCount" class="count-chip">٠</span></div>
               <div id="pendingList" class="request-list"></div>
             </section>
-            <section class="dashboard-card">
-              <div class="dashboard-title"><div><p class="section-kicker">جدول الطبيب</p><h3>هذا الأسبوع</h3></div><span class="calendar-mark" aria-hidden="true"><svg><use href="#i-calendar"/></svg></span></div>
-              <div id="weekList" class="request-list"></div>
-            </section>
+            <details class="side-details">
+  <summary>مواعيد الأسبوع</summary>
+  <section class="dashboard-card">
+                <div class="dashboard-title"><div><p class="section-kicker">جدول الطبيب</p><h3>هذا الأسبوع</h3></div><span class="calendar-mark" aria-hidden="true"><svg><use href="#i-calendar"/></svg></span></div>
+                <div id="weekList" class="request-list"></div>
+              </section>
+</details>
           </div>
-          <section class="dashboard-card closures-card">
-            <div class="dashboard-title"><div><p class="section-kicker">إدارة الدوام</p><h3>إغلاق يوم أو إجازة</h3></div></div>
-            <form id="closureForm" class="closure-form">
-              <label><span>التاريخ</span><input id="closureDate" type="date" required></label>
-              <label><span>ملاحظة قصيرة</span><input id="closureLabel" type="text" maxlength="80" placeholder="إجازة / دوام مغلق"></label>
-              <button class="secondary-button" type="submit">إغلاق اليوم</button>
-            </form>
-            <p class="privacy-reminder">تذكير: استخدموا بيانات وهمية في العروض التجريبية. لا تؤكدوا موعدًا قبل التحقق من الجدول وحفظه في التقويم.</p>
-          </section>
+          <details class="admin-tools">
+  <summary>إغلاق يوم أو إجازة</summary>
+  <section class="dashboard-card closures-card">
+              <div class="dashboard-title"><div><p class="section-kicker">إدارة الدوام</p><h3>إغلاق يوم أو إجازة</h3></div></div>
+              <form id="closureForm" class="closure-form">
+                <label><span>التاريخ</span><input id="closureDate" type="date" required></label>
+                <label><span>ملاحظة قصيرة</span><input id="closureLabel" type="text" maxlength="80" placeholder="إجازة / دوام مغلق"></label>
+                <button class="secondary-button" type="submit">إغلاق اليوم</button>
+              </form>
+              <p class="privacy-reminder">تذكير: استخدموا بيانات وهمية في العروض التجريبية. لا تؤكدوا موعدًا قبل التحقق من الجدول وحفظه في التقويم.</p>
+            </section>
+</details>
           </div>
 
           <!-- Settings are rendered from the server-side catalog (Settings.gs):
@@ -442,14 +453,17 @@
             <!-- Health is read from the backend (healthCheck_), never computed in the page:
                  a report that says "fine" because the browser cannot see the failure is worse
                  than no report. -->
-            <section class="dashboard-card health-card" aria-labelledby="healthTitle">
-              <div class="dashboard-title">
-                <div><p class="section-kicker">فحص سريع</p><h3 id="healthTitle">حالة النظام</h3></div>
-                <button type="button" class="secondary-button" id="healthRefresh">إعادة الفحص</button>
-              </div>
-              <p class="settings-intro">يجيب هذا الفحص عن سؤال واحد: هل يستطيع النظام استقبال طلب الآن؟ لا يُرسل أي بيانات تواصل، ويُقرأ من الخادم فقط.</p>
-              <div id="healthBody" class="health-body" aria-live="polite"><p class="settings-loading">افتحوا الفحص لعرض الحالة.</p></div>
-            </section>
+            <details class="admin-tools">
+  <summary>حالة النظام (فحص تقني)</summary>
+  <section class="dashboard-card health-card" aria-labelledby="healthTitle">
+                <div class="dashboard-title">
+                  <div><p class="section-kicker">فحص سريع</p><h3 id="healthTitle">حالة النظام</h3></div>
+                  <button type="button" class="secondary-button" id="healthRefresh">إعادة الفحص</button>
+                </div>
+                <p class="settings-intro">يجيب هذا الفحص عن سؤال واحد: هل يستطيع النظام استقبال طلب الآن؟ لا يُرسل أي بيانات تواصل، ويُقرأ من الخادم فقط.</p>
+                <div id="healthBody" class="health-body" aria-live="polite"><p class="settings-loading">افتحوا الفحص لعرض الحالة.</p></div>
+              </section>
+</details>
           </div>
         </div>
       </section>

@@ -1355,6 +1355,38 @@
       "path": "docs/plan-2026-finish.md",
       "layer": "docs",
       "role": "8-week plan to close G1/G2/G14/G23/G26 with dating evidence and stop rules"
+    },
+    {
+      "id": "ci.deploy-gas",
+      "kind": "workflow",
+      "path": ".github/workflows/deploy-gas.yml",
+      "lang": "yaml",
+      "layer": "infra",
+      "role": "manual publish of the gas/ bundle"
+    },
+    {
+      "id": "env.CLASPRC_JSON",
+      "kind": "env",
+      "path": "config/.env.example:67",
+      "lang": "env",
+      "layer": "infra",
+      "role": "clasp credentials for manual deploy"
+    },
+    {
+      "id": "env.GAS_SCRIPT_ID",
+      "kind": "env",
+      "path": "config/.env.example:26",
+      "lang": "env",
+      "layer": "infra",
+      "role": "Apps Script project identifier"
+    },
+    {
+      "id": "env.GAS_DEPLOYMENT_ID",
+      "kind": "env",
+      "path": "config/.env.example:27",
+      "lang": "env",
+      "layer": "infra",
+      "role": "live web-app deployment identifier"
     }
   ],
   "edges": [
@@ -1419,7 +1451,12 @@
       "evidence": "app.js refreshDailySummary -> Code.gs generateDailySummary (session-gated, no writes)",
       "confidence": "high",
       "source": "static",
-      "pairs": [["ui.app-js", "api.daily-summary"]]
+      "pairs": [
+        [
+          "ui.app-js",
+          "api.daily-summary"
+        ]
+      ]
     },
     {
       "type": "calls",
@@ -3072,6 +3109,26 @@
         [
           "ci.e2e",
           "test.e2e-specs"
+        ]
+      ]
+    },
+    {
+      "type": "uses_env",
+      "evidence": ".github/workflows/deploy-gas.yml uses vars.GAS_SCRIPT_ID, vars.GAS_DEPLOYMENT_ID and secrets.CLASPRC_JSON",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [
+        [
+          "ci.deploy-gas",
+          "env.CLASPRC_JSON"
+        ],
+        [
+          "ci.deploy-gas",
+          "env.GAS_SCRIPT_ID"
+        ],
+        [
+          "ci.deploy-gas",
+          "env.GAS_DEPLOYMENT_ID"
         ]
       ]
     }

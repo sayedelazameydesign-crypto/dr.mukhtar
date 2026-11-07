@@ -102,6 +102,8 @@ test('staff opens the board with the demo PIN, and approves the pending request'
   await expect(pendingItems.first()).toBeVisible();
 
   await page.locator('#pendingList [data-action="approve"]').first().click();
+  // The week panel is folded on purpose (today's list comes first); open it to read the week.
+  await page.locator('summary', { hasText: 'مواعيد الأسبوع' }).click();
   await expect(page.locator('#weekList .request-item').first()).toBeVisible();
 });
 

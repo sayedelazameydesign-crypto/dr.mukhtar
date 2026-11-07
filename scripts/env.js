@@ -29,6 +29,9 @@ const ENV_SPECS = [
   { name: 'GOOGLE_REFRESH_TOKEN_DEV', secret: true, required: false, pattern: /^1\/\//, hint: 'per-profile token from scripts/google/auth.js' },
   // WhatsApp adapter (docs/prd/whatsapp-cloud-api.md). Optional everywhere: the adapter ships
   // OFF, so CI and every fresh clone validate without a provider credential.
+  { name: 'CLASPRC_JSON', secret: true, required: false, pattern: null, hint: 'clasp login credentials for the manual deploy workflow' },
+  { name: 'GAS_SCRIPT_ID', secret: false, required: false, pattern: /^[A-Za-z0-9_-]{20,}$/, hint: 'Apps Script Script ID' },
+  { name: 'GAS_DEPLOYMENT_ID', secret: false, required: false, pattern: /^[A-Za-z0-9_-]{20,}$/, hint: 'deployment ID from the published /exec URL' },
   { name: 'WAAPI_API_TOKEN', secret: true, required: false, pattern: null, hint: 'manual GitHub Actions read-only WAAPI check' },
   { name: 'WHATSAPP_MODE', secret: false, required: false, pattern: /^(off|dry-run|live)$/, hint: 'off | dry-run | live (default off)' },
   { name: 'WHATSAPP_TOKEN', secret: true, required: false, pattern: /^[A-Za-z0-9_-]{20,}$/, hint: 'Meta WhatsApp Cloud API runtime token; Script Properties only' },
