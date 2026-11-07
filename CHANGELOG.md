@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.4.1...celia-kids-clinic-v1.4.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* restrict live LLM smoke to opted-in main ([614b956](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/614b9566df851d7975b837a367ba6471a0063e65))
+
 ## [1.4.1](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.4.0...celia-kids-clinic-v1.4.1) (2026-11-07)
 
 
