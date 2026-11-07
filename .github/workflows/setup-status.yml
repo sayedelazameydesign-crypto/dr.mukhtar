@@ -1,7 +1,7 @@
 name: Setup status
 
 # Reports which declared secrets/variables/environments actually exist.
-# NAMES ONLY in output — GitHub never exposes secret values; variable values are not logged.
+# NAMES ONLY — GitHub never exposes values, and this workflow never asks for them.
 # Non-blocking: it is a dashboard, not a gate (the CI job is the gate).
 
 on:
@@ -18,83 +18,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  waapi-presence:
-    name: WAAPI token and read-only API check
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    permissions: {}
-    steps:
-      # No checkout and no network calls: repository scripts never see the secret.
-      - name: Check WAAPI token presence
-        env:
-          WAAPI_API_TOKEN: ${{ secrets.WAAPI_API_TOKEN }}
-        run: |
-          if [ -n "$WAAPI_API_TOKEN" ]; then
-            echo 'WAAPI token is available to this job. Provider validity was not tested.'
-          else
-            echo '::error::WAAPI token is not available to this job; check its name and scope.'
-            exit 1
-          fi
-
-      # Manual read-only probe: the bounded response is inspected in memory, never logged.
-      - name: Verify WAAPI token with read-only API
-        env:
-          WAAPI_API_TOKEN: ${{ secrets.WAAPI_API_TOKEN }}
-        run: |
-          node --input-type=module <<'NODE'
-          const token = process.env.WAAPI_API_TOKEN;
-          if (!token || !token.trim()) {
-            console.error('WAAPI token unavailable to this job.');
-            process.exit(1);
-          }
-          try {
-            const response = await fetch('https://waapi.app/api/v1/instances', {
-              method: 'GET',
-              headers: { Authorization: 'Bearer ' + token, Accept: 'application/json', 'Content-Type': 'application/json' },
-              redirect: 'error',
-              signal: AbortSignal.timeout(15000)
-            });
-            if (!response.ok) {
-              if (response.body) await response.body.cancel();
-              console.error('WAAPI read-only API returned HTTP ' + response.status + '.');
-              process.exitCode = 1;
-            } else if (!/^application\/json(?:\s*;|\s*$)/i.test(response.headers.get('content-type') || '') || !response.body) {
-              if (response.body) await response.body.cancel();
-              console.error('WAAPI returned an unexpected response; authentication is not verified.');
-              process.exitCode = 1;
-            } else {
-              // The list may contain account data: cap it, inspect in memory, never log it.
-              const reader = response.body.getReader();
-              const decoder = new TextDecoder();
-              let size = 0;
-              let text = '';
-              while (true) {
-                const part = await reader.read();
-                if (part.done) break;
-                size += part.value.byteLength;
-                if (size > 1024 * 1024) {
-                  await reader.cancel();
-                  throw new Error('response too large');
-                }
-                text += decoder.decode(part.value, { stream: true });
-              }
-              text += decoder.decode();
-              const data = JSON.parse(text);
-              if (!data || data.status !== 'success' || !Array.isArray(data.instances)) {
-                console.error('WAAPI response did not confirm the instances API; authentication is not verified.');
-                process.exitCode = 1;
-              } else {
-                console.log('WAAPI instances API returned a valid success response. No message was sent.');
-              }
-            }
-          } catch (error) {
-            // Do not print errors: provider or runtime messages may contain sensitive details.
-            console.error('WAAPI read-only API request could not be completed.');
-            process.exitCode = 1;
-          }
-          NODE
-
   report:
     name: declared vs configured
     runs-on: ubuntu-latest
@@ -134,9 +57,9 @@ jobs:
             echo '</details>'
           } >> "$GITHUB_STEP_SUMMARY"
           case "$code" in
-            0) echo "::notice title=GitHub settings::Required name checks complete; optional names may be absent. Runtime and branch protection were not checked." ;;
-            2) echo "::error title=GitHub settings not verified::One or more settings could not be checked. Review the report and GitHub UI; no secret values are needed." ;;
-            *) echo "::error title=GitHub settings drift::One or more required names are missing; review the report." ;;
+            0) echo "::notice title=GitHub settings::كل الأسماء المعلنة موجودة" ;;
+            2) echo "::error title=GitHub settings unreadable::The token cannot read repository secrets/variables (exit 2). A dashboard that cannot read its subject must not report success. Fix the token permission or run node scripts/setup-github.js locally." ;;
+            *) echo "::error title=GitHub settings drift::A declared secret or variable is missing (exit $code). Run sh scripts/bootstrap-github.sh, then re-run this workflow." ;;
           esac
           exit "$code"
 
@@ -146,7 +69,7 @@ jobs:
           {
             echo "### Secrets / variables setup status"
             echo ""
-            echo "Declared in \`docs/secrets-manifest.json\`; values and API response bodies are never printed."
+            echo "Declared in \`docs/secrets-manifest.json\`; values are never read or printed."
             echo ""
             echo '```'
             node -e "const m=require('./docs/secrets-manifest.json'); console.log('secrets:   ' + m.secrets.map(s=>s.name+'@'+s.level).join(', ')); console.log('variables: ' + m.variables.map(v=>v.name).join(', '));"
