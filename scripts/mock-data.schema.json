@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Synthetic offline appointment and reminder fixtures (draft only)",
+  "description": "Shape only; not a storage schema, authorization, transition validator, or production contract. No network access is required to use this file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode", "appointments", "reviewQueue", "reminders"],
+  "properties": {
+    "mode": { "const": "SYNTHETIC_OFFLINE_ONLY" },
+    "appointments": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/definitions/appointment" }
+    },
+    "reviewQueue": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/definitions/reviewEntry" }
+    },
+    "reminders": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/definitions/reminder" }
+    }
+  },
+  "definitions": {
+    "fixtureId": {
+      "type": "string",
+      "pattern": "^fixture-[a-z][a-z0-9-]{0,32}$"
+    },
+    "utcText": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "description": "Shape only; not proof of a valid instant, a trusted clock, or timezone conversion."
+    },
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "version", "acceptedAtUtc"],
+      "properties": {
+        "text": { "const": "نص موافقة وهمي للتجربة فقط" },
+        "version": { "const": "fixture-consent-v1" },
+        "acceptedAtUtc": { "$ref": "#/definitions/utcText" }
+      }
+    },
+    "appointment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "guardianFixtureId", "state", "day", "time", "durationMinutes", "timezone", "version", "consent"],
+      "properties": {
+        "id": { "$ref": "#/definitions/fixtureId" },
+        "guardianFixtureId": { "$ref": "#/definitions/fixtureId" },
+        "state": { "enum": ["DRAFT", "PENDING_REVIEW", "CONFIRMED", "CANCELLED", "COMPLETED", "NEEDS_REVIEW", "UNKNOWN"] },
+        "day": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "time": { "type": "string", "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$" },
+        "durationMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+        "timezone": { "const": "Africa/Cairo" },
+        "version": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "consent": { "$ref": "#/definitions/consent" }
+      }
+    },
+    "reviewEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "appointmentId", "state"],
+      "properties": {
+        "id": { "$ref": "#/definitions/fixtureId" },
+        "appointmentId": { "$ref": "#/definitions/fixtureId" },
+        "state": { "enum": ["WAITING", "IN_REVIEW", "REVIEWED"] }
+      }
+    },
+    "manualMark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorFixtureId", "markedAtUtc"],
+      "properties": {
+        "actorFixtureId": { "$ref": "#/definitions/fixtureId" },
+        "markedAtUtc": { "$ref": "#/definitions/utcText" }
+      }
+    },
+    "reminder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "appointmentId", "state", "manualMark"],
+      "properties": {
+        "id": { "$ref": "#/definitions/fixtureId" },
+        "appointmentId": { "$ref": "#/definitions/fixtureId" },
+        "state": { "enum": ["UNSENT", "MANUAL_DRAFT_READY", "SENT_MANUAL", "UNKNOWN"] },
+        "manualMark": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/definitions/manualMark" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "state": { "const": "SENT_MANUAL" } }, "required": ["state"] },
+          "then": { "properties": { "manualMark": { "$ref": "#/definitions/manualMark" } } },
+          "else": { "properties": { "manualMark": { "type": "null" } } }
+        }
+      ]
+    }
+  }
+}
