@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.5.0...celia-kids-clinic-v1.5.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* keep readiness report checks accurate ([590ef8c](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/590ef8cbfac3952591975e164949e8b040f39037))
+
 ## [1.5.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.4.2...celia-kids-clinic-v1.5.0) (2026-11-07)
 
 
