@@ -195,16 +195,21 @@ scope for the first MVP, and NOT required for booking, which never calls Gemini.
 ## 7b-2. Check the current state (names only)
 
 ```bash
-node scripts/setup-github.js        # needs a token with administration/actions access
+node scripts/setup-github.js        # uses an existing authenticated token; no values in output
 ```
 
-Or run the **Setup status** workflow (Actions → Setup status → Run workflow, and every Monday):
-it prints the declared names next to the configured ones in the job summary. It never reads values.
+Or run **Setup status** (Actions → Setup status → Run workflow; also scheduled weekly).
+The comparison reports missing **required** names separately from optional names; it reports
+inaccessible lists and environment-secret names requiring manual review as **NOT VERIFIED**
+(exit 2), not as missing or as a successful check. It does not establish runtime configuration,
+branch protection or secret validity. GitHub may return variable values in its API response, but
+this checker only outputs names and status, never values or response bodies.
 
-> The session agent token is a restricted GitHub App installation token
-> (`allows_permissionless_access`). It can write code, PRs and comments, but environment,
-> variable, secret and branch-protection endpoints all return **403**. That is why those four
-> steps are yours to run — not a limitation of the code.
+> The automatic workflow's `GITHUB_TOKEN` has limited permissions and the comparison has returned
+> HTTP 403 for this repository. Review names under Settings → Secrets and variables → Actions and
+> environment settings in GitHub's UI. Do not add a broadly privileged token just to make this
+> report green, and never send any secret or token in chat. GitHub documents repository Secrets
+> read access for its list endpoint: https://docs.github.com/en/rest/actions/secrets.
 
 ## 7c. Not yet applied (token limitation) — do these once in the UI
 
