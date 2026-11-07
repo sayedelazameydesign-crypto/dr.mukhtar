@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.4.2...celia-kids-clinic-v1.5.0) (2026-11-07)
+
+
+### Features
+
+* add manual appointment workflow and safety guards ([ecde7ed](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/ecde7edb46cbc6ff159eba0219ecaabb6b8d04ef))
+* add manual appointment workflow and safety guards ([d566173](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/d566173be98f6e66b8dd4e164ea620e3473a76e7))
+
 ## [1.4.2](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.4.1...celia-kids-clinic-v1.4.2) (2026-11-07)
 
 
