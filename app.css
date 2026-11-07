@@ -593,3 +593,40 @@ svg{display:block}
 .health-warn{margin-top:8px;padding:9px 11px;border-radius:var(--r-sm);background:var(--note-bg);
   border:1px solid var(--note-line);color:var(--note);font-size:12px;line-height:1.7}
 .danger-link{color:var(--alert);border-bottom-color:rgba(156,47,34,.3);margin-top:8px}
+
+
+/* --- simplification pass: secondary tools never compete with the main task --- */
+.quiet-tools {
+  margin-block: 28px 8px;
+  display: grid;
+  gap: 14px;
+}
+.quiet-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.quiet-head h2 { font-size: 1.05rem; margin: 0; }
+.quiet-tools .tool-card { background: #fff; }
+
+details.admin-tools {
+  margin-top: 12px;
+  border: 1px solid rgba(11, 52, 70, 0.10);
+  border-radius: 14px;
+  background: #fff;
+  padding: 2px 6px;
+}
+details.admin-tools > summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+  color: #0b3446;
+  padding: 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+details.admin-tools > summary::-webkit-details-marker { display: none; }
+details.admin-tools > summary::before {
+  content: "＋";
+  font-weight: 700;
+  color: #a8823c;
+}
+details.admin-tools[open] > summary::before { content: "－"; }
+details.admin-tools > .dashboard-card { border: 0; box-shadow: none; margin-block: 4px 8px; }

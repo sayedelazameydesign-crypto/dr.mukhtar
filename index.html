@@ -267,7 +267,10 @@
 
         <div id="bookingResult" class="result-card" hidden aria-live="polite"></div>
 
-        <section class="lower-tools" aria-label="المتابعة والمساعدة">
+      </section>
+
+      <section class="quiet-tools" aria-labelledby="quietTitle">
+        <div class="quiet-head"><p class="section-kicker">خدمات إضافية</p><h2 id="quietTitle">متابعة طلب سابق أو سؤال إداري</h2></div>
           <div id="trackCard" class="tool-card tracking-card">
             <div class="tool-head"><p class="section-kicker">طلب سابق</p><h3>تابعوا حالة الطلب</h3><p>استخدموا الرقم المرجعي الذي ظهر بعد الإرسال، ورقم الهاتف الذي أرسلتم به الطلب.</p></div>
             <form id="trackForm" class="track-form"><label class="sr-only" for="trackReference">الرقم المرجعي</label><input id="trackReference" type="text" maxlength="40" placeholder="CK-XXXXXXXX" autocomplete="off" spellcheck="false"><label class="sr-only" for="trackPhone">هاتف ولي الأمر</label><input id="trackPhone" type="tel" inputmode="tel" maxlength="22" placeholder="هاتف ولي الأمر" autocomplete="tel"><button class="secondary-button" type="submit">عرض الحالة</button></form>
@@ -281,7 +284,6 @@
             <p class="faq-warning">للأسئلة الإدارية فقط. لا تكتبوا بيانات شخصية أو صحية. المساعد لا يشخّص ولا يصف علاجًا، ولا يستبدل رأي الطبيب.</p>
             <div id="faqAnswer" class="faq-answer" hidden aria-live="polite"></div>
           </div>
-        </section>
       </section>
 
       <section class="section" id="about" aria-labelledby="aboutTitle">
@@ -403,15 +405,18 @@
               <div id="weekList" class="request-list"></div>
             </section>
           </div>
-          <section class="dashboard-card closures-card">
-            <div class="dashboard-title"><div><p class="section-kicker">إدارة الدوام</p><h3>إغلاق يوم أو إجازة</h3></div></div>
-            <form id="closureForm" class="closure-form">
-              <label><span>التاريخ</span><input id="closureDate" type="date" required></label>
-              <label><span>ملاحظة قصيرة</span><input id="closureLabel" type="text" maxlength="80" placeholder="إجازة / دوام مغلق"></label>
-              <button class="secondary-button" type="submit">إغلاق اليوم</button>
-            </form>
-            <p class="privacy-reminder">تذكير: استخدموا بيانات وهمية في العروض التجريبية. لا تؤكدوا موعدًا قبل التحقق من الجدول وحفظه في التقويم.</p>
-          </section>
+          <details class="admin-tools">
+  <summary>إغلاق يوم أو إجازة</summary>
+  <section class="dashboard-card closures-card">
+              <div class="dashboard-title"><div><p class="section-kicker">إدارة الدوام</p><h3>إغلاق يوم أو إجازة</h3></div></div>
+              <form id="closureForm" class="closure-form">
+                <label><span>التاريخ</span><input id="closureDate" type="date" required></label>
+                <label><span>ملاحظة قصيرة</span><input id="closureLabel" type="text" maxlength="80" placeholder="إجازة / دوام مغلق"></label>
+                <button class="secondary-button" type="submit">إغلاق اليوم</button>
+              </form>
+              <p class="privacy-reminder">تذكير: استخدموا بيانات وهمية في العروض التجريبية. لا تؤكدوا موعدًا قبل التحقق من الجدول وحفظه في التقويم.</p>
+            </section>
+</details>
           </div>
 
           <!-- Settings are rendered from the server-side catalog (Settings.gs):
@@ -442,14 +447,17 @@
             <!-- Health is read from the backend (healthCheck_), never computed in the page:
                  a report that says "fine" because the browser cannot see the failure is worse
                  than no report. -->
-            <section class="dashboard-card health-card" aria-labelledby="healthTitle">
-              <div class="dashboard-title">
-                <div><p class="section-kicker">فحص سريع</p><h3 id="healthTitle">حالة النظام</h3></div>
-                <button type="button" class="secondary-button" id="healthRefresh">إعادة الفحص</button>
-              </div>
-              <p class="settings-intro">يجيب هذا الفحص عن سؤال واحد: هل يستطيع النظام استقبال طلب الآن؟ لا يُرسل أي بيانات تواصل، ويُقرأ من الخادم فقط.</p>
-              <div id="healthBody" class="health-body" aria-live="polite"><p class="settings-loading">افتحوا الفحص لعرض الحالة.</p></div>
-            </section>
+            <details class="admin-tools">
+  <summary>حالة النظام (فحص تقني)</summary>
+  <section class="dashboard-card health-card" aria-labelledby="healthTitle">
+                <div class="dashboard-title">
+                  <div><p class="section-kicker">فحص سريع</p><h3 id="healthTitle">حالة النظام</h3></div>
+                  <button type="button" class="secondary-button" id="healthRefresh">إعادة الفحص</button>
+                </div>
+                <p class="settings-intro">يجيب هذا الفحص عن سؤال واحد: هل يستطيع النظام استقبال طلب الآن؟ لا يُرسل أي بيانات تواصل، ويُقرأ من الخادم فقط.</p>
+                <div id="healthBody" class="health-body" aria-live="polite"><p class="settings-loading">افتحوا الفحص لعرض الحالة.</p></div>
+              </section>
+</details>
           </div>
         </div>
       </section>
