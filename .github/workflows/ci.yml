@@ -45,6 +45,9 @@ jobs:
       - name: Setup checker tests
         run: node scripts/test-setup-github.js
 
+      - name: WAAPI contact probe tests (offline only)
+        run: node scripts/test-waapi-contact-status.js
+
       - name: Publish contract (what reaches the public site)
         run: node scripts/test-publish-contract.js
 

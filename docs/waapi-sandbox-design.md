@@ -14,6 +14,11 @@ Apps Script الفعلي غير متحقق. في الشفرة المحلية ت�
 
 - فحص Actions السابق نجح في `GET /instances` فقط؛ لم يثبت ربط رقم أو صلاحية إرسال
   أو اتصال Webhook. `WAAPI_API_TOKEN` في GitHub Actions لا يُحقن تلقائيًا في Apps Script.
+- يوجد فحص اختياري للرقم التجريبي المسجل في `developerPhone` بملف `clinic.json` عبر `Setup status`؛
+  يتطلب تفعيل `check_test_contact` صراحة في التشغيل اليدوي، وهو متوقف افتراضيًا. يقرأ معلومات
+  العميل وحالته فقط عندما يظهر instance واحد، ويقارن الرقم دون طباعة رقم أو توكن أو استجابة.
+  غياب instance أو تعدده أو فشل القراءة يعيد `UNKNOWN` لا حكمًا على الاتصال. `CONNECTED` لقطة
+  حالة وليست إثبات إرسال أو تسليم، والفحص لا ينشئ instance أو يربط رقمًا أو يرسل رسالة.
 - [توثيق WAAPI للـWebhook](https://waapi.readme.io/reference/webhooks) يعرض مثالًا
   يعتمد سرًا داخل مسار URL. في المقابل يذكر [موقع WAAPI](https://waapi.app/small-business)
   توقيع HMAC دون تحديد الترويسة أو خوارزمية/تمثيل التوقيع في هذا الوصف. **عقد التوقيع
