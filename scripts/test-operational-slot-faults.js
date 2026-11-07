@@ -15,8 +15,8 @@ class FakeWorld {
     this.locked = false;
     this.nonces = new Set();
     this.records = [
-      { reference: 'A', status: 'PENDING_APPROVAL', startMs: 1000, endMs: 2000 },
-      { reference: 'B', status: 'PENDING_APPROVAL', startMs: 1500, endMs: 2500 }
+      { reference: 'A', status: 'PENDING_APPROVAL', startMs: 60000, endMs: 3660000 },
+      { reference: 'B', status: 'PENDING_APPROVAL', startMs: 1860000, endMs: 5460000 }
     ];
     this.events = [];
     this.calendarCalls = 0;
@@ -179,7 +179,7 @@ for (const operation of ['claim-write', 'claim-flush']) {
     assert.equal(attempt(world, 'A', 'nonce-A').outcome, 'UNKNOWN');
     assert.equal(world.calendarCalls, 0, 'ambiguous claim write cannot call Calendar');
     assert.equal(world.nonces.has('nonce-A'), true, 'nonce and claim are separate writes');
-    assert.equal(world.row('A').status, effect === 'after' ? `UNDER_CREATION::${CLAIM_A}` : 'PENDING_APPROVAL');
+    assert.equal(world.row('A').status, effect === 'after' ? `UNDER_CREATION::${CLAIM_A}::60` : 'PENDING_APPROVAL');
     world.restart();
     assert.equal(attempt(world, 'A', 'nonce-A').outcome, 'REJECTED_DUPLICATE_NONCE');
     if (effect === 'after') {
@@ -193,7 +193,7 @@ for (const fault of ['after-claim', 'calendar-create:before', 'calendar-create:a
   const world = fresh(fault);
   const original = attempt(world, 'A', 'nonce-A');
   assert.equal(original.outcome, 'UNKNOWN', fault);
-  assert.equal(world.row('A').status, `UNDER_CREATION::${CLAIM_A}`, fault);
+  assert.equal(world.row('A').status, `UNDER_CREATION::${CLAIM_A}::60`, fault);
   assert.equal(world.events.length, ['calendar-create:after', 'calendar-read', 'lock2'].includes(fault) ? 1 : 0);
   const calls = world.calendarCalls;
   assertBlocking(world);
@@ -218,7 +218,7 @@ for (const operation of ['final-write', 'final-flush']) {
   for (const effect of ['before', 'after']) {
     const world = fresh(`${operation}:${effect}`);
     assert.equal(attempt(world, 'A', 'nonce-A').outcome, 'UNKNOWN');
-    assert.equal(world.row('A').status, effect === 'after' ? 'CONFIRMED' : `UNDER_CREATION::${CLAIM_A}`);
+    assert.equal(world.row('A').status, effect === 'after' ? 'CONFIRMED' : `UNDER_CREATION::${CLAIM_A}::60`);
     assert.equal(world.events.length, 1, 'event remains even when confirmation result is ambiguous');
     const calls = world.calendarCalls;
     assertBlocking(world);

@@ -2,7 +2,7 @@
 
 // Node/ICU-only simulation, not the current GAS time converter. Do not use as
 // production code or proof of Google Calendar/Sheets timezone behavior.
-const { acquireOperationalSlot, isBlocking } = require('./operational-slot-model');
+const { acquireOperationalSlot, isBlocking, statusMinutes } = require('./operational-slot-model');
 const formatter = new Intl.DateTimeFormat('en-GB-u-ca-gregory-nu-latn', {
   timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit',
   hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
@@ -53,7 +53,25 @@ function acquireCairoOperationalSlot(input) {
     if (!row || typeof row !== 'object') return { code: 'UNKNOWN' };
     const current = { ...row };
     if (row.reference === input.reference || isBlocking(row.status)) {
-      const interval = cairoInterval(row.day, row.time, row.visitType, input.durations);
+      let durations = input.durations;
+      if (isBlocking(row.status)) {
+        if (typeof row.visitType !== 'string' || !row.visitType) return { code: 'UNKNOWN', reason: 'RESERVATION_DURATION_UNKNOWN' };
+        let minutes = statusMinutes(row.status);
+        if (minutes === null) {
+          // CONFIRMED/NEEDS_REVIEW do not carry minutes in their status; never
+          // infer their reserved duration from a mutable service catalogue.
+          const snapshots = input.reservationDurations;
+          if (input.reservationDurationsReadable !== true || !snapshots || typeof snapshots !== 'object' || Array.isArray(snapshots) ||
+              !Object.prototype.hasOwnProperty.call(snapshots, row.reference)) return { code: 'UNKNOWN', reason: 'RESERVATION_DURATION_UNKNOWN' };
+          const captured = snapshots[row.reference];
+          if (!captured || typeof captured !== 'object' || captured.status !== row.status || captured.day !== row.day ||
+              captured.time !== row.time || captured.visitType !== row.visitType) return { code: 'UNKNOWN', reason: 'RESERVATION_DURATION_UNKNOWN' };
+          minutes = captured.minutes;
+        }
+        durations = Object.create(null);
+        durations[row.visitType] = minutes;
+      }
+      const interval = cairoInterval(row.day, row.time, row.visitType, durations);
       if (interval.code !== 'OK') return { code: 'UNKNOWN', reason: interval.code };
       current.startMs = interval.startMs;
       current.endMs = interval.endMs;

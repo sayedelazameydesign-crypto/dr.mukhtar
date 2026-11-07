@@ -2,7 +2,7 @@
 
 // Local, read-only prototype. No authentication, lock, storage, Calendar, Sheets,
 // working-hours validation or mutations. Returned decisions are NOT authorization.
-const { statusClaim, isBlocking } = require('./operational-slot-model');
+const { statusClaim, statusMinutes, isBlocking } = require('./operational-slot-model');
 const { cairoInterval } = require('./cairo-slot-model');
 const KNOWN = new Set(['REQUESTED', 'PENDING_APPROVAL', 'RESCHEDULED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'DELETED', 'NEEDS_REVIEW']);
 function known(status) { return typeof status === 'string' && (KNOWN.has(status) || !!statusClaim(status)); }
@@ -31,12 +31,32 @@ function inspectAvailability(input) {
   const candidate = cairoInterval(input.day, input.time, input.visitType, input.durations);
   if (candidate.code !== 'OK') return { code: 'UNKNOWN', available: false };
   const refs = new Set();
+  const claims = new Set();
   let blocked = false;
   for (const row of input.requests) {
     if (!row || typeof row.reference !== 'string' || !row.reference.trim() || refs.has(row.reference) || !known(row.status)) return { code: 'UNKNOWN', available: false };
     refs.add(row.reference);
+    const claimId = statusClaim(row.status);
+    if (claimId && claims.has(claimId)) return { code: 'UNKNOWN', available: false };
+    if (claimId) claims.add(claimId);
     if (!isBlocking(row.status)) continue;
-    const interval = cairoInterval(row.day, row.time, row.visitType, input.durations);
+    // The current service catalogue can change after a claim. Claims carry their
+    // captured minutes in the status; other blocking states still need an external
+    // verified snapshot. Neither mechanism exists in the actual GAS backend.
+    if (typeof row.visitType !== 'string' || !row.visitType) return { code: 'UNKNOWN', available: false };
+    let minutes = statusMinutes(row.status);
+    if (minutes === null) {
+      if (input.reservationDurationsReadable !== true || !input.reservationDurations ||
+          typeof input.reservationDurations !== 'object' || Array.isArray(input.reservationDurations) ||
+          !Object.prototype.hasOwnProperty.call(input.reservationDurations, row.reference)) return { code: 'UNKNOWN', available: false };
+      const captured = input.reservationDurations[row.reference];
+      if (!captured || typeof captured !== 'object' || captured.status !== row.status ||
+          captured.day !== row.day || captured.time !== row.time || captured.visitType !== row.visitType) return { code: 'UNKNOWN', available: false };
+      minutes = captured.minutes;
+    }
+    const capturedCatalogue = Object.create(null);
+    capturedCatalogue[row.visitType] = minutes;
+    const interval = cairoInterval(row.day, row.time, row.visitType, capturedCatalogue);
     if (interval.code !== 'OK') return { code: 'UNKNOWN', available: false };
     if (overlaps(candidate, interval)) blocked = true;
   }

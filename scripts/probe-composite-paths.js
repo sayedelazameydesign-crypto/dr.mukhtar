@@ -12,7 +12,7 @@ const marker = '// Public intake must reject formula-shaped contact fields';
 const end = source.indexOf(marker);
 if (end < 0) { console.error('Cannot locate simulated fixture boundary; no probe ran.'); process.exit(2); }
 const suffix = `
-const claim = 'UNDER_CREATION::123e4567-e89b-42d3-a456-426614174000';
+const claim = 'UNDER_CREATION::123e4567-e89b-42d3-a456-426614174000::60';
 function setComposite(ref) {
   const location = context.findRequestLocation_(ref);
   if (!location || location.queueKey) throw new Error('synthetic request not found');

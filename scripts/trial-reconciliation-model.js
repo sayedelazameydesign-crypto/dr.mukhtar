@@ -27,13 +27,18 @@ function summarizeTrialEvidence(input) {
       else result.claimState = 'UNKNOWN_STATUS';
     }
   }
-  if (input.calendarReadable === true && Number.isSafeInteger(input.matchingEventCount) && input.matchingEventCount >= 0) {
-    result.calendarState = input.matchingEventCount === 0 ? 'NO_MATCH_OBSERVED' : 'MATCHES_OBSERVED';
+  // These are caller-supplied simulated observations, not Calendar reads. A single
+  // marker is not enough: the caller must have checked interval conflicts too.
+  if (input.calendarReadable === true && Number.isSafeInteger(input.matchingEventCount) && input.matchingEventCount >= 0 && typeof input.calendarConflict === 'boolean') {
+    result.calendarState = input.calendarConflict ? 'CONFLICT_OBSERVED'
+      : input.matchingEventCount === 0 ? 'NO_MATCH_OBSERVED'
+        : input.matchingEventCount === 1 ? 'MATCHES_OBSERVED' : 'MULTIPLE_MATCHES_OBSERVED';
   }
   // This is conservative: the nonce and request may not belong to each other.
   // A missing event may appear later. Neither condition proves a remote outcome.
-  if ((result.nonceState === 'PRESENT' && result.claimState === 'NO_CLAIM_OBSERVED') ||
-      (result.claimState === 'CLAIM_PRESENT' && result.calendarState !== 'MATCHES_OBSERVED')) {
+  const inconclusiveCalendar = result.calendarState !== 'MATCHES_OBSERVED';
+  if ((result.nonceState === 'PRESENT' && (result.claimState === 'NO_CLAIM_OBSERVED' || inconclusiveCalendar)) ||
+      (result.claimState === 'CLAIM_PRESENT' && inconclusiveCalendar)) {
     result.decision = 'RECONCILIATION_CRITICAL_AMBIGUITY';
     // No durable quarantine exists here. Without a trustworthy bound interval,
     // the actual implementation must fail closed globally or prove a safer scope.

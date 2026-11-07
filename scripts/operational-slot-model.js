@@ -9,11 +9,15 @@ const NONBLOCKING = new Set(['REQUESTED', 'PENDING_APPROVAL', 'RESCHEDULED', 'CA
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const PREFIX = 'UNDER_CREATION::';
 
-function statusClaim(status) {
+function claimParts(status) {
   if (typeof status !== 'string' || !status.startsWith(PREFIX)) return null;
-  const claim = status.slice(PREFIX.length);
-  return UUID.test(claim) ? claim : null;
+  const parts = status.slice(PREFIX.length).split('::');
+  if (parts.length !== 2 || !UUID.test(parts[0]) || !/^[1-9]\d{0,3}$/.test(parts[1])) return null;
+  const minutes = Number(parts[1]);
+  return minutes <= 1440 ? { claimId: parts[0], minutes } : null;
 }
+function statusClaim(status) { const claim = claimParts(status); return claim ? claim.claimId : null; }
+function statusMinutes(status) { const claim = claimParts(status); return claim ? claim.minutes : null; }
 function isBlocking(status) { return status === 'CONFIRMED' || status === 'NEEDS_REVIEW' || statusClaim(status) !== null; }
 function isKnown(status) { return NONBLOCKING.has(status) || isBlocking(status); }
 function validInterval(value) {
@@ -32,6 +36,7 @@ function validRows(records) {
     if (claim && claims.has(claim)) return false;
     if (claim) claims.add(claim);
     if (isBlocking(row.status) && !validInterval(row)) return false;
+    if (claim && row.endMs - row.startMs !== statusMinutes(row.status) * 60000) return false;
   }
   return true;
 }
@@ -46,10 +51,12 @@ function acquireOperationalSlot(input) {
   if (!record) return result('NOT_FOUND');
   if (!ELIGIBLE.has(record.status)) return result('ALREADY_PROCESSED');
   if (!validInterval(record)) return result('UNKNOWN');
+  const minutes = (record.endMs - record.startMs) / 60000;
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) return result('UNKNOWN');
   if (input.records.some((row) => statusClaim(row.status) === input.claimId)) return result('CLAIM_ID_REUSED');
   if (input.records.some((row) => row.reference !== record.reference && isBlocking(row.status) && overlaps(row, record))) return result('CONFLICT');
   return result('RESERVATION_PROPOSED', {
-    reservation: { reference: record.reference, startMs: record.startMs, endMs: record.endMs, status: PREFIX + input.claimId }
+    reservation: { reference: record.reference, startMs: record.startMs, endMs: record.endMs, status: PREFIX + input.claimId + '::' + minutes }
   });
 }
 
@@ -58,7 +65,8 @@ function acquireOperationalSlot(input) {
 function verifyCalendarEvent(input) {
   const reservation = input && input.reservation;
   const claimId = reservation && statusClaim(reservation.status);
-  if (!reservation || !claimId || !validId(reservation.reference) || !validInterval(reservation)) return result('INVALID_INPUT');
+  if (!reservation || !claimId || !validId(reservation.reference) || !validInterval(reservation) ||
+      reservation.endMs - reservation.startMs !== statusMinutes(reservation.status) * 60000) return result('INVALID_INPUT');
   if (input.snapshotComplete !== true || !Array.isArray(input.events)) return result('NEEDS_REVIEW');
   if (input.events.some((event) => !event || !validId(event.id) || !validInterval(event) || typeof event.description !== 'string')) return result('NEEDS_REVIEW');
   const marker = 'مرجع إداري: ' + reservation.reference;
@@ -84,4 +92,4 @@ function finalizeSlotStatus(input) {
   return result('CONFIRMATION_PROPOSED', { reference: row.reference, claimId: proof.claimId, eventId: proof.eventId });
 }
 
-module.exports = { acquireOperationalSlot, verifyCalendarEvent, finalizeSlotStatus, statusClaim, isBlocking };
+module.exports = { acquireOperationalSlot, verifyCalendarEvent, finalizeSlotStatus, statusClaim, statusMinutes, isBlocking };
