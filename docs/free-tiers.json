@@ -23,8 +23,8 @@
       "checked": "2026-11-04",
       "card_required": false,
       "signup": "GitHub account",
-      "limits": "public repos: 1 GB site, 100 GB/month soft bandwidth, 10 builds/hour",
-      "terms_note": "static sites only, no server-side code; commercial use allowed",
+      "limits": "public repos: 1 GB site, 100 GB/month soft bandwidth; 10 builds/hour soft limit does not apply when building and publishing with a custom GitHub Actions workflow",
+      "terms_note": "static sites only; GitHub Pages prohibits use primarily to facilitate commercial transactions or commercial SaaS, and should not be used for sensitive transactions. Assess the clinic's proposed use against current terms before production; a general claim that commercial use is allowed would be misleading.",
       "quota_config": "n/a (platform limits)",
       "fallback": "cloudflare-pages",
       "adapter": "static files at repo root; no provider-specific code"
