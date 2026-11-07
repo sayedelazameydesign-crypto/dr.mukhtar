@@ -22,10 +22,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Push bundle and update the live URL
+  build-and-validate:
+    name: Build and validate Apps Script bundle
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
+    outputs:
+      bundle_sha256: ${{ steps.bundle.outputs.sha256 }}
+      source_sha: ${{ steps.bundle.outputs.source_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -44,6 +47,71 @@ jobs:
           done
           echo "Bundle verified: booking form, tracking, staff board and quiet tools are all present."
           du -sh gas | awk '{print "Bundle size: " $1}'
+
+      - name: Require the main branch
+        env:
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          test "$SOURCE_REF" = refs/heads/main || { echo '::error::Production deployments must originate from main.'; exit 1; }
+
+      - name: Validate version label
+        env:
+          LABEL: ${{ inputs.label }}
+        run: |
+          test -n "$LABEL" || { echo '::error::Version label is empty.'; exit 1; }
+          case "$LABEL" in *$'\n'*|*$'\r'*) echo '::error::Version label must be a single line.'; exit 1;; esac
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ vars.NODE_VERSION || '20' }}
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Run gates and tests
+        run: |
+          npm run gates
+          npm test
+
+      - name: Package and fingerprint the validated bundle
+        id: bundle
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          tar -czf gas-bundle.tar.gz gas/
+          echo "sha256=$(sha256sum gas-bundle.tar.gz | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Upload validated bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gas-bundle-${{ github.sha }}
+          path: gas-bundle.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy-production:
+    name: Push bundle and update the live URL
+    needs: build-and-validate
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Download validated bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: gas-bundle-${{ github.sha }}
+
+      - name: Verify bundle provenance and integrity
+        env:
+          EXPECTED_SHA: ${{ needs.build-and-validate.outputs.bundle_sha256 }}
+          SOURCE_SHA: ${{ needs.build-and-validate.outputs.source_sha }}
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          test "$SOURCE_SHA" = "$RUN_SHA" || { echo '::error::Bundle source does not match this workflow run.'; exit 1; }
+          printf '%s  %s\n' "$EXPECTED_SHA" gas-bundle.tar.gz | sha256sum --check
+          tar -xzf gas-bundle.tar.gz
 
       - name: Set up Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
@@ -106,10 +174,27 @@ jobs:
         env:
           GAS_DEPLOYMENT_ID: ${{ vars.GAS_DEPLOYMENT_ID }}
           LABEL: ${{ inputs.label }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
+          test -n "$LABEL" || { echo '::error::Version label is empty.'; exit 1; }
+          case "$LABEL" in *$'\n'*|*$'\r'*) echo '::error::Version label must be a single line.'; exit 1;; esac
           npx --yes @google/clasp@2.4.2 deploy \
             --deploymentId "$GAS_DEPLOYMENT_ID" \
-            --description "$LABEL"
+            --description "$LABEL (run $RUN_ID attempt $RUN_ATTEMPT)"
+
+      - name: Verify the updated deployment
+        env:
+          GAS_DEPLOYMENT_ID: ${{ vars.GAS_DEPLOYMENT_ID }}
+          LABEL: ${{ inputs.label }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -o pipefail
+          npx --yes @google/clasp@2.4.2 deployments | grep -F -- "$GAS_DEPLOYMENT_ID" | grep -F -- "$LABEL (run $RUN_ID attempt $RUN_ATTEMPT)" || {
+            echo '::error::The target deployment with the requested label was not found after publishing.'
+            exit 1
+          }
 
       - name: Remove the credentials file
         if: always()
