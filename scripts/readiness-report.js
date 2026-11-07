@@ -262,19 +262,25 @@ const currentBlock = block(current);
 const nextBlock = block(next);
 
 /*
- * Two honest runs differ in exactly one way that is not a fact about the repository: whether
- * this machine could reach the published site. With --offline the summary row says "متخطّاة
+ * Two honest runs can differ in metadata unrelated to repository readiness: the date of the
+ * measurement and whether this machine could reach the published site. With --offline the summary row says "متخطّاة
  * (--offline)" and site.up's detail says the network was skipped; with a network it says
  * "مستخدمة" and carries the failure reason. Comparing that text verbatim made the check red on
  * any machine whose connectivity differed from the one that generated the file — a gate that
  * cries wolf gets ignored, which is worse than not having it.
  *
- * So exactly two cells are normalised, and nothing else:
+ * Only these cells are normalised, and nothing else:
+ *   · the ISO measurement date (the stored date remains the actual historical measurement),
  *   · the "الشبكة" summary row, and
  *   · site.up's detail cell (index 3) — its *status* cell stays compared, so a site that comes
  *     up (unverified → ready/action) still fails the check, as do the counts that follow it.
  */
 const normaliseNetwork = (text) => text.split('\n').map((line) => {
+  const date = /^\| تاريخ القياس \| (\d{4}-\d{2}-\d{2}) \|$/.exec(line);
+  if (date) {
+    const parsed = new Date(`${date[1]}T00:00:00Z`);
+    if (!Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === date[1]) return '| تاريخ القياس | <تاريخ القياس> |';
+  }
   if (/^\| الشبكة \|/.test(line)) return '| الشبكة | <شبكة> |';
   if (line.startsWith('| site.up ')) {
     const cells = line.split('|');
