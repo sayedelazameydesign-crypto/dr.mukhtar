@@ -631,7 +631,7 @@ if (!fs.existsSync(ENABLE_PAGES)) {
     const assemblyText = assembly ? assembly[0] : '';
     // Files that are internal by design and must never appear in the public bundle.
     const neverShip = [
-      'Code.gs', 'Llm.gs', 'Settings.gs', 'appsscript.json',
+      'Code.gs', 'Staff.gs', 'Llm.gs', 'Settings.gs', 'appsscript.json',
       'build-gas-package.py', 'app.config.ts', 'manus-routes.json',
       '.env.example', '.gitignore', 'clinic.json'
     ].filter((file) => file !== 'clinic.json'); // clinic.json is public by design
@@ -784,7 +784,7 @@ if (!process.env.CELIA_REPO_ROOT) {
           GmailApp: 'gmail',
           MailApp: 'script.send_mail'
         };
-        const backend = ['Code.gs', 'Llm.gs', 'Settings.gs', 'WhatsApp.gs']
+        const backend = ['Code.gs', 'Staff.gs', 'Llm.gs', 'Settings.gs', 'WhatsApp.gs']
           .filter((file) => fs.existsSync(path.join(ROOT, file)));
         const used = new Set();
         backend.forEach((file) => {
@@ -799,6 +799,20 @@ if (!process.env.CELIA_REPO_ROOT) {
             fail(`appsscript.json — ${service} is used by the backend but ${SERVICE_SCOPE[service]} is not declared (OAuth would fail at runtime)`);
           }
         });
+        // The deployment contract. A booking page that only the owner can open is not
+        // published at all, and "MYSELF" is not hypothetical: the live project was deployed
+        // that way because the setting existed only in the editor, never in code.
+        const webapp = manifest.webapp || null;
+        if (!webapp) {
+          fail('appsscript.json — webapp block is missing: executeAs/access would live only in the editor and drift');
+        } else {
+          if (webapp.executeAs !== 'USER_DEPLOYING') {
+            fail(`appsscript.json — webapp.executeAs is ${webapp.executeAs}; the clinic backend must run as the deploying account`);
+          }
+          if (webapp.access !== 'ANYONE_ANONYMOUS') {
+            fail(`appsscript.json — webapp.access is ${webapp.access}; a guardian has no Google account, so the booking page must stay open to anyone`);
+          }
+        }
         Object.entries(SERVICE_SCOPE).forEach(([service, suffix]) => {
           if (!used.has(service) && declared(suffix)) {
             fail(`appsscript.json — declares ${suffix} but no backend file uses ${service} (an unrequested permission is a risk, not a feature)`);

@@ -456,6 +456,9 @@ svg{display:block}
 .footer-brand strong{display:block;font-family:var(--display);font-size:12.5px;font-weight:700}
 .footer-brand small{display:block;margin-top:1px;color:var(--muted);font-size:10.5px}
 .footer-note{max-width:44ch;color:var(--muted);font-size:11px;line-height:1.6}
+.footer-credit{margin:0;color:var(--muted);font-size:11px;line-height:1.7}
+.footer-credit .phone-link{color:var(--ink-soft)}
+.footer-credit-note{color:var(--muted);opacity:.85}
 .footer-links{display:flex;flex-wrap:wrap;align-items:center;gap:14px;font-size:11.5px}
 .footer-links a{color:var(--ink-soft);text-decoration:none}
 .footer-links a:hover{color:var(--teal-deep);text-decoration:underline;text-underline-offset:3px}

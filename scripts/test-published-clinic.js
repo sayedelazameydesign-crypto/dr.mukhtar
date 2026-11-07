@@ -113,6 +113,56 @@ const check = (label, condition, detail = '') => {
     check('a file cannot add or price a visit type', cards.every((card) => !/مجاني/.test(card)), cards.join(' | '));
   }
 
+  // 1b — the number is written the way a parent dials it (01113593643), but wa.me only
+  //      accepts the international form. `https://wa.me/01113593643` opens a chat with
+  //      nobody; this assertion is why the conversion exists.
+  {
+    const window = await boot({ clinicName: 'عيادة دكتور مختار سيد كامل', phone: '01113593643' });
+    const tel = window.document.querySelector('[data-config="phone"] a');
+    check('the tel: link keeps the dialled local number',
+      tel !== null && tel.getAttribute('href') === 'tel:01113593643', tel && tel.getAttribute('href'));
+    const wa = window.document.querySelector('a[href^="https://wa.me/"]');
+    const waNumber = wa ? decodeURIComponent(wa.getAttribute('href')).replace(/^https:\/\/wa\.me\//, '').split('?')[0] : '';
+    check('wa.me receives the international number, never the leading 0',
+      waNumber === '201113593643', waNumber);
+    check('the WhatsApp link is a real chat target, not a dead one',
+      /^20[0-9]{10}$/.test(waNumber), waNumber);
+  }
+
+  // 1c — the builder's support number is published next to the clinic's, and the two must
+  //      never blur: a parent who taps the wrong one reaches someone who cannot help.
+  {
+    const window = await boot({
+      clinicName: 'عيادة دكتور مختار سيد كامل',
+      phone: '01113593643',
+      doctorName: 'د. مختار سيد كامل',
+      developer: 'سيد العزامي',
+      developerPhone: '01126212452'
+    });
+    const doc = window.document;
+    const clinicTel = doc.querySelector('[data-config="phone"] a');
+    check('the clinic keeps its own number when a developer number exists',
+      clinicTel !== null && clinicTel.getAttribute('href') === 'tel:01113593643',
+      clinicTel && clinicTel.getAttribute('href'));
+    const wa = doc.querySelector('a[href^="https://wa.me/"]');
+    check('WhatsApp still points at the clinic, not at the developer',
+      wa !== null && /wa\.me\/201113593643\?/.test(wa.getAttribute('href')), wa && wa.getAttribute('href'));
+    const credit = doc.querySelector('[data-developer]');
+    check('the credit block is visible', credit !== null && credit.hidden === false);
+    const devTel = credit ? credit.querySelector('a[href^="tel:"]') : null;
+    check('the support number is tappable and carries its own digits',
+      devTel !== null && devTel.getAttribute('href') === 'tel:01126212452', devTel && devTel.getAttribute('href'));
+    check('the credit names the builder', /سيد العزامي/.test(text(window, '[data-config="developer"]')));
+    check('the credit says out loud that it is not the clinic',
+      /ليس رقم العيادة|الدعم التقني/.test(credit ? credit.textContent : ''));
+    // A support number alone must not fill the clinic's phone.
+    const window2 = await boot({ clinicName: 'عيادة النور', developer: 'سيد العزامي', developerPhone: '01126212452' });
+    check('a support number never becomes the clinic number',
+      window2.document.querySelector('[data-config="phone"] a') === null);
+    check('a support number never becomes the clinic WhatsApp target',
+      window2.document.querySelector('a[href^="https://wa.me/"]') === null);
+  }
+
   // 2 — an empty file must leave the page exactly as it was.
   {
     const window = await boot({ clinicName: '', phone: '', whatsapp: '', address: '' });

@@ -11,11 +11,24 @@
   const IS_GAS = typeof google !== 'undefined' && !!(google.script && google.script.run);
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+  const can = (permission) => (state.permissions || []).indexOf(String(permission)) !== -1;
   const reduceMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  /**
+   * Demonstration mode has no server, so it runs as the owner: every permission on. The
+   * live deployment replaces these the moment `login` answers (ADR 0007). The page may
+   * hide a control with `can()`, and must still expect the server to refuse the call:
+   * hiding a button is never a permission.
+   */
+  const ALL_PERMISSIONS = ['booking:read:clinic', 'booking:approve', 'booking:reschedule',
+    'booking:no_show', 'settings:write', 'staff:manage', 'audit:read', 'analytics:clinic'];
+  const ROLE_LABELS = { CLINIC_ADMIN: 'مالك العيادة', DOCTOR: 'الطبيب', RECEPTION: 'الاستقبال' };
   const state = {
     view: 'booking',
     staffPin: '',
+    permissions: ALL_PERMISSIONS.slice(),
+    role: 'CLINIC_ADMIN',
+    staffName: '',
     selectedTime: '',
     selectedDay: '',
     slots: [],
@@ -791,15 +804,27 @@
   // A neutral opener: no name, no symptom, no appointment details. The parent decides
   // what to write; we only save them the step of finding the number.
   const WHATSAPP_OPENER = 'السلام عليكم، أرغب في الاستفسار عن موعد.';
+  // wa.me only accepts the international form. A published Egyptian number is stored the
+  // way it is dialled locally (01113593643), so `https://wa.me/01113593643` would open a
+  // chat with nobody: the leading 0 has to become 20. Found only once a real number was
+  // published — with an empty field the link never rendered and the bug was invisible.
+  function waNumber(phone) {
+    let number = String(phone || '').replace(/\D/g, '');
+    if (number.startsWith('00')) number = number.slice(2);
+    if (number.startsWith('0')) return `20${number.slice(1)}`;
+    if (number.startsWith('20')) return number;
+    return number.length === 10 && number.startsWith('1') ? `20${number}` : number;
+  }
   function setWhatsApp(phone) {
-    const digitsOnly = String(phone || '').replace(/\D/g, '');
-    const usable = digitsOnly.length >= 8;
+    const digitsOnly = waNumber(phone);
+    const usable = digitsOnly.length >= 10 && digitsOnly.startsWith('20');
     const links = $$('#whatsappLink, #whatsappLinkAccess');
     links.forEach((link) => {
       const holder = link.closest('p');
       if (!usable) { if (holder) holder.hidden = true; link.removeAttribute('href'); return; }
       link.href = `https://wa.me/${digitsOnly}?text=${encodeURIComponent(WHATSAPP_OPENER)}`;
       link.setAttribute('aria-label', `مراسلة العيادة على واتساب على ${phone}`);
+      link.setAttribute('data-wa-number', digitsOnly);
       if (holder) holder.hidden = false;
     });
   }
@@ -825,6 +850,27 @@
   // clinic.json is a plain, non-secret file next to this script. Every field is optional:
   // an empty value stays empty, the page never invents a number, and a missing or broken
   // file changes nothing at all.
+  // The platform's builder is credited by name, with a support line that is explicitly
+  // *not* the clinic. Two numbers on one page are a hazard: a parent who taps the wrong
+  // one reaches a person who cannot touch their appointment. Hence the visible label.
+  function setDeveloper(name, phone) {
+    const block = $('[data-developer]');
+    if (!block) return;
+    const href = telHref(phone);
+    if (name) setFact('developer', name);
+    $$('[data-config="developerPhone"]').forEach((node) => {
+      if (!phone) { node.textContent = ''; return; }
+      if (!href) { node.textContent = phone; return; }
+      const link = document.createElement('a');
+      link.href = href;
+      link.className = 'phone-link ltr';
+      link.textContent = phone;
+      link.setAttribute('dir', 'ltr');
+      link.setAttribute('aria-label', `اتصل بدعم المنصّة (ليس العيادة) على ${phone}`);
+      node.replaceChildren(link);
+    });
+    block.hidden = !(name || phone);
+  }
   function applyPublishedClinic(data) {
     if (!data || typeof data !== 'object') return;
     const text = (value) => String(value === undefined || value === null ? '' : value).trim();
@@ -833,11 +879,16 @@
     const address = text(data.address);
     const doctor = text(data.doctorName);
     const licence = text(data.license);
-    if (!name && !phone && !address && !doctor && !licence) return;
+    const developer = text(data.developer);
+    const developerPhone = text(data.developerPhone);
+    if (!name && !phone && !address && !doctor && !licence && !developer && !developerPhone) return;
     // Announced facts only: the visit services and hours keep coming from the settings,
     // because a published file must never be able to invent a booking slot.
     if (name) { setFact('clinicName', name); state.clinicName = name; }
     if (phone) { setPhone(phone); state.filled = Object.assign({}, state.filled, { phone: true }); }
+    // Deliberately after setPhone and touching nothing it set: the credit cannot become the
+    // clinic's phone, and clearing it can never clear the clinic's number.
+    if (developer || developerPhone) setDeveloper(developer, developerPhone);
     if (address) { setFact('address', address); state.filled = Object.assign({}, state.filled, { address: true }); }
     // The doctor's identity travels in the same file: in stage A there is no deployment
     // behind the page, so a fact that is not published here does not exist at all.
@@ -1723,8 +1774,8 @@
     const ref = escapeHTML(booking.reference);
     const actions = canAct ? `
       <div class="request-actions">
-        ${isPending ? `<button class="action-approve" data-action="approve" data-ref="${ref}">${booking.status === 'RESCHEDULED' ? 'اعتماد الوقت المقترح' : 'قبول وحجز'}</button><button data-action="reschedule" data-ref="${ref}">اقتراح وقت بديل</button><button class="action-danger" data-action="cancel" data-ref="${ref}">رفض / إلغاء</button>` : ''}
-        ${isConfirmed ? `<button data-action="move" data-ref="${ref}">تعديل الموعد</button><button data-action="complete" data-ref="${ref}">إكمال الزيارة</button><button data-action="cancel" data-ref="${ref}" class="action-danger">إلغاء</button><a class="text-button" href="${whatsappLink(booking)}" target="_blank" rel="noopener noreferrer">رسالة WhatsApp</a>` : ''}
+        ${isPending ? `${can('booking:approve') ? `<button class="action-approve" data-action="approve" data-ref="${ref}">${booking.status === 'RESCHEDULED' ? 'اعتماد الوقت المقترح' : 'قبول وحجز'}</button>` : ''}${can('booking:reschedule') ? `<button data-action="reschedule" data-ref="${ref}">اقتراح وقت بديل</button><button class="action-danger" data-action="cancel" data-ref="${ref}">رفض / إلغاء</button>` : ''}` : ''}
+        ${isConfirmed ? `${can('booking:reschedule') ? `<button data-action="move" data-ref="${ref}">تعديل الموعد</button>` : ''}${can('booking:no_show') ? `<button data-action="complete" data-ref="${ref}">إكمال الزيارة</button>` : ''}${can('booking:reschedule') ? `<button data-action="cancel" data-ref="${ref}" class="action-danger">إلغاء</button>` : ''}<a class="text-button" href="${whatsappLink(booking)}" target="_blank" rel="noopener noreferrer">رسالة WhatsApp</a>` : ''}
         ${booking.status === 'RESCHEDULED' ? `<a class="text-button" href="${whatsappLink(booking, true)}" target="_blank" rel="noopener noreferrer">إرسال الاقتراح يدويًا</a>` : ''}
       </div>` : '';
     // A slot the calendar could not confirm is a *preference*, not a booking. The clinic
@@ -1743,6 +1794,20 @@
     </article>`;
   }
 
+  /** Reflect the signed-in role: a label, and the controls this role may not use are hidden. */
+  function applyStaffChrome() {
+    const label = $('#staffRoleLabel');
+    if (label) {
+      const role = ROLE_LABELS[state.role] || state.role || '';
+      label.textContent = state.staffName ? state.staffName + ' · ' + role : role;
+      label.hidden = !label.textContent;
+    }
+    $$('[data-staff-tab="settings"]').forEach((button) => { button.hidden = !can('settings:write'); });
+    const healthBody = $('#healthBody');
+    const healthCard = healthBody && healthBody.closest ? healthBody.closest('.health-card') : null;
+    if (healthCard) healthCard.hidden = !can('staff:manage');
+  }
+
   async function loginStaff(event) {
     event.preventDefault();
     const typed = $('#staffPin').value.trim();
@@ -1754,10 +1819,27 @@
         try { localStorage.setItem(DEMO_PIN_KEY, await sha256Hex(DEMO_PIN)); } catch (_) { /* private mode */ }
       }
       const pin = await sha256Hex(typed);
-      const response = await api('getDashboard', pin);
+      // The digest buys a session token; every later call carries the token, so a disabled
+      // staff member stops working immediately. An older backend answers getDashboard with
+      // the digest directly, so the page keeps working while the deployment is updated.
+      let credential = pin;
+      if (IS_GAS) {
+        const loginAnswer = await api('login', pin);
+        if (loginAnswer && loginAnswer.ok === false && loginAnswer.code === 'UNAUTHORIZED') {
+          throw new Error(loginAnswer.message || 'رمز الدخول غير صحيح.');
+        }
+        if (loginAnswer && loginAnswer.ok && loginAnswer.token) {
+          credential = loginAnswer.token;
+          state.permissions = Array.isArray(loginAnswer.permissions) ? loginAnswer.permissions : [];
+          state.role = loginAnswer.staff && loginAnswer.staff.role ? loginAnswer.staff.role : '';
+          state.staffName = loginAnswer.staff && loginAnswer.staff.name ? loginAnswer.staff.name : '';
+        }
+      }
+      const response = await api('getDashboard', credential);
       if (!response || !response.ok) throw new Error(response && response.message ? response.message : 'تعذر فتح لوحة الموظف.');
-      state.staffPin = pin;
-      sessionHash = pin;
+      state.staffPin = credential;
+      sessionHash = credential;
+      applyStaffChrome();
       $('#staffLogin').hidden = true;
       $('#staffDashboard').hidden = false;
       renderDashboard(response);
@@ -1990,8 +2072,42 @@
       loadAvailability(state.selectedDay);
       loadClinicProfile();
       requestAnimationFrame(revealOnScroll);
+      setupInstall();
     } catch (error) {
       console.error('Celia Kids failed to start', error);
+    }
+  }
+
+  /* ---------------- install as an app (static site only) ---------------- */
+  // The service worker keeps the page shell so it opens from the home screen. It is never
+  // registered inside the Apps Script deployment (no scope there) and never on http.
+  // A browser that does not offer installation simply keeps the button hidden.
+  function setupInstall() {
+    if (IS_GAS) return;
+    const button = $('[data-install]');
+    let deferred = null;
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      deferred = event;
+      if (button) button.hidden = false;
+    });
+    window.addEventListener('appinstalled', () => {
+      deferred = null;
+      if (button) button.hidden = true;
+    });
+    if (button) {
+      button.addEventListener('click', async () => {
+        if (!deferred) return;
+        deferred.prompt();
+        try { await deferred.userChoice; } catch (_) { /* dismissed */ }
+        deferred = null;
+        button.hidden = true;
+      });
+    }
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => { /* enhancement only */ });
+      }, { once: true });
     }
   }
 

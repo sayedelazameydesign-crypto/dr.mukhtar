@@ -24,6 +24,7 @@
   <link rel="canonical" href="https://sayedelazameydesign-crypto.github.io/dr.mukhtar/">
   <link rel="icon" href="./brand.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Celia Kids">
   <link rel="preload" href="./assets/fonts/almarai-700-arabic.woff2" as="font" type="font/woff2" crossorigin>
@@ -348,7 +349,7 @@
       <section id="staffView" class="view-panel staff-view" hidden aria-labelledby="staffTitle">
         <div class="staff-header">
           <div><p class="section-kicker">للاستخدام الداخلي</p><h2 id="staffTitle">لوحة العيادة</h2><p>مراجعة بشرية لكل طلب قبل تأكيد الموعد.</p></div>
-          <span class="staff-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg><span>دخول الموظف</span></span>
+          <span class="staff-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg><span id="staffRoleLabel" hidden>دخول الموظف</span></span>
         </div>
 
         <div id="staffLogin" class="staff-login card">
@@ -477,8 +478,14 @@
         <a href="#clinic">العيادة</a>
         <a href="#faq">أسئلة شائعة</a>
         <a href="./privacy.html">الخصوصية وحقوق البيانات</a>
+        <button type="button" class="link-button" data-install hidden>تثبيت التطبيق على الهاتف</button>
         <button type="button" class="link-button" data-view="staff">لوحة العيادة</button>
       </div>
+      <p class="footer-credit" data-developer hidden>
+        تطوير المنصّة ودعمها: <strong data-config="developer">—</strong> ·
+        <span data-config="developerPhone"></span>
+        <span class="footer-credit-note">هذا رقم الدعم التقني، وليس رقم العيادة</span>
+      </p>
     </div>
   </footer>
 

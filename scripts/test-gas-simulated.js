@@ -237,7 +237,7 @@ vm.createContext(context);
 // CELIA_OMIT_WHATSAPP_GS=1 reproduces an older bundle that predates the adapter: the whole
 // suite then runs without WhatsApp.gs, proving approval and cancellation do not depend on it.
 const OMIT_WHATSAPP = process.env.CELIA_OMIT_WHATSAPP_GS === '1';
-const BACKEND_FILES = ['Code.gs', 'Settings.gs', 'Llm.gs', 'WhatsApp.gs'];
+const BACKEND_FILES = ['Code.gs', 'Staff.gs', 'Settings.gs', 'Llm.gs', 'WhatsApp.gs'];
 BACKEND_FILES.forEach((file) => {
   // The opt-out must be checked before the file is looked up, otherwise the flag is a no-op
   // on any checkout that has the adapter (which is every checkout after PR #39).
@@ -946,4 +946,65 @@ assert.equal(context.getClinicSettings(bootstrapHash).ok, false, 'the bootstrap 
 
 console.log('Offline simulated Apps Script tests passed: competing approvals, visit duration, partial-write retry, edit/cancel, Calendar outage, Sheets/audit outage and full-audit queues, request-queue-full rejection, closed days removed from availability, a secret-free clinic profile, dashboard-editable settings (validation, services, PIN hashing and migration), slot starts that always fit inside opening hours, one open request per phone per day, and the daily per-number cap.')
 ;
+
+/* ------------------------------------------------------------------- roles ---- */
+// ADR 0007: identity is a staff row, not a shared PIN. These are the assertions that fail
+// if anyone reverts to "one PIN opens everything".
+const rolesPin = (label) => `pin-${label}-${crypto.randomBytes(10).toString('hex')}`;
+const ownerPin = rolesPin('owner');
+const ownerHash = hashPin(ownerPin);
+propertyValues.set('ADMIN_PIN_HASH', ownerHash);
+context.ensureStaffSeeded_();
+const staffSheetRows = sheets.get('Staff').rows;
+assert.equal(staffSheetRows[1][2], 'CLINIC_ADMIN', 'the legacy PIN is seeded as the owner row');
+assert.match(String(staffSheetRows[1][3]), /^[0-9a-f]{64}$/, 'only a SHA-256 digest is stored in the staff table');
+staffSheetRows[1][3] = ownerHash;
+
+const ownerLogin = context.login(ownerHash);
+assert.equal(ownerLogin.ok, true, 'the owner logs in');
+assert.equal(ownerLogin.staff.role, 'CLINIC_ADMIN');
+assert.ok(ownerLogin.token && ownerLogin.token.length >= 24, 'a session token is issued');
+assert.equal(JSON.stringify(ownerLogin).indexOf(ownerPin), -1, 'the credential is never echoed back');
+assert.equal(ownerLogin.permissions.indexOf('staff:manage') !== -1, true, 'the owner may manage staff');
+
+const doctorPin = rolesPin('doctor');
+const receptionPin = rolesPin('reception');
+assert.equal(context.addStaff('د. مختار سيد كامل', 'DOCTOR', hashPin(doctorPin), ownerLogin.token).ok, true, 'the owner adds a doctor');
+assert.equal(context.addStaff('استقبال', 'RECEPTION', hashPin(receptionPin), ownerLogin.token).ok, true, 'the owner adds the desk');
+assert.equal(context.addStaff('x', 'SUPERUSER', hashPin(rolesPin('bad')), ownerLogin.token).ok, false, 'an unknown role is refused');
+assert.equal(context.addStaff('dup', 'DOCTOR', hashPin(doctorPin), ownerLogin.token).ok, false, 'a duplicate credential is refused');
+
+const doctorLogin = context.login(hashPin(doctorPin));
+const receptionLogin = context.login(hashPin(receptionPin));
+assert.equal(doctorLogin.staff.role, 'DOCTOR');
+assert.equal(receptionLogin.staff.role, 'RECEPTION');
+
+// the desk: sees the board and moves appointments, cannot approve a child or reconfigure
+assert.equal(context.getDashboard(receptionLogin.token).ok, true, 'the desk reads the board');
+assert.equal(context.approveRequest('ANY-REF', receptionLogin.token).ok, false, 'the desk cannot approve a child');
+assert.equal(context.saveClinicSettings({ values: { CLINIC_TIMELINE: 'x' } }, receptionLogin.token).ok, false, 'the desk cannot change settings');
+assert.equal(context.listStaff(receptionLogin.token).ok, false, 'the desk cannot manage staff');
+assert.equal(context.getHealthReport(receptionLogin.token).ok, false, 'the desk cannot read the operational report');
+
+// the doctor: approves, reads the published settings, does not own the configuration
+assert.equal(context.getClinicSettings(doctorLogin.token).ok, true, 'the doctor reads the published settings');
+assert.equal(context.saveClinicSettings({ values: { CLINIC_TIMELINE: 'x' } }, doctorLogin.token).ok, false, 'the doctor cannot rewrite clinic settings');
+assert.equal(context.listStaff(doctorLogin.token).ok, false, 'the doctor cannot manage staff');
+
+// the owner: the only role that reconfigures, and the audit says which row did it
+assert.equal(context.saveClinicSettings({ values: { CLINIC_TIMELINE: 'عيادة دكتور مختار سيد كامل' } }, ownerLogin.token).ok, true, 'the owner saves settings');
+const ownerAuditRow = sheets.get('Audit').rows.filter((row) => row[3] === 'SETTINGS_UPDATED').pop();
+assert.equal(ownerAuditRow[1], 'staff:owner:CLINIC_ADMIN', 'the audit row names the staff id and role, not a shared label');
+
+// fail closed: bad, missing and revoked credentials never degrade to "any staff member"
+assert.equal(context.getDashboard('0123456789abcdef0123456789abcdef').ok, false, 'an unknown token is refused');
+assert.equal(context.getDashboard('').ok, false, 'a missing credential is refused');
+assert.equal(context.deactivateStaff('owner', ownerLogin.token).ok, false, 'the last active owner cannot be disabled');
+const doctorId = doctorLogin.staff.id;
+assert.equal(context.deactivateStaff(doctorId, ownerLogin.token).ok, true, 'an owner disables a staff member');
+assert.equal(context.getDashboard(doctorLogin.token).ok, false, 'a disabled staff member loses the session already held');
+assert.equal(context.login(hashPin(doctorPin)).ok, false, 'a disabled staff member cannot log in again');
+context.logout(ownerLogin.token);
+assert.equal(context.listStaff(ownerLogin.token).ok, false, 'a logged-out token is dead');
+
 console.log('Reminder: these mocked-service tests do not establish Google quotas, permissions, live deployment behavior, or legal readiness.');

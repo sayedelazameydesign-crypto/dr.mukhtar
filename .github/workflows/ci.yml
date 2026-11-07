@@ -112,7 +112,7 @@ jobs:
       - name: Syntax gate (JS)
         run: |
           node --check app.js
-          node -e "['Code.gs','Llm.gs','Settings.gs'].forEach((f)=>new Function(require('fs').readFileSync(f,'utf8'))); console.log('Apps Script sources parse');"
+          node -e "['Code.gs','Staff.gs','Llm.gs','Settings.gs'].forEach((f)=>new Function(require('fs').readFileSync(f,'utf8'))); console.log('Apps Script sources parse');"
 
       - name: Python syntax gate
         run: python3 -m py_compile scripts/build-gas-package.py scripts/preview.py
@@ -193,6 +193,9 @@ jobs:
       # when a piece it depends on disappears.
       - name: Privacy, retention and health
         run: node scripts/test-privacy-health.js
+
+      - name: PWA install contract
+        run: node scripts/test-pwa.js
 
       - name: Google bridge (offline, local adapter)
         run: |

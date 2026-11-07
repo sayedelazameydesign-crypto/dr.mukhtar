@@ -152,7 +152,7 @@ const context = {
   }
 };
 vm.createContext(context);
-['Code.gs', 'Settings.gs', 'Llm.gs', 'WhatsApp.gs'].forEach((file) => {
+['Code.gs', 'Staff.gs', 'Settings.gs', 'Llm.gs', 'WhatsApp.gs'].forEach((file) => {
   assert.ok(fs.existsSync(file), `${file} must exist at the repository root`);
   vm.runInContext(fs.readFileSync(file, 'utf8'), context, { filename: file });
 });

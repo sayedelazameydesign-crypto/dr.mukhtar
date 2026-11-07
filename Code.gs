@@ -151,7 +151,8 @@ function initializeCeliaKids() {
   ensureSheet_(ss, CK.REQUESTS, CK.REQUEST_HEADERS);
   ensureSheet_(ss, CK.AUDIT, CK.AUDIT_HEADERS);
   ensureSheet_(ss, CK.CLOSURES, CK.CLOSURE_HEADERS);
-  [CK.REQUESTS, CK.AUDIT, CK.CLOSURES].forEach((name) => {
+  ensureSheet_(ss, CK_STAFF, CK_STAFF_HEADERS);
+  [CK.REQUESTS, CK.AUDIT, CK.CLOSURES, CK_STAFF].forEach((name) => {
     const sheet = ss.getSheetByName(name);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, sheet.getLastColumn()).setFontWeight('bold').setBackground('#e3f2ec');
@@ -448,7 +449,8 @@ function lookupBooking(reference) {
 /** Constant-time comparison of the staff secret; no logging of the PIN itself. */
 /** Every staff operation checks the secret stored in Script Properties. */
 function getDashboard(pin) {
-  if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح أو لم يُضبط بعد.' };
+  const guard = requirePermission_(pin, 'booking:read:clinic');
+  if (!guard.ok) return guard;
   const warnings = [];
   // Freshness, not a log line: healthCheck_() answers "has a human looked at this clinic
   // lately?" without reading the Audit sheet (which may be exactly what is broken).
@@ -613,7 +615,8 @@ function healthCheck_() {
 
 /** Staff-facing health report (same payload, PIN required). */
 function getHealthReport(pin) {
-  if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'staff:manage');
+  if (!guard.ok) return guard;
   try {
     const report = healthCheck_();
     logEvent_('info', 'health_check', { ok: report.ok, status: report.status, queued: report.counters.queued_requests });
@@ -727,7 +730,8 @@ function notifyWhatsapp_(kind, record) {
 }
 
 function approveRequest(reference, pin) {
-  if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'booking:approve');
+  if (!guard.ok) return guard;
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return { ok: false, message: 'هناك إجراء آخر قيد المعالجة. حاولوا مجدداً.' };
   try {
@@ -766,7 +770,8 @@ function approveRequest(reference, pin) {
 }
 
 function proposeAlternative(reference, day, time, pin) {
-  if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'booking:reschedule');
+  if (!guard.ok) return guard;
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return { ok: false, message: 'هناك إجراء آخر قيد المعالجة. حاولوا مجدداً.' };
   try {
@@ -790,7 +795,8 @@ function proposeAlternative(reference, day, time, pin) {
 }
 
 function moveConfirmedAppointment(reference, day, time, reason, pin) {
-  if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'booking:reschedule');
+  if (!guard.ok) return guard;
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return { ok: false, message: 'هناك إجراء آخر قيد المعالجة. حاولوا مجدداً.' };
   try {
@@ -816,7 +822,8 @@ function moveConfirmedAppointment(reference, day, time, reason, pin) {
 }
 
 function cancelRequest(reference, reason, pin) {
-  if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'booking:reschedule');
+  if (!guard.ok) return guard;
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return { ok: false, message: 'هناك إجراء آخر قيد المعالجة. حاولوا مجدداً.' };
   try {
@@ -842,7 +849,8 @@ function cancelRequest(reference, reason, pin) {
 }
 
 function completeRequest(reference, pin) {
-  if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'booking:no_show');
+  if (!guard.ok) return guard;
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return { ok: false, message: 'هناك إجراء آخر قيد المعالجة. حاولوا مجدداً.' };
   try {
@@ -859,7 +867,8 @@ function completeRequest(reference, pin) {
 }
 
 function closeDay(day, label, pin) {
-  if (!isStaff_(pin)) return { ok: false, message: 'رمز الموظف غير صحيح.' };
+  const guard = requirePermission_(pin, 'booking:reschedule');
+  if (!guard.ok) return guard;
   if (!isValidDay_(day)) return { ok: false, message: 'التاريخ غير صحيح.' };
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return { ok: false, message: 'هناك إجراء آخر قيد المعالجة. حاولوا مجدداً.' };

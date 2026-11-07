@@ -10,7 +10,7 @@
 
 | يُنشر | لا يُنشر أبدًا |
 | --- | --- |
-| `gas/` (حزمة Apps Script: `Index.html`, `Fonts.html`, `Code.gs`, `Llm.gs`, `Settings.gs`, `appsscript.json`) | `docs/` ولا `scripts/` ولا `config/` |
+| `gas/` (حزمة Apps Script: `Index.html`, `Fonts.html`, `Code.gs`, `Staff.gs`, `Llm.gs`, `Settings.gs`, `appsscript.json`) | `docs/` ولا `scripts/` ولا `config/` |
 | `clinic.json` (بيانات معلنة: اسم، هاتف، طبيب، ترخيص) | أي **قيمة** سر: `GEMINI_API_KEY`، `CELIA_ADMIN_PIN`، `PAGES_TOKEN` |
 | — | `.env.example` ولا سجلات طرفية ولا نسخ احتياطية |
 
@@ -25,10 +25,10 @@
 1. افتح <https://script.google.com> ← **New project**، وسمّه `Celia Kids`.
 2. من `Project Settings` فعّل **Show "appsscript.json"**.
 3. شغّل محليًا: `python3 scripts/build-gas-package.py` — ينتج حزمة `gas/` بـ **٧ ملفات بالضبط**:
-   `Index.html` · `Fonts.html` (HTML المبني) · `Code.gs` · `Llm.gs` · `Settings.gs` · `WhatsApp.gs` (وحدات الخادم) · `appsscript.json` (المانيفست).
+   `Index.html` · `Fonts.html` (HTML المبني) · `Code.gs` · `Staff.gs` (الأدوار والجلسات) · `Llm.gs` · `Settings.gs` · `WhatsApp.gs` (وحدات الخادم) · `appsscript.json` (المانيفست).
    للتحقق بلا بناء: `python3 scripts/build-gas-package.py --list`.
 4. انسخ محتوى كل ملف من `gas/` إلى الملف المطابق في المحرّر (أو استخدم `clasp push`).
-5. **النتيجة المتوقعة:** المحرّر يعرض `Code.gs` و`Llm.gs` و`Settings.gs` و`WhatsApp.gs` بلا خطأ صياغة، و`appsscript.json` ظاهر.
+5. **النتيجة المتوقعة:** المحرّر يعرض `Code.gs` و`Staff.gs` و`Llm.gs` و`Settings.gs` و`WhatsApp.gs` بلا خطأ صياغة، و`appsscript.json` ظاهر.
 6. **الدليل المطلوب:** لقطة أو نص يقول «عدد الملفات ٧ + لا خطأ صياغة».
 
 ### ٢. ربط ورقة البيانات (الحساب: أنت)

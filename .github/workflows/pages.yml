@@ -59,7 +59,7 @@ jobs:
           # publishes whatever is added later — terminal transcripts, backend sources,
           # build scripts — which is exactly what had been happening.
           mkdir -p _site assets
-          cp index.html privacy.html app.css app.js brand.svg manifest.webmanifest \
+          cp index.html privacy.html app.css app.js brand.svg manifest.webmanifest sw.js \
              robots.txt sitemap.xml 404.html clinic.json _site/
           # Evidence Lab — generated, self-contained, safe to publish (approved for the public site)
           cp -r evidence/ _site/evidence/
