@@ -132,16 +132,21 @@ function matchStaffPin_(candidate) {
   }
   const digest = isPinHash_(value) ? value.toLowerCase() : pinHash_(value);
   let matched = null;
+  let inactiveMatch = false;
   try {
     const rows = ensureStaffSeeded_();
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
-      if (!row.active || !row.pinHash) continue;
+      if (!row.pinHash) continue;
+      // A disabled row must not regain access through the legacy property fallback.
       // Evaluate every row so timing does not reveal which row matched.
-      if (constantTimeEquals_(digest, row.pinHash)) matched = row;
+      if (constantTimeEquals_(digest, row.pinHash)) {
+        if (row.active) matched = row;
+        else inactiveMatch = true;
+      }
     }
   } catch (error) {
-    logEvent_('error', 'staff_lookup_failed', { message: String(error && error.message || error).slice(0, 120) });
+    logEvent_('error', 'staff_lookup_failed', { code: 'STAFF_LOOKUP_FAILED' });
     return { ok: false, message: 'تعذّر التحقق من الرمز الآن. حاولوا مجددًا.' };
   }
   if (!matched) {
@@ -150,7 +155,8 @@ function matchStaffPin_(candidate) {
     // NO staff id, so the audit keeps the platform label instead of inventing a row.
     let legacy = false;
     try {
-      legacy = typeof verifyStaffPin_ === 'function' && verifyStaffPin_(value);
+      // The outer check records a single failure after both credential stores miss.
+      legacy = !inactiveMatch && typeof verifyStaffPin_ === 'function' && verifyStaffPin_(value, false);
     } catch (error) { legacy = false; }
     if (legacy) return { ok: true, staff: { id: '', name: 'المالك', role: 'CLINIC_ADMIN', legacy: true } };
     if (typeof staffPinFailure_ === 'function') staffPinFailure_();
@@ -186,11 +192,12 @@ function sessionFromToken_(token) {
  * The credential path exists for the first login and for a stale client; it always
  * produces a real role, never a wildcard.
  */
-function staffRowIsActive_(id) {
+function staffRowMatchesSession_(id, role) {
   const wanted = String(id || '');
   if (!wanted) return false;
   try {
-    return readStaffRows_().some((row) => row.id === wanted && row.active);
+    // The role stored in an old session must not outlive a change to the staff row.
+    return readStaffRows_().some((row) => row.id === wanted && row.active && row.role === role);
   } catch (error) {
     // A sheet outage must not turn into a permission: fail closed.
     return false;
@@ -200,8 +207,8 @@ function staffRowIsActive_(id) {
 function resolveStaff_(tokenOrCredential) {
   const session = sessionFromToken_(tokenOrCredential);
   if (session) {
-    // The row can be disabled after the token was issued; the token is not the authority.
-    if (!session.legacy && !staffRowIsActive_(session.id)) {
+    // A disabled or role-changed row makes the old token unusable while it differs.
+    if (!session.legacy && !staffRowMatchesSession_(session.id, session.role)) {
       return { ok: false, message: 'انتهت صلاحية الجلسة. سجّلوا الدخول من جديد.' };
     }
     return { ok: true, session };
@@ -235,7 +242,7 @@ function login(credential) {
   try {
     PropertiesService.getScriptProperties().setProperty(CK_SESSION_PREFIX + token, JSON.stringify(session));
   } catch (error) {
-    logEvent_('error', 'session_store_failed', { message: String(error && error.message || error).slice(0, 120) });
+    logEvent_('error', 'session_store_failed', { code: 'SESSION_STORE_FAILED' });
     return { ok: false, code: 'SESSION_UNAVAILABLE', message: 'تعذّر بدء الجلسة. حاولوا مجددًا.' };
   }
   CK_ACTIVE_SESSION = { id: session.id, name: session.name, role: session.role, legacy: !!session.legacy, token };
@@ -354,7 +361,7 @@ function syncStaffPinHash_(previousHash, nextHash) {
       return true;
     }
   } catch (error) {
-    logEvent_('error', 'staff_pin_sync_failed', { message: String(error && error.message || error).slice(0, 120) });
+    logEvent_('error', 'staff_pin_sync_failed', { code: 'STAFF_PIN_SYNC_FAILED' });
   }
   return false;
 }
