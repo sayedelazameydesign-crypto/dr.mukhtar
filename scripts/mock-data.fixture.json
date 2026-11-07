@@ -1,0 +1,58 @@
+{
+  "mode": "SYNTHETIC_OFFLINE_ONLY",
+  "appointments": [
+    {
+      "id": "fixture-request-a",
+      "guardianFixtureId": "fixture-guardian-a",
+      "state": "PENDING_REVIEW",
+      "day": "2026-11-07",
+      "time": "10:00",
+      "durationMinutes": 30,
+      "timezone": "Africa/Cairo",
+      "version": 0,
+      "consent": {
+        "text": "نص موافقة وهمي للتجربة فقط",
+        "version": "fixture-consent-v1",
+        "acceptedAtUtc": "2026-11-07T06:00:00Z"
+      }
+    },
+    {
+      "id": "fixture-request-b",
+      "guardianFixtureId": "fixture-guardian-b",
+      "state": "PENDING_REVIEW",
+      "day": "2026-11-07",
+      "time": "10:00",
+      "durationMinutes": 30,
+      "timezone": "Africa/Cairo",
+      "version": 0,
+      "consent": {
+        "text": "نص موافقة وهمي للتجربة فقط",
+        "version": "fixture-consent-v1",
+        "acceptedAtUtc": "2026-11-07T06:01:00Z"
+      }
+    },
+    {
+      "id": "fixture-confirmed-c",
+      "guardianFixtureId": "fixture-guardian-c",
+      "state": "CONFIRMED",
+      "day": "2026-11-07",
+      "time": "11:00",
+      "durationMinutes": 30,
+      "timezone": "Africa/Cairo",
+      "version": 1,
+      "consent": {
+        "text": "نص موافقة وهمي للتجربة فقط",
+        "version": "fixture-consent-v1",
+        "acceptedAtUtc": "2026-11-07T06:02:00Z"
+      }
+    }
+  ],
+  "reviewQueue": [
+    { "id": "fixture-review-a", "appointmentId": "fixture-request-a", "state": "WAITING" },
+    { "id": "fixture-review-b", "appointmentId": "fixture-request-b", "state": "WAITING" }
+  ],
+  "reminders": [
+    { "id": "fixture-reminder-a", "appointmentId": "fixture-request-a", "state": "UNSENT", "manualMark": null },
+    { "id": "fixture-reminder-c", "appointmentId": "fixture-confirmed-c", "state": "MANUAL_DRAFT_READY", "manualMark": null }
+  ]
+}
