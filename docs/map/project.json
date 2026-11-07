@@ -696,10 +696,26 @@
     {
       "id": "api.gas",
       "kind": "endpoint",
-      "path": "Code.gs:134-401 (11 public functions)",
+      "path": "Code.gs (public Apps Script functions)",
       "lang": "gs",
       "layer": "api",
       "role": "google.script.run surface consumed by app.js api()"
+    },
+    {
+      "id": "api.daily-summary",
+      "kind": "endpoint",
+      "path": "Code.gs",
+      "lang": "gs",
+      "layer": "api",
+      "role": "session-gated read-only Cairo daily summary from Requests"
+    },
+    {
+      "id": "api.health-liveness",
+      "kind": "endpoint",
+      "path": "Code.gs",
+      "lang": "gs",
+      "layer": "api",
+      "role": "public static liveness only; no dependency health or secrets"
     },
     {
       "id": "tool.precommit",
@@ -875,7 +891,7 @@
       "path": "WhatsApp.gs",
       "lang": "gs",
       "layer": "domain",
-      "role": "WhatsApp adapter; off by default, dry-run sends nothing, notify never throws"
+      "role": "WhatsApp adapter; off by default, plus offline-only WAAPI fixture"
     },
     {
       "id": "env.WHATSAPP_MODE",
@@ -1079,7 +1095,7 @@
       "kind": "module",
       "path": "Code.gs",
       "layer": "domain",
-      "role": "healthCheck_, retention purge, token-gated uptime endpoint"
+      "role": "staff health, offline evaluator and unscheduled monitoring pass"
     },
     {
       "id": "test.privacy-health",
@@ -1093,7 +1109,7 @@
       "kind": "config",
       "path": "appsscript.json",
       "layer": "data",
-      "role": "HEALTH_TOKEN Script Property gates the public uptime endpoint"
+      "role": "HEALTH_TOKEN gates a helper; doGet does not route to it"
     },
     {
       "id": "tool.rotation",
@@ -1397,6 +1413,13 @@
           "api.gas"
         ]
       ]
+    },
+    {
+      "type": "calls",
+      "evidence": "app.js refreshDailySummary -> Code.gs generateDailySummary (session-gated, no writes)",
+      "confidence": "high",
+      "source": "static",
+      "pairs": [["ui.app-js", "api.daily-summary"]]
     },
     {
       "type": "calls",

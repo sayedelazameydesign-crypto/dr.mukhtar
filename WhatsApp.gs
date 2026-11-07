@@ -283,6 +283,41 @@ function whatsappNotify_(kind, record) {
 }
 
 /**
+ * WAAPI contract illustration only. It accepts no patient data, reads no settings or
+ * credentials, and cannot send. The intentionally invalid chat ID and placeholder path
+ * make this a fixture, not an authorized destination or a configured integration.
+ * WAAPI's request shape: https://waapi.readme.io/reference/send-text-message-to-chat
+ */
+function waapiSandboxPreview_() {
+  return {
+    provider: 'waapi',
+    mode: 'offline-fixture',
+    sent: false,
+    method: 'POST',
+    path: '/instances/{instance_id}/client/action/send-message',
+    authorization: 'Bearer <not supplied>',
+    contentType: 'application/json',
+    body: { chatId: '0000000@c.us', message: 'مثال تجريبي فقط — لم تُرسل أي رسالة.' }
+  };
+}
+
+/**
+ * Classify a simulated WAAPI response without exposing its contents. Even a successful
+ * action is not proof of delivery. Network/HTTP failures and malformed responses remain
+ * ambiguous: a caller must not automatically retry them and risk a duplicate message.
+ * This helper performs no fetch and is not connected to the booking/send path.
+ */
+function waapiClassifyResponse_(httpStatus, response) {
+  const result = { outcome: 'unknown', delivered: null, deliveryVerified: false, automaticRetry: false };
+  if (typeof httpStatus !== 'number' || !Number.isInteger(httpStatus) || httpStatus < 200 || httpStatus >= 300 ||
+      !response || typeof response !== 'object' || Array.isArray(response) ||
+      !response.data || typeof response.data !== 'object' || Array.isArray(response.data)) return result;
+  if (response.status === 'success' && response.data.status === 'success') result.outcome = 'provider-accepted';
+  else if (response.status === 'error' || response.data.status === 'error') result.outcome = 'provider-reported-error';
+  return result;
+}
+
+/**
  * Operator utility: show exactly what `live` would send, without sending anything.
  * Callable from the Apps Script editor after S1 (see docs/google-rehearsal.md).
  * @param {string=} kind

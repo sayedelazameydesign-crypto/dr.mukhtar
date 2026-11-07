@@ -176,6 +176,8 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   check('reference returned', /^CK-[A-Z0-9]{6,}$/.test(reference || ''), reference);
   check('result never claims confirmation', /لم يتأكد/.test($('#bookingResult').textContent));
   check('phone never rendered in result', !$('#bookingResult').textContent.includes('01000000000'));
+  check('demo result does not claim delivery to the clinic', /طلب تجريبي/.test($('#bookingResult').textContent) && !/وصل طلبكم إلى العيادة/.test($('#bookingResult').textContent));
+  check('demo result has no record-specific WhatsApp link', !$('#bookingResult a[href*="wa.me"]'));
 
   // ---- tracking: a reference alone is not a credential ----
   $('#trackReference').value = reference || '';
@@ -204,6 +206,25 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   check('dashboard unlocked', !$('#staffDashboard').hidden);
   check('stats rendered', $$('#dashboardStats .stat-card').length === 3);
   check('pending list populated', $$('#pendingList .request-item').length >= 1);
+  check('daily summary labels the local demo', /ملخص تجريبي/.test($('#dailySummary').textContent));
+
+  // Synthetic local-only records exercise Cairo-day filtering and ordering; no chat is opened.
+  {
+    const store = JSON.parse(window.localStorage.getItem('celia-kids-demo-v1'));
+    const make = (name, status, day, time) => ({ reference: `CK-TEST-${name}`, createdAt: new Date().toISOString(), status,
+      visitType: 'متابعة', guardianName: name, phone: '01000000000', day, time, eventId: '', consent: true });
+    store.bookings.push(make('ثانٍ', 'CONFIRMED', cairoToday, '12:00'), make('أول', 'CONFIRMED', cairoToday, '09:00'),
+      make('مكتمل', 'COMPLETED', cairoToday, '08:00'), make('معلق', 'REQUESTED', cairoToday, '10:00'),
+      make('غدًا', 'CONFIRMED', cairoTomorrow, '07:00'));
+    window.localStorage.setItem('celia-kids-demo-v1', JSON.stringify(store));
+    document.dispatchEvent(new window.Event('visibilitychange'));
+    await wait(700);
+    const names = $$('#todayList h4').map((el) => el.textContent);
+    check('today lists confirmed appointments in time order only', names.join('|') === 'أول|ثانٍ', names.join('|'));
+    const summary = $('#dailySummary').textContent;
+    check('daily summary shows confirmed demo rows only in order', summary.indexOf('أول') >= 0 && summary.indexOf('أول') < summary.indexOf('ثانٍ') && !summary.includes('مكتمل') && !summary.includes('معلق') && !summary.includes('غدًا'), summary);
+    check('demo dashboard never creates record-specific WhatsApp links', !$('#todayList a[href*="wa.me"]') && !$('#weekList a[href*="wa.me"]') && !$('#pendingList a[href*="wa.me"]'));
+  }
 
   const approve = $('#pendingList [data-action="approve"]');
   if (approve) {
@@ -351,6 +372,49 @@ const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
   $$('.nav-button').find((button) => button.dataset.view === 'booking').click();
   await wait(60);
   check('booking view restored', !$('#bookingView').hidden && $('#staffView').hidden);
+
+  // Exercise the actual UI rendering and URL builder in an isolated GAS-bridge mock.
+  // Nothing is sent, no real backend or WhatsApp is contacted, and init is deliberately skipped.
+  {
+    const exposed = js.replace(/  \/\/ Works whether the script is deferred[\s\S]*\}\)\(\);\s*$/, '  window.__uiTest = { renderDashboard, renderDailySummary, whatsappLink, setWhatsApp, showBookingResult };\n})();');
+    check('test-only UI hooks installed', exposed !== js);
+    const mockHtml = html.replace('<script src="./app.js?v=2026" defer></script>', () => `<script>${exposed}</script>`);
+    const mock = new JSDOM(mockHtml, { url: 'https://celia.test/', runScripts: 'dangerously', beforeParse(win) { win.google = { script: { run: {} } }; } });
+    const doc = mock.window.document;
+    const ui = mock.window.__uiTest;
+    const make = (name, status, day, time, phone = '01000000000') => ({ reference: 'CK-TESTREF', status, day, time, phone, guardianName: name, visitType: 'متابعة', eventId: status === 'CONFIRMED' ? 'mock-event' : '' });
+    const confirmed = make('أول', 'CONFIRMED', cairoToday, '09:00');
+    const late = make('ثانٍ', 'CONFIRMED', cairoToday, '12:00');
+    const proposal = make('اقتراح', 'RESCHEDULED', cairoToday, '10:00');
+    const requested = make('معلق', 'REQUESTED', cairoToday, '08:00');
+    const invalid = make('رقم غير صالح', 'CONFIRMED', cairoToday, '13:00', '123');
+    ui.renderDashboard({ bookings: [late, proposal, requested, confirmed, invalid, make('مكتمل', 'COMPLETED', cairoToday, '07:00'), make('غدًا', 'CONFIRMED', cairoTomorrow, '06:00')] });
+    const names = [...doc.querySelectorAll('#todayList h4')].map((el) => el.textContent);
+    check('mock GAS today filters and sorts', names.join('|') === 'أول|ثانٍ|رقم غير صالح', names.join('|'));
+    check('mock GAS today reminder is omitted for invalid number', doc.querySelectorAll('#todayList a[href*="wa.me"]').length === 2);
+    check('pending and completed appointments cannot create confirmation or reminder links', !ui.whatsappLink(requested, 'confirmation') && !ui.whatsappLink(make('مكتمل', 'COMPLETED', cairoToday, '07:00'), 'reminder'));
+    check('confirmed record without calendar event ID gets no message link', !ui.whatsappLink({ ...confirmed, eventId: '' }, 'confirmation') && !ui.whatsappLink({ ...confirmed, eventId: '' }, 'reminder'));
+    check('proposal is allowed only in rescheduled state', !!ui.whatsappLink(proposal, 'proposal') && !ui.whatsappLink(confirmed, 'proposal'));
+    check('international prefixes and malformed numbers are handled', /wa.me\/201000000000\?/.test(ui.whatsappLink(make('دولي', 'CONFIRMED', cairoToday, '10:00', '+201000000000'), 'reminder')) && !ui.whatsappLink(make('خطأ', 'CONFIRMED', cairoToday, '10:00', '+20123'), 'reminder'));
+    const url = new URL(ui.whatsappLink(confirmed, 'confirmation'));
+    const text = url.searchParams.get('text');
+    check('staff message omits appointment and personal details', !text.includes(confirmed.reference) && !text.includes(confirmed.guardianName) && !text.includes(confirmed.time) && !text.includes(confirmed.visitType));
+    ui.setWhatsApp('01000000000');
+    ui.showBookingResult(requested, false, false, '');
+    check('mock GAS result offers neutral clinic chat without claiming confirmation', !!doc.querySelector('#bookingResult a[href*="wa.me"]') && /لم يتأكد/.test(doc.querySelector('#bookingResult').textContent));
+    const patientChat = new URL(doc.querySelector('#bookingResult a[href*="wa.me"]').href).searchParams.get('text');
+    check('patient chat is neutral and has no request details', !patientChat.includes(requested.reference) && !patientChat.includes(requested.guardianName) && !patientChat.includes(requested.time));
+    ui.setWhatsApp('123');
+    ui.showBookingResult(requested, false, false, '');
+    check('invalid clinic number hides the result WhatsApp link', !doc.querySelector('#bookingResult a[href*="wa.me"]'));
+    ui.renderDailySummary({ ok: true, day: cairoToday, appointments: [{ time: '09:00', guardianName: '<img src=x>' }], missingEventCount: 1 });
+    check('summary renders names as text and warns about missing calendar IDs', !doc.querySelector('#dailySummary img') && /بلا معرّف حدث/.test(doc.querySelector('#dailySummary').textContent));
+    ui.renderDailySummary({ ok: false, message: 'تعذر جلب الملخص: فشل قراءة السجل.' });
+    check('summary error replaces prior content and is not presented as empty', /تعذر/.test(doc.querySelector('#dailySummary').textContent) && !/لا توجد/.test(doc.querySelector('#dailySummary').textContent) && !doc.querySelector('#dailySummary').textContent.includes('<img'));
+    ui.renderDashboard({ bookings: [], requestsReadable: false, warnings: ['تعذر قراءة السجل'] });
+    check('unreadable board is not presented as an empty day', /تعذر/.test(doc.querySelector('#todayList').textContent) && !/لا توجد/.test(doc.querySelector('#todayList').textContent));
+    mock.window.close();
+  }
 
   // ---- the freeze guard: a server call that never answers must not end the screen ----
   // In Apps Script mode a queued or hung call used to leave the submit button disabled and

@@ -9,8 +9,8 @@
  *   1. A reference number alone never reveals a request (the phone is the credential).
  *   2. "Delete my data" blanks the name and phone, keeps the administrative trail, and
  *      refuses while a live calendar event or a queued (un-synced) row still exists.
- *   3. Retention runs on the staff dashboard, touches only terminal statuses, and trims
- *      contact data past the window configured in one place.
+ *   3. Automatic retention defaults off; legacy enabled-path behavior is tested only in
+ *      isolated mocks, not approved for deployment or real patient data.
  *   4. healthCheck_ answers honestly when a dependency is down, and its payload carries
  *      no name and no phone number.
  *
@@ -96,6 +96,8 @@ const pinHash = crypto.createHash('sha256').update(pin).digest('hex');
 const properties = new Map([
   ['CELIA_SHEET_ID', 'fake-sheet'], ['CALENDAR_ID', 'primary'],
   ['ADMIN_PIN_HASH', pinHash], ['TIMEZONE', 'Africa/Cairo'],
+  // The old enabled path is exercised in mocks only; production defaults to off.
+  ['RETENTION', 'on'],
   ['WORK_START', '09:00'], ['WORK_END', '14:00'], ['SLOT_MINUTES', '30'],
   ['WORK_DAYS', '0,1,2,3,4']
 ]);
@@ -335,6 +337,29 @@ check('a deleted reference is reported as deleted when tracking', () => {
 
 /* --------------------------------------------------------------- 4. retention ---- */
 
+check('retention defaults off and dashboard warns without erasing contact data', () => {
+  seedSheets(); seeded = null;
+  const old = new Date(); old.setMonth(old.getMonth() - 30);
+  appendRow({ reference: 'CK-OFF00001', status: 'CANCELLED', createdAt: old.toISOString() });
+  properties.delete('CK_LAST_PURGE');
+  try {
+    for (const value of [null, '', 'off', 'ON', 'true']) {
+      if (value === null) properties.delete('RETENTION'); else properties.set('RETENTION', value);
+      const before = JSON.stringify([...sheets.values()].map((sheet) => sheet.rows));
+      const result = context.purgeExpiredRequests_();
+      assert.equal(result.reason, 'disabled');
+      assert.equal(result.purged, 0);
+      assert.equal(JSON.stringify([...sheets.values()].map((sheet) => sheet.rows)), before);
+      assert.equal(properties.has('CK_LAST_PURGE'), false, 'the stop does not mark a purge as run');
+    }
+    const dashboard = context.getDashboard(pinHash);
+    assert.equal(dashboard.ok, true);
+    assert.ok(dashboard.warnings.some((w) => /المحو التلقائي.*متوقف/.test(w)));
+    assert.equal(findRow('CK-OFF00001')[5], '01000000001');
+    assert.equal(context.healthCheck_().checks.find((item) => item.id === 'retention').ok, false);
+  } finally { properties.set('RETENTION', 'on'); }
+});
+
 check('retention trims old settled rows and leaves everything else alone', () => {
   seedSheets();
   seeded = null;
@@ -376,12 +401,13 @@ check('retention respects the retention window and its own throttle', () => {
 
 /* ------------------------------------------------------------------ 5. health ---- */
 
-check('health is green on a healthy clinic and carries no personal data', () => {
+check('health flags the unsafe legacy retention path and carries no personal data', () => {
   seedSheets();
   seeded = null; appendRow({ reference: 'CK-HLT00001' });
   properties.delete('CK_MUST_CHANGE_PIN');
   const report = context.healthCheck_();
-  assert.equal(report.ok, true, JSON.stringify(report.checks.filter((c) => !c.ok)));
+  assert.equal(report.ok, false);
+  assert.equal(report.checks.find((c) => c.id === 'retention').ok, false, 'the flag does not certify the old purge as safe');
   assert.equal(report.counters.requests, 1);
   const serialised = JSON.stringify(report);
   assert.ok(!serialised.includes('01000000001'), 'no phone number in the health payload');
@@ -397,6 +423,277 @@ check('health turns red when the request sheet is unreachable', () => {
   assert.equal(report.ok, false);
   const sheet = report.checks.find((c) => c.id === 'sheets');
   assert.equal(sheet.ok, false, 'the Sheets failure is reported, not swallowed');
+});
+
+check('health hides raw config, Sheets and Calendar error text from all report surfaces', () => {
+  seedSheetsIfNeeded();
+  const originals = [context.getConfig_, context.getSpreadsheet_, context.getCalendar_, context.requirePermission_];
+  const marker = 'private-marker-' + crypto.randomBytes(6).toString('hex');
+  const healthToken = ['health', 'fixture', crypto.randomBytes(6).toString('hex')].join('-');
+  try {
+    context.getConfig_ = () => { throw new Error(marker); };
+    context.getSpreadsheet_ = () => { throw new Error(marker); };
+    context.getCalendar_ = () => { throw new Error(marker); };
+    // Isolate report rendering; permission checks are covered separately below.
+    context.requirePermission_ = () => ({ ok: true });
+    properties.set('HEALTH_TOKEN', healthToken);
+    const report = context.healthCheck_();
+    for (const id of ['config', 'sheets', 'calendar']) {
+      assert.equal(report.checks.find((item) => item.id === id).ok, false, `${id} stays red`);
+    }
+    assert.equal(report.status, 'down');
+    const staff = context.getHealthReport(pinHash);
+    const helper = context.doGetHealth({ parameter: { token: healthToken } });
+    assert.equal(staff.ok, true, 'staff still receive the red report');
+    assert.equal(JSON.parse(helper.text).status, 'down');
+    for (const result of [report, staff, helper]) {
+      assert.ok(!JSON.stringify(result).includes(marker), 'raw exception text is not exposed');
+    }
+  } finally {
+    [context.getConfig_, context.getSpreadsheet_, context.getCalendar_, context.requirePermission_] = originals;
+    properties.delete('HEALTH_TOKEN');
+  }
+});
+
+check('health names the expected sheet on drift without echoing an exception field', () => {
+  const original = context.getSpreadsheet_;
+  const marker = 'private-marker-' + crypto.randomBytes(6).toString('hex');
+  try {
+    context.getSpreadsheet_ = () => { throw Object.assign(new Error(marker), { code: 'SCHEMA_DRIFT', sheet: marker }); };
+    const report = context.healthCheck_();
+    assert.equal(report.status, 'drift');
+    assert.match(report.checks.find((item) => item.id === 'sheets').detail, /Requests.*schema_drift/);
+    assert.ok(!JSON.stringify(report).includes(marker));
+  } finally { context.getSpreadsheet_ = original; }
+});
+
+check('schema drift does not leak a sensitive header through errors or logs', () => {
+  seedSheets(); seeded = null;
+  const requests = sheets.get('Requests');
+  const originalLog = context.logEvent_;
+  const marker = 'private-marker-' + crypto.randomBytes(6).toString('hex');
+  const events = [];
+  try {
+    requests.rows[0][0] = marker;
+    context.sheetSchemaIndex_ = {};
+    context.logEvent_ = (...args) => events.push(args);
+    let message = '';
+    try { context.assertSheetSchema_(requests, CK.REQUEST_HEADERS, CK.REQUESTS); }
+    catch (error) { message = error.message; }
+    assert.match(message, /Requests/);
+    assert.ok(!JSON.stringify([message, events]).includes(marker));
+    const report = context.healthCheck_();
+    assert.equal(report.status, 'drift');
+    assert.ok(!JSON.stringify([report, events]).includes(marker));
+  } finally {
+    context.logEvent_ = originalLog;
+    requests.rows[0][0] = CK.REQUEST_HEADERS[0];
+    context.sheetSchemaIndex_ = {};
+  }
+});
+
+check('health report failure logs and messages never echo exception fields', () => {
+  const originals = [context.healthCheck_, context.requirePermission_, context.logEvent_];
+  const marker = 'private-marker-' + crypto.randomBytes(6).toString('hex');
+  const entries = [];
+  try {
+    context.requirePermission_ = () => ({ ok: true });
+    context.healthCheck_ = () => { throw Object.assign(new Error(marker), { code: 'SCHEMA_DRIFT', sheet: marker }); };
+    context.logEvent_ = (...args) => entries.push(args);
+    const report = context.getHealthReport(pinHash);
+    assert.equal(report.ok, false);
+    assert.equal(entries[0][2].code, 'SCHEMA_DRIFT');
+    assert.ok(!JSON.stringify([report, entries]).includes(marker));
+  } finally { [context.healthCheck_, context.requirePermission_, context.logEvent_] = originals; }
+});
+
+check('doGet exposes only a static liveness probe, not a health report', () => {
+  const originals = [context.HtmlService, context.healthCheck_, context.PropertiesService];
+  const html = { setTitle() { return this; }, setXFrameOptionsMode() { return this; } };
+  try {
+    context.HtmlService = { createHtmlOutputFromFile: () => html, XFrameOptionsMode: { ALLOWALL: 'allow' } };
+    context.healthCheck_ = () => { throw new Error('health must not be called'); };
+    context.PropertiesService = { getScriptProperties: () => { throw new Error('properties must not be read'); } };
+    const probe = context.doGet({ parameter: { health: 'liveness', token: 'ignored' } });
+    assert.deepEqual(JSON.parse(probe.text), { status: 'alive' });
+    assert.equal(context.doGet({ parameter: { health: '1' } }), html, 'other requests keep the normal site');
+    assert.equal(context.doGet(), html, 'ordinary doGet still serves the site');
+  } finally { [context.HtmlService, context.healthCheck_, context.PropertiesService] = originals; }
+});
+
+// The evaluation is deliberately disconnected: it does not poll, alert or mutate data.
+function snapshotFixture() {
+  return {
+    started: '2030-01-01T00:00:00.000Z', ok: true, status: 'ok',
+    checks: ['config', 'sheets', 'calendar', 'queues', 'staff_pin', 'retention', 'last_purge']
+      .map((id) => ({ id, ok: true, detail: 'private-fixture-marker' }))
+  };
+}
+const snapshotStart = Date.parse('2030-01-01T00:00:00.000Z');
+
+check('snapshot evaluator classifies only the existing checks, with no raw detail', () => {
+  const report = snapshotFixture();
+  const result = context.evaluateHealthSnapshot_(report, snapshotStart + 1000, 1000);
+  assert.equal(result.state, 'checks-passed');
+  assert.equal(result.reason, 'reported-ok');
+  assert.equal(result.failedChecks.length, 0);
+  assert.ok(!JSON.stringify(result).includes('private-fixture-marker'));
+  assert.equal(report.checks[0].detail, 'private-fixture-marker', 'input is not modified');
+});
+
+check('snapshot evaluator preserves explicit failures and schema drift', () => {
+  const report = snapshotFixture();
+  report.ok = false; report.status = 'down';
+  report.checks.find((c) => c.id === 'calendar').ok = false;
+  const failure = context.evaluateHealthSnapshot_(report, snapshotStart, 1000);
+  assert.equal(failure.state, 'checks-failed');
+  assert.equal(failure.reason, 'reported-failure');
+  assert.equal(failure.failedChecks.join(','), 'calendar');
+  report.status = 'drift';
+  report.checks.find((c) => c.id === 'sheets').ok = false;
+  const drift = context.evaluateHealthSnapshot_(report, snapshotStart, 1000);
+  assert.equal(drift.state, 'checks-failed');
+  assert.equal(drift.reason, 'schema-drift');
+  assert.equal(drift.failedChecks.join(','), 'sheets,calendar');
+  assert.ok(!JSON.stringify(drift).includes('private-fixture-marker'));
+});
+
+check('snapshot evaluator treats stale and future data as unknown, never healthy', () => {
+  const report = snapshotFixture();
+  assert.equal(context.evaluateHealthSnapshot_(report, snapshotStart + 1001, 1000).reason, 'stale-report');
+  assert.equal(context.evaluateHealthSnapshot_(report, snapshotStart - 1, 1000).reason, 'future-report');
+  report.ok = false; report.status = 'down'; report.checks[0].ok = false;
+  assert.equal(context.evaluateHealthSnapshot_(report, snapshotStart + 1001, 1000).state, 'unknown');
+});
+
+check('snapshot evaluator rejects invalid clocks, dates, and incomplete or contradictory reports', () => {
+  for (const [now, max] of [[NaN, 1], [Infinity, 1], [snapshotStart, 0], [snapshotStart, -1], [snapshotStart, 1.5]]) {
+    assert.equal(context.evaluateHealthSnapshot_(snapshotFixture(), now, max).state, 'unknown');
+  }
+  const cases = [null, {}, { ...snapshotFixture(), started: '2030-02-30T00:00:00.000Z' },
+    { ...snapshotFixture(), checks: [] },
+    { ...snapshotFixture(), checks: snapshotFixture().checks.map((c) => ({ ...c, id: 'config' })) },
+    { ...snapshotFixture(), status: 'down' },
+    { ...snapshotFixture(), ok: false, status: 'drift' },
+    { ...snapshotFixture(), ok: false, status: 'closed' }];
+  for (const report of cases) assert.equal(context.evaluateHealthSnapshot_(report, snapshotStart, 1000).state, 'unknown');
+  const badBoolean = snapshotFixture(); badBoolean.checks[0].ok = 'true';
+  assert.equal(context.evaluateHealthSnapshot_(badBoolean, snapshotStart, 1000).state, 'unknown');
+  const contradictory = snapshotFixture(); contradictory.checks[0].ok = false;
+  assert.equal(context.evaluateHealthSnapshot_(contradictory, snapshotStart, 1000).reason, 'inconsistent-report');
+  // The staff envelope says its call ran; it is not itself a health report.
+  assert.equal(context.evaluateHealthSnapshot_({ ok: true, report: snapshotFixture() }, snapshotStart, 1000).state, 'unknown');
+});
+
+check('snapshot evaluator never touches services, network, settings or logs', () => {
+  const originals = [context.PropertiesService, context.CalendarApp, context.SpreadsheetApp, context.UrlFetchApp, context.logEvent_];
+  const forbidden = () => { throw new Error('service access forbidden'); };
+  try {
+    context.PropertiesService = { getScriptProperties: forbidden };
+    context.CalendarApp = { getDefaultCalendar: forbidden, getCalendarById: forbidden };
+    context.SpreadsheetApp = { openById: forbidden, getActiveSpreadsheet: forbidden };
+    context.UrlFetchApp = { fetch: forbidden };
+    context.logEvent_ = forbidden;
+    assert.equal(context.evaluateHealthSnapshot_(snapshotFixture(), snapshotStart, 1000).state, 'checks-passed');
+    assert.equal(context.evaluateHealthSnapshot_({}, snapshotStart, 1000).state, 'unknown');
+  } finally {
+    [context.PropertiesService, context.CalendarApp, context.SpreadsheetApp, context.UrlFetchApp, context.logEvent_] = originals;
+  }
+});
+
+check('snapshot evaluator agrees with actual mocked healthCheck_ reports', () => {
+  seedSheetsIfNeeded();
+  properties.delete('CK_MUST_CHANGE_PIN');
+  const report = context.healthCheck_();
+  const now = Date.parse(report.started);
+  assert.equal(context.evaluateHealthSnapshot_(report, now, 1000).state, report.ok ? 'checks-passed' : 'checks-failed');
+});
+
+check('one monitoring pass writes only fixed codes to a preconfigured sheet', () => {
+  const originals = [context.healthCheck_, context.logEvent_, context.MailApp, context.ScriptApp];
+  const oldSheet = sheets.get('Monitoring');
+  const monitor = new FakeSheet('Monitoring');
+  monitor.rows.push(['checkedAt', 'state', 'reason', 'failedChecks']);
+  const events = [];
+  try {
+    sheets.set('Monitoring', monitor);
+    const report = snapshotFixture(); report.started = new Date().toISOString();
+    report.ok = false; report.status = 'down'; report.checks.find((c) => c.id === 'calendar').ok = false;
+    context.healthCheck_ = () => report;
+    context.logEvent_ = (...args) => events.push(args);
+    context.MailApp = { sendEmail() { throw new Error('mail must not be sent'); } };
+    context.ScriptApp = { newTrigger() { throw new Error('no trigger should be created'); } };
+    const result = context.runHealthMonitorOnce_(60000);
+    assert.equal(result.ok, true);
+    assert.equal(result.state, 'checks-failed');
+    assert.equal(monitor.rows.length, 2);
+    assert.equal(monitor.rows[1][1], 'checks-failed');
+    assert.equal(monitor.rows[1][3], 'calendar');
+    assert.ok(!JSON.stringify([result, monitor.rows, events]).includes('private-fixture-marker'));
+  } finally {
+    [context.healthCheck_, context.logEvent_, context.MailApp, context.ScriptApp] = originals;
+    if (oldSheet) sheets.set('Monitoring', oldSheet); else sheets.delete('Monitoring');
+  }
+});
+
+check('monitor records an unknown status when health throws without leaking the error', () => {
+  const originals = [context.healthCheck_, context.logEvent_];
+  const oldSheet = sheets.get('Monitoring');
+  const monitor = new FakeSheet('Monitoring');
+  const marker = 'private-marker-' + crypto.randomBytes(6).toString('hex');
+  const events = [];
+  monitor.rows.push(['checkedAt', 'state', 'reason', 'failedChecks']);
+  try {
+    sheets.set('Monitoring', monitor);
+    context.healthCheck_ = () => { throw new Error(marker); };
+    context.logEvent_ = (...args) => events.push(args);
+    const result = context.runHealthMonitorOnce_(60000);
+    assert.equal(result.ok, true);
+    assert.equal(result.state, 'unknown');
+    assert.equal(monitor.rows[1][2], 'health-check-error');
+    assert.ok(!JSON.stringify([result, monitor.rows, events]).includes(marker));
+  } finally {
+    [context.healthCheck_, context.logEvent_] = originals;
+    if (oldSheet) sheets.set('Monitoring', oldSheet); else sheets.delete('Monitoring');
+  }
+});
+
+check('monitor refuses absent, malformed or unwritable sheets without repairing them', () => {
+  const originals = [context.healthCheck_, context.logEvent_];
+  const oldSheet = sheets.get('Monitoring');
+  const events = [];
+  try {
+    const report = snapshotFixture(); report.started = new Date().toISOString();
+    context.healthCheck_ = () => report;
+    context.logEvent_ = (...args) => events.push(args);
+    sheets.delete('Monitoring');
+    assert.equal(context.runHealthMonitorOnce_(60000).code, 'MONITOR_WRITE_FAILED');
+    assert.equal(sheets.has('Monitoring'), false);
+    const monitor = new FakeSheet('Monitoring'); monitor.rows.push(['wrong', 'state', 'reason', 'failedChecks']);
+    sheets.set('Monitoring', monitor);
+    assert.equal(context.runHealthMonitorOnce_(60000).code, 'MONITOR_WRITE_FAILED');
+    assert.equal(monitor.rows.length, 1);
+    monitor.rows[0][0] = 'checkedAt';
+    monitor.appendRow = () => { throw new Error('private-fixture-marker'); };
+    assert.equal(context.runHealthMonitorOnce_(60000).code, 'MONITOR_WRITE_FAILED');
+    assert.ok(!JSON.stringify(events).includes('private-fixture-marker'));
+    assert.equal(context.runHealthMonitorOnce_(0).code, 'INVALID_MONITOR_LIMIT');
+  } finally {
+    [context.healthCheck_, context.logEvent_] = originals;
+    if (oldSheet) sheets.set('Monitoring', oldSheet); else sheets.delete('Monitoring');
+  }
+});
+
+check('monitor skips busy locks and reports release failure without raw errors', () => {
+  const originals = [context.LockService, context.healthCheck_, context.logEvent_];
+  try {
+    context.logEvent_ = () => {};
+    context.healthCheck_ = () => { throw new Error('simulated health failure'); };
+    context.LockService = { getScriptLock: () => ({ tryLock: () => false }) };
+    assert.equal(context.runHealthMonitorOnce_(1000).code, 'LOCK_BUSY');
+    context.LockService = { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => { throw new Error('private-fixture-marker'); } }) };
+    assert.throws(() => context.runHealthMonitorOnce_(1000), (error) => error.message === 'MONITOR_LOCK_RELEASE_FAILED');
+  } finally { [context.LockService, context.healthCheck_, context.logEvent_] = originals; }
 });
 
 check('health reports a temporary staff PIN as not ready', () => {

@@ -24,7 +24,12 @@ const CK = {
   MAX_OUTAGE_AUDITS: 100
 };
 
-function doGet() {
+function doGet(event) {
+  // Public liveness only: this does not read health, settings or patient data.
+  // It proves this code answered, not that Sheets, Calendar or messaging works.
+  if (event && event.parameter && event.parameter.health === 'liveness') {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'alive' })).setMimeType(ContentService.MimeType.JSON);
+  }
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('Celia Kids | حجز مواعيد الأطفال')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
@@ -224,12 +229,11 @@ function assertSheetSchema_(sheet, headers, label) {
     logEvent_('error', 'schema_drift', {
       sheet: label,
       position: i + 1,
-      expected: headers[i],
-      found: live[i] || ''
+      expected: headers[i]
     });
+    // A malformed header can contain a contact, token or pasted row: never echo it.
     const drift = new Error('مخطط ورقة ' + label + ' لا يطابق ما يتوقعه الكود عند العمود ' + (i + 1) +
-      ': المتوقع «' + headers[i] + '» والموجود «' + (live[i] || 'فارغ') +
-      '». أُوقف التنفيذ عمدًا — لا تعدّل الترويسة يدويًا فوق بيانات قائمة.');
+      ': المتوقع «' + headers[i] + '». أُوقف التنفيذ عمدًا — لا تعدّل الترويسة يدويًا فوق بيانات قائمة.');
     // Callers catch broadly. Without a marker, every catch site reports drift as a
     // generic "cannot reach Sheets", which is the one thing an operator must not
     // be told: the sheet is reachable, its columns are wrong.
@@ -461,8 +465,10 @@ function getDashboard(pin) {
     else warnings.push('تعذر مزامنة سجل الطلبات مع Sheets؛ الطلبات الاحتياطية محفوظة للمراجعة عند عودة الخدمة.');
   }
   let bookings = [];
+  let requestsReadable = true;
   try { bookings = readAllRequests_(); }
   catch (error) {
+    requestsReadable = false;
     if (isSchemaDrift_(error)) {
       // The board would otherwise be empty with a "check the connection" note, and
       // the clinic would chase a network that is fine. Say what is actually wrong.
@@ -491,6 +497,7 @@ function getDashboard(pin) {
   // is the only screen a human is guaranteed to open, and a policy nobody runs is a slogan.
   try {
     const purge = purgeExpiredRequests_();
+    if (purge.reason === 'disabled') warnings.push('المحو التلقائي وفق مدة الاحتفاظ متوقف مؤقتًا؛ راجعوا مسؤول العيادة وسياسة الاحتفاظ.');
     if (purge.purged) warnings.push('حُذفت بيانات ' + purge.purged + ' طلبًا قديمًا وفق مدة الاحتفاظ المعلنة.');
     if (purge.failed) warnings.push('تعذر حذف بيانات ' + purge.failed + ' طلبًا قديمًا؛ راجعوا سجل التدقيق.');
   } catch (error) {
@@ -502,7 +509,58 @@ function getDashboard(pin) {
   if (pendingAuditCount) warnings.push('توجد تغييرات بانتظار مزامنة سجل التدقيق.');
   queued.forEach((item) => { if (!bookings.some((b) => b.reference === item.reference)) bookings.push(item); });
   bookings.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-  return { ok: true, bookings: bookings, closures: closures, warnings: warnings };
+  return { ok: true, bookings: bookings, closures: closures, warnings: warnings, requestsReadable: requestsReadable };
+}
+
+/** Read-only, session-gated daily report. No sheet creation, queue sync or Calendar writes. */
+function generateDailySummary(token) {
+  const guard = requireReadOnlyPermission_(token, 'booking:read:clinic');
+  if (!guard.ok) return guard;
+  try {
+    const sheet = getSpreadsheet_().getSheetByName(CK.REQUESTS);
+    if (!sheet || sheet.getLastRow() < 1) {
+      return { ok: false, code: 'SUMMARY_SHEET_MISSING', message: 'تعذر جلب الملخص: ورقة الطلبات غير موجودة أو غير مهيأة.' };
+    }
+    assertSheetSchema_(sheet, CK.REQUEST_HEADERS, CK.REQUESTS);
+    const rows = sheet.getLastRow() < 2 ? [] : sheet.getRange(2, 1, sheet.getLastRow() - 1, CK.REQUEST_HEADERS.length).getValues();
+    const day = Utilities.formatDate(new Date(), 'Africa/Cairo', 'yyyy-MM-dd');
+    return buildDailySummary_(rows, day);
+  } catch (error) {
+    const drift = isSchemaDrift_(error);
+    logEvent_('error', 'daily_summary_unavailable', { code: drift ? 'SUMMARY_SCHEMA_DRIFT' : 'SUMMARY_READ_FAILED' });
+    return { ok: false, code: drift ? 'SUMMARY_SCHEMA_DRIFT' : 'SUMMARY_READ_FAILED',
+      message: drift ? 'تعذر جلب الملخص: أعمدة ورقة الطلبات لا تطابق المخطط المتوقع.' : 'تعذر جلب الملخص: تعذر الوصول إلى سجل الطلبات أو قراءته.' };
+  }
+}
+
+/** Build from the current Requests sheet rows only; a saved ID is not a live Calendar check. */
+function buildDailySummary_(rows, today) {
+  const records = new Map();
+  for (const row of rows) {
+    const ref = String(row[0] || '');
+    if (!ref && String(row[2] || '') === 'CONFIRMED') {
+      return { ok: false, code: 'SUMMARY_INVALID_DATA', message: 'تعذر جلب ملخص موثوق: سجل مؤكد بلا رقم مرجعي. راجعوا السجل.' };
+    }
+    if (ref) records.set(ref, row); // same last-row-wins rule as readAllRequests_
+  }
+  const appointments = [];
+  let missingEventCount = 0;
+  for (const row of records.values()) {
+    if (String(row[2] || '') !== 'CONFIRMED') continue;
+    const value = row[6];
+    const day = Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())
+      ? Utilities.formatDate(value, 'Africa/Cairo', 'yyyy-MM-dd') : String(value || '').trim();
+    const parsedDay = /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(day + 'T12:00:00Z') : new Date(NaN);
+    if (isNaN(parsedDay.getTime()) || parsedDay.toISOString().slice(0, 10) !== day) return { ok: false, code: 'SUMMARY_INVALID_DATA', message: 'تعذر جلب ملخص موثوق: تاريخ سجل مؤكد غير صالح. راجعوا السجل.' };
+    if (day !== today) continue;
+    const time = String(row[7] || '');
+    const guardianName = String(row[4] || '').trim();
+    if (!isValidTime_(time) || !guardianName) return { ok: false, code: 'SUMMARY_INVALID_DATA', message: 'تعذر جلب ملخص موثوق: بيانات موعد اليوم غير مكتملة. راجعوا السجل.' };
+    if (!String(row[8] || '').trim()) { missingEventCount += 1; continue; }
+    appointments.push({ time: time, guardianName: guardianName });
+  }
+  appointments.sort((a, b) => a.time.localeCompare(b.time));
+  return { ok: true, day: today, appointments: appointments, missingEventCount: missingEventCount };
 }
 
 /* ------------------------------------------------------------------ health ---- */
@@ -527,9 +585,11 @@ function healthCheck_() {
   const checks = [];
   const add = function (id, ok, detail) { checks.push({ id: id, ok: !!ok, detail: detail || '' }); };
 
+  // Provider/config exception text can include identifiers or credentials. Only return
+  // stable, actionable categories; retain schema drift without echoing exception fields.
   let config = null;
   try { config = getConfig_(); add('config', true, ''); }
-  catch (error) { add('config', false, error.message || 'إعداد غير صالح'); }
+  catch (error) { add('config', false, 'إعداد العيادة غير صالح أو تعذر فحصه.'); }
 
   let requestRows = 0;
   let sheetOk = false;
@@ -550,13 +610,13 @@ function healthCheck_() {
   } catch (error) {
     schemaDrifted = isSchemaDrift_(error);
     add('sheets', false, schemaDrifted
-      ? 'أعمدة ورقة «' + error.sheet + '» لا تطابق النظام (schema_drift).'
-      : (error.message || 'تعذر الوصول إلى Sheets'));
+      ? 'أعمدة ورقة «' + CK.REQUESTS + '» لا تطابق النظام (schema_drift).'
+      : 'تعذر الوصول إلى Sheets أو فحصها.');
   }
 
   let calendarOk = false;
   try { calendarOk = !!getCalendar_(); add('calendar', calendarOk, calendarOk ? '' : 'تعذر العثور على تقويم العيادة'); }
-  catch (error) { add('calendar', false, error.message || 'تعذر الوصول إلى Calendar'); }
+  catch (error) { add('calendar', false, 'تعذر الوصول إلى Calendar أو فحصه.'); }
 
   let pendingAudit = 0;
   let queuedRequests = 0;
@@ -576,7 +636,12 @@ function healthCheck_() {
 
   const retentionMonths = (typeof readRetentionMonths_ === 'function')
     ? readRetentionMonths_(PropertiesService.getScriptProperties()) : 0;
-  add('retention', retentionMonths >= 1, retentionMonths + ' شهر');
+  const retentionEnabled = PropertiesService.getScriptProperties().getProperty('RETENTION') === 'on';
+  // The legacy enabled path has known race/outage gaps: a configured flag and window
+  // must not be presented as evidence that retention is safe or working correctly.
+  add('retention', false, retentionEnabled
+    ? 'مسار المحو القديم مفعّل لكنه غير معتمد؛ أوقفوه وراجعوا سياسة الاحتفاظ.'
+    : 'المحو التلقائي متوقف مؤقتًا؛ يلزم إجراء تشغيلي');
 
   // The two failures that made this function worth writing: a write that silently did
   // not land (stuck queue) and a dashboard nobody opened for days (no purge).
@@ -613,6 +678,92 @@ function healthCheck_() {
   };
 }
 
+/**
+ * Offline-only evaluation of a healthCheck_ report. The caller supplies both the
+ * comparison time and freshness limit; this helper reads no clock, settings or services.
+ * A pass describes only the existing checks, not message delivery or provider readiness.
+ * It is not connected to an endpoint, scheduler, notification or booking path.
+ */
+function evaluateHealthSnapshot_(report, nowMs, maxAgeMs) {
+  const unknown = function (reason) { return { state: 'unknown', reason: reason, failedChecks: [] }; };
+  if (!Number.isSafeInteger(nowMs) || !Number.isSafeInteger(maxAgeMs) || maxAgeMs <= 0) {
+    return unknown('invalid-clock-or-limit');
+  }
+  if (!report || typeof report !== 'object' || Array.isArray(report) ||
+      typeof report.started !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(report.started)) {
+    return unknown('invalid-report');
+  }
+  const startedMs = Date.parse(report.started);
+  if (!Number.isFinite(startedMs) || new Date(startedMs).toISOString() !== report.started) return unknown('invalid-report');
+  if (startedMs > nowMs) return unknown('future-report');
+  if (nowMs - startedMs > maxAgeMs) return unknown('stale-report');
+
+  const expected = ['config', 'sheets', 'calendar', 'queues', 'staff_pin', 'retention', 'last_purge'];
+  if (!Array.isArray(report.checks) || report.checks.length !== expected.length) return unknown('invalid-report');
+  const failed = [];
+  for (let i = 0; i < expected.length; i += 1) {
+    const matches = report.checks.filter(function (check) { return check && check.id === expected[i]; });
+    if (matches.length !== 1 || typeof matches[0].ok !== 'boolean') return unknown('invalid-report');
+    if (!matches[0].ok) failed.push(expected[i]);
+  }
+  if (report.ok === true && report.status === 'ok' && failed.length === 0) {
+    return { state: 'checks-passed', reason: 'reported-ok', failedChecks: [] };
+  }
+  if (report.ok === false && (report.status === 'down' || report.status === 'drift') && failed.length > 0 &&
+      (report.status !== 'drift' || failed.indexOf('sheets') !== -1)) {
+    return { state: 'checks-failed', reason: report.status === 'drift' ? 'schema-drift' : 'reported-failure', failedChecks: failed };
+  }
+  return unknown('inconsistent-report');
+}
+
+/**
+ * One opt-in monitoring pass; not installed or scheduled by this code. A caller must
+ * supply a reviewed freshness limit and prepare the Monitoring sheet with the exact
+ * header below. No sheet is created or repaired and no alert is sent. Results contain
+ * only fixed codes, never the raw health payload. Uses the booking lock non-blockingly.
+ */
+function runHealthMonitorOnce_(maxAgeMs) {
+  if (!Number.isSafeInteger(maxAgeMs) || maxAgeMs <= 0) return { ok: false, code: 'INVALID_MONITOR_LIMIT' };
+  let result;
+  try {
+    const report = healthCheck_();
+    result = evaluateHealthSnapshot_(report, Date.now(), maxAgeMs);
+  } catch (error) {
+    result = { state: 'unknown', reason: 'health-check-error', failedChecks: [] };
+    logEvent_('error', 'monitor_health_failed', { code: 'HEALTH_CHECK_FAILED' });
+  }
+  let lock;
+  try {
+    lock = LockService.getScriptLock();
+    if (!lock.tryLock(0)) {
+      logEvent_('warn', 'monitor_skipped', { code: 'LOCK_BUSY' });
+      return { ok: false, code: 'LOCK_BUSY' };
+    }
+  } catch (error) {
+    logEvent_('error', 'monitor_failed', { code: 'LOCK_UNAVAILABLE' });
+    return { ok: false, code: 'LOCK_UNAVAILABLE' };
+  }
+  try {
+    const sheet = getSpreadsheet_().getSheetByName('Monitoring');
+    const headers = ['checkedAt', 'state', 'reason', 'failedChecks'];
+    if (!sheet || sheet.getLastRow() < 1 || sheet.getLastColumn() !== headers.length) throw new Error('MONITOR_SCHEMA');
+    const actual = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+    if (!headers.every(function (header, i) { return actual[i] === header; })) throw new Error('MONITOR_SCHEMA');
+    sheet.appendRow([new Date().toISOString(), result.state, result.reason, result.failedChecks.join(',')]);
+    logEvent_('info', 'monitor_recorded', { state: result.state, reason: result.reason });
+    return { ok: true, state: result.state, reason: result.reason };
+  } catch (error) {
+    logEvent_('error', 'monitor_failed', { code: 'MONITOR_WRITE_FAILED' });
+    return { ok: false, code: 'MONITOR_WRITE_FAILED' };
+  } finally {
+    try { lock.releaseLock(); }
+    catch (error) {
+      logEvent_('error', 'monitor_failed', { code: 'LOCK_RELEASE_FAILED' });
+      throw new Error('MONITOR_LOCK_RELEASE_FAILED');
+    }
+  }
+}
+
 /** Staff-facing health report (same payload, PIN required). */
 function getHealthReport(pin) {
   const guard = requirePermission_(pin, 'staff:manage');
@@ -627,19 +778,19 @@ function getHealthReport(pin) {
     // The endpoint still goes red, but a red light with no cause is a light nobody
     // can act on. Schema drift is named so the operator knows it is not an outage.
     const drift = isSchemaDrift_(error);
-    logEvent_('error', 'health_check_failed', { code: drift ? 'SCHEMA_DRIFT' : 'HEALTH', sheet: drift ? error.sheet : '' });
+    logEvent_('error', 'health_check_failed', { code: drift ? 'SCHEMA_DRIFT' : 'HEALTH' });
     return { ok: false, message: drift
-      ? 'فحص الصحة أحمر: أعمدة ورقة «' + error.sheet + '» لا تطابق النظام.'
+      ? 'فحص الصحة أحمر: أعمدة إحدى الأوراق لا تطابق النظام.'
       : 'تعذر تشغيل فحص الصحة.' };
   }
 }
 
 /**
- * Public uptime endpoint for an external monitor (freshness, not security).
+ * Token-gated health helper; not currently usable as an external HTTP monitor.
  *
- * Publishing it must be an explicit act, not a default: without the secret
- * `HEALTH_TOKEN` set in Script Properties this returns 404 and reveals nothing.
- * With it, `?token=…` returns the same counters — never the request list.
+ * This is a token-gated helper, not an HTTP route: doGet does not dispatch to it.
+ * Without HEALTH_TOKEN it returns an opaque JSON body; it does not set an HTTP status.
+ * Do not add a URL-token route without a separate review of credential leakage and access.
  */
 function doGetHealth(event) {
   const token = String(PropertiesService.getScriptProperties().getProperty('HEALTH_TOKEN') || '');
@@ -671,6 +822,10 @@ function retentionCutoff_(months) {
  */
 function purgeExpiredRequests_() {
   const props = PropertiesService.getScriptProperties();
+  // Emergency stop: leave automatic retention off until its race, Calendar outage,
+  // backup and policy behavior have been reviewed. This does not affect a guardian's
+  // separate, explicit deletion request.
+  if (props.getProperty('RETENTION') !== 'on') return { purged: 0, failed: 0, skipped: true, reason: 'disabled' };
   const last = Date.parse(props.getProperty('CK_LAST_PURGE') || '');
   if (Number.isFinite(last) && Date.now() - last < CK_PURGE_INTERVAL_MS) return { purged: 0, failed: 0, skipped: true };
   const months = (typeof readRetentionMonths_ === 'function') ? readRetentionMonths_(props) : 12;
@@ -1164,6 +1319,12 @@ function validateRequest_(payload) {
   if (labels.indexOf(visitType) === -1) throw new Error('نوع الزيارة غير صحيح.');
   const guardianName = String(payload.guardianName || '').trim().replace(/[<>]/g, '').slice(0, 80);
   const phone = String(payload.phone || '').trim().slice(0, 22);
+  // appendRow interprets a value beginning with '=' as a formula. Reject at the
+  // public intake boundary, before either Sheets or the outage queue sees it.
+  // Do not alter legitimate phone values (including a leading '+').
+  if (/^[\s\u200B]*=/.test(guardianName) || /^[\s\u200B]*=/.test(phone)) {
+    throw new Error('يرجى إدخال اسم ورقم هاتف دون صيغة أو علامة مساواة في البداية.');
+  }
   if (guardianName.length < 2 || digits_(phone).length < 8) throw new Error('يرجى إدخال اسم ولي الأمر ورقم هاتف صالح.');
   if (!isValidDay_(payload.day) || !isValidTime_(payload.time)) throw new Error('التاريخ أو الوقت غير صحيح.');
   if (makeDate_(String(payload.day), String(payload.time)) <= new Date()) throw new Error('اختاروا وقتاً في المستقبل.');
