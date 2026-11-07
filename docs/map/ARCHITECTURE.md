@@ -141,7 +141,7 @@ Open gaps: G1 · G2 · G14 · G23 · G26
 - **G2** (high) — the secrets manifest is declared policy, not enforced state: protection + rotation unverified.
 - **G14** (med) — the bridge's Drive/Sheets/Calendar paths were never bootstrapped on a real account.
 - **G23** (med) — triage/repair workflows have never been watched on a real failing run.
-- **G26** (med) — a run dying between `createEvent` and `updateRequestRow_` leaves an orphan event nobody looks for.
+- **G26** (med) — a run dying between `createEvent` and `updateRequestRow_` can leave an orphan; a retry searches a limited window, but no independent reconciliation reports all such events.
 
 Closed gaps carry a `resolution` object with the command that closed them — read them in the ledger, not in a mirror. Counts are deliberately absent: numbers copied from a gate rot silently.
 

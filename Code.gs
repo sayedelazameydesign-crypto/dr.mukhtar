@@ -746,11 +746,37 @@ function approveRequest(reference, pin) {
     const end = new Date(start.getTime() + duration * 60000);
     // Reuse a matching event from a prior partial attempt before checking for conflicts.
     let event = findCalendarEvent_(calendar, record.reference, record.day, record.time);
+    // Even a mismatched event can occupy the day after a prior partial attempt.
+    if (event) invalidateSlotCacheFor_(record.day);
     if (event && (event.getStartTime().getTime() !== start.getTime() || event.getEndTime().getTime() !== end.getTime())) return { ok: false, message: 'يوجد حدث سابق بهذا المرجع بوقت مختلف؛ راجعوا التقويم قبل المتابعة.' };
     if (!isSlotAvailable_(record.day, record.time, duration, event ? event.getId() : '')) return { ok: false, message: 'الوقت لم يعد متاحاً. اقترحوا وقتاً بديلاً.' };
-    if (!event) event = calendar.createEvent('Celia Kids | ' + record.visitType + ' | ' + record.reference, start, end, { description: 'مرجع إداري: ' + record.reference + '\nبيانات طبية: غير محفوظة.' });
+    if (!event) {
+      try {
+        event = calendar.createEvent('Celia Kids | ' + record.visitType + ' | ' + record.reference, start, end, { description: 'مرجع إداري: ' + record.reference + '\nبيانات طبية: غير محفوظة.' });
+      } catch (createError) {
+        // A timeout may follow a successful create. Recover only an unambiguous,
+        // exactly matching event; the read-back and conflict check below still apply.
+        event = findCalendarEvent_(calendar, record.reference, record.day, record.time);
+        if (!event) throw createError;
+        logEvent_('warn', 'calendar_create_recovered', { code: 'EVENT_FOUND_AFTER_ERROR' });
+      } finally {
+        // A create error can be an ambiguous timeout after Calendar saved the event.
+        invalidateSlotCacheFor_(record.day);
+      }
+    }
+    const eventId = String(event && event.getId() || '');
+    const savedEvent = eventId ? calendar.getEventById(eventId) : null;
+    if (!savedEvent || String(savedEvent.getId() || '') !== eventId ||
+        !calendarEventHasReference_(savedEvent, record.reference) ||
+        savedEvent.getStartTime().getTime() !== start.getTime() || savedEvent.getEndTime().getTime() !== end.getTime()) {
+      logEvent_('warn', 'calendar_verification_failed', { code: 'EVENT_NOT_VERIFIED' });
+      return { ok: false, message: 'تعذر التحقق من حدث التقويم؛ لم يُؤكّد الطلب. راجعوا التقويم ثم أعيدوا المحاولة.' };
+    }
+    if (!isSlotAvailable_(record.day, record.time, duration, eventId)) {
+      return { ok: false, message: 'تعارض وقت الموعد أثناء الحفظ؛ لم يُؤكّد الطلب. راجعوا التقويم.' };
+    }
     const oldStatus = record.status;
-    record.eventId = event.getId();
+    record.eventId = eventId;
     record.status = 'CONFIRMED';
     record.updatedAt = new Date().toISOString();
     updateRequestRow_(located.row, record);
@@ -1292,11 +1318,16 @@ function findRequestLocation_(reference) {
   return null;
 }
 function updateRequestRow_(row, record) { requestsSheet_().getRange(row, 1, 1, CK.REQUEST_HEADERS.length).setValues([requestToRow_(record)]); }
+function calendarEventHasReference_(event, reference) {
+  const marker = 'مرجع إداري: ' + String(reference);
+  return String(event.getDescription() || '').split(/\r?\n/).some((line) => line.trim() === marker);
+}
 function findCalendarEvent_(calendar, reference, day, time) {
   const start = makeDate_(day, time); const end = new Date(start.getTime() + visitDurationFromRef_(reference) * 60000);
   const events = calendar.getEvents(new Date(start.getTime() - 60 * 60000), new Date(end.getTime() + 60 * 60000));
-  const marker = 'مرجع إداري: ' + reference;
-  return events.find((event) => String(event.getDescription() || '').indexOf(marker) !== -1) || null;
+  const matches = events.filter((event) => calendarEventHasReference_(event, reference));
+  if (matches.length > 1) throw new Error('توجد أحداث متعددة بهذا المرجع؛ راجعوا التقويم قبل الموافقة.');
+  return matches[0] || null;
 }
 function visitDurationFromRef_(reference) { const record = findRequest_(reference); return record ? visitDuration_(record.visitType) : getConfig_().duration; }
 function appendAudit_(reference, actor, action, fromStatus, toStatus, details) {
