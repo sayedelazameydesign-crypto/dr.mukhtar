@@ -81,7 +81,8 @@ function whatsappStatus() {
     mode: mode,
     graphVersion: whatsappGraphVersion_(props),
     configured: configured,
-    // Live sending is deliberately unreachable until the Zero-Card decision is reversed.
+    // This is a configuration check, not proof of consent, policy compliance or delivery.
+    // The live branch is technically reachable if both properties and mode are configured.
     canSendLive: mode === 'live' && configured,
     problems: problems
   };
@@ -232,7 +233,8 @@ function whatsappSend_(kind, record) {
     return { sent: false, mode: mode, reason: 'dry-run', dryRun: true, target: target, local: plan.local, url: plan.url, body: plan.body };
   }
 
-  // live — unreachable while the Zero-Card decision holds; kept correct so the switch is one line.
+  // This branch can send if live mode and credentials are configured. It is not yet
+  // a complete consent/template policy and must not be enabled without separate approval.
   const token = String(props.getProperty(WHATSAPP.TOKEN_PROPERTY) || '').trim();
   const phoneId = String(props.getProperty(WHATSAPP.PHONE_ID_PROPERTY) || '').trim();
   if (!token || !phoneId) throw whatsappError_('WHATSAPP_NOT_CONFIGURED', 'الوضع live بلا WHATSAPP_TOKEN أو WHATSAPP_PHONE_NUMBER_ID.');
