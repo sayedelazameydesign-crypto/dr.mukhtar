@@ -31,7 +31,10 @@ const LLM = {
       id: 'gemini',
       keyProperty: 'GEMINI_API_KEY',
       modelProperty: 'GEMINI_MODEL',
-      defaultModel: 'gemini-2.5-flash',
+      // Documented as Stable and free-tier (verified 2026-11-06 on Google's model page,
+      // not inferred from a changelog). The quota itself is per project and model and
+      // changes without notice — no number here is a guarantee; check AI Studio.
+      defaultModel: 'gemini-3.5-flash-lite',
       timeoutProperty: 'GEMINI_TIMEOUT_MS',
       buildRequest: function (model, prompt, maxTokens) {
         return {
@@ -53,6 +56,11 @@ const LLM = {
       }
     }
   },
+  // Shape, not an allowlist. Google adds and retires model ids faster than this file is
+  // edited, so an id nobody here has seen must still work; what must never reach the
+  // network is a malformed one — a pasted URL, a missing version, a stray slash — because
+  // the provider answers it with a 404 in the middle of a receptionist's question.
+  MODEL_PATTERN: /^gemini-[0-9]+(\.[0-9]+)?(-[a-z0-9]+)*$/,
   SYSTEM_PROMPT: 'أنت مساعد إداري لعيادة أطفال، لا تقدم أي تشخيص أو علاج أو نصيحة صحية أو طبية. ' +
     'أجب فقط عن إجراءات الحجز، حالة الطلب، ساعات العمل المذكورة في السؤال، والتواصل الإداري. ' +
     'لا تطلب بيانات شخصية أو صحية. إذا سئلت عن أعراض أو دواء أو حالة عاجلة، ارفض الإرشاد الطبي ' +
@@ -63,6 +71,7 @@ const LLM = {
 /** Typed errors so callers can map codes to UI messages without leaking internals. */
 const LLM_ERRORS = {
   DISABLED: 'DISABLED',
+  INVALID_MODEL: 'INVALID_MODEL',
   BUDGET: 'BUDGET',
   CIRCUIT_OPEN: 'CIRCUIT_OPEN',
   INVALID_INPUT: 'INVALID_INPUT',
@@ -111,15 +120,28 @@ function llmConfig_() {
   };
 }
 
+/** '' when the id is usable, otherwise a short reason. Never echoes a key, never the prompt. */
+function llmModelProblem_(model) {
+  const value = String(model == null ? '' : model).trim();
+  if (!value) return 'empty';
+  if (value.length > 64) return 'too_long';
+  if (!LLM.MODEL_PATTERN.test(value)) return 'malformed';
+  return '';
+}
+
 function llmProviderConfig_(id) {
   const provider = LLM.PROVIDERS[id];
   if (!provider) return null;
   const props = llmProperties_();
   const key = props.getProperty(provider.keyProperty);
   if (!key) return null;
-  const model = props.getProperty(provider.modelProperty) || provider.defaultModel;
+  // A property holding only spaces is truthy to JavaScript, so it used to skip the
+  // default and arrive at the adapter as an id that then failed as malformed. Blank
+  // means unset; padding around a real id is normalised rather than rejected.
+  const configuredModel = String(props.getProperty(provider.modelProperty) || '').trim();
+  const model = configuredModel || provider.defaultModel;
   const timeoutMs = llmNumber_(props.getProperty(provider.timeoutProperty), llmConfig_().timeoutMs, 2000, 60000);
-  return { provider: provider, id: id, model: model, timeoutMs: timeoutMs, key: key };
+  return { provider: provider, id: id, model: model, timeoutMs: timeoutMs, key: key, modelProblem: llmModelProblem_(model) };
 }
 
 /** Structured log line: identifiers and codes only — never prompt text. */
@@ -335,6 +357,14 @@ function llmAnswer_(input) {
   let code = LLM_ERRORS.DISABLED;
   for (let i = 0; i < providers.length; i += 1) {
     const cfg = providers[i];
+    if (cfg.modelProblem) {
+      // Fail before the request: a 404 from the provider is indistinguishable, to a
+      // receptionist, from "the assistant is down", and the fix (a Script Property) is
+      // not discoverable from there.
+      code = LLM_ERRORS.INVALID_MODEL;
+      llmLog_('warn', 'model_rejected', { provider: cfg.id, model: cfg.model, reason: cfg.modelProblem });
+      continue;
+    }
     if (llmCircuitOpen_(cfg.id)) { code = LLM_ERRORS.CIRCUIT_OPEN; continue; }
     const budget = llmBudgetReserve_(cfg.id);
     if (!budget.ok) { code = LLM_ERRORS.BUDGET; llmLog_('warn', 'budget_exhausted', { provider: cfg.id, limit: budget.limit }); continue; }
@@ -368,6 +398,9 @@ function llmStatus() {
     enabled: limits.chain.some(function (id) { return !!llmProviderConfig_(id); }),
     chain: limits.chain,
     model: limits.chain.map(function (id) { return (llmProviderConfig_(id) || {}).model || null; }).filter(Boolean),
+    // Shape only. This answers "could this id be sent?", never "did Google accept it?" —
+    // a well-formed id for a retired model still 404s, and only the live probe can tell.
+    modelIdFormatValid: limits.chain.map(llmProviderConfig_).filter(Boolean).every(function (cfg) { return !cfg.modelProblem; }),
     dailyLimit: limits.dailyLimit,
     usedToday: Number(props.getProperty('LLM_BUDGET_COUNT_' + limits.chain[0]) || 0),
     circuitOpen: limits.chain.some(llmCircuitOpen_)

@@ -1050,7 +1050,17 @@ function validateConfig() {
   checks.push({ id: 'calendar', ok: calendarOk, detail: calendarDetail });
 
   const llm = llmStatus();
-  checks.push({ id: 'llm_optional', ok: true, detail: llm.enabled ? 'مفعّل (اختياري)' : 'غير مفعّل (اختياري)' });
+  // The assistant stays optional: a bad model id must be visible here, and must not
+  // stop the clinic from booking. `ok` is still excluded from the overall verdict below.
+  checks.push({
+    id: 'llm_optional',
+    ok: llm.enabled ? llm.modelIdFormatValid : true,
+    detail: !llm.enabled
+      ? 'غير مفعّل (اختياري)'
+      : (llm.modelIdFormatValid
+        ? 'مفعّل (اختياري) — الصيغة سليمة؛ التشغيل الفعلي لا يُثبته إلا فحص حي'
+        : 'مفعّل لكن صيغة معرّف النموذج غير صالحة — راجعوا GEMINI_MODEL (اختياري)')
+  });
 
   return {
     ok: checks.filter((check) => check.id !== 'llm_optional').every((check) => check.ok),

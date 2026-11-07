@@ -49,7 +49,7 @@
 
 13. أنشئ مفتاح Gemini من <https://aistudio.google.com/apikey> (بلا بطاقة).
 14. ضعه في **Script Properties** باسم `GEMINI_API_KEY`.
-15. **النتيجة المتوقعة:** `validateConfig()` يُظهر الفحص `llm_optional` بنصّ **«مفعّل (اختياري)»** (وكان قبل المفتاح «غير مفعّل (اختياري)»)، و`llmStatus()` يعيد `enabled: true` و`model: ["gemini-2.5-flash"]` و`dailyLimit: 25` — **ولا تطبع القيمة نفسها أبدًا**.
+15. **النتيجة المتوقعة:** `validateConfig()` يُظهر الفحص `llm_optional` بنصّ **«مفعّل (اختياري)»** (وكان قبل المفتاح «غير مفعّل (اختياري)»)، و`llmStatus()` يعيد `enabled: true` و`model: ["gemini-3.5-flash-lite"]` و`dailyLimit: 25` — **ولا تطبع القيمة نفسها أبدًا**.
     (لا توجد دالة باسم `getConfigStatus()` في هذا المستودع؛ كان هذا خطأ في الوثيقة صُحّح ٢٠٢٦-١١-٠٦.)
 16. **الدليل المطلوب:** كلمة واحدة: «مضبوط» + تاريخ. (لا القيمة.)
 

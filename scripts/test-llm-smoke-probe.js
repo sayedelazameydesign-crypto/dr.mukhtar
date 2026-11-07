@@ -103,7 +103,7 @@ const run = (env, plan, timeoutMs) => probe.probe_({ env: env, fetchImpl: fakeFe
     const verdict = await probe.probe_({ env: { LLM_SMOKE_ENABLED: 'true', GEMINI_API_KEY: 'secret-key-value' }, fetchImpl: fetchImpl });
     check('a real answer passes and reports the model', () => {
       assert.equal(verdict.status, 'ok');
-      assert.equal(verdict.details.model, 'gemini-2.5-flash');
+      assert.equal(verdict.details.model, 'gemini-3.5-flash-lite');
       assert.equal(verdict.details.prompt_tokens, 21);
       assert.equal(verdict.details.output_tokens, 9);
     });

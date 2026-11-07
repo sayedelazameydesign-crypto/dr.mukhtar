@@ -29,7 +29,7 @@
       "title": "المفتاح السرّي (بلا بطاقة)",
       "closes": [],
       "steps": [
-        { "id": "S2.1", "action": "أنشئ مفتاح Gemini وضعه في Script Properties باسم GEMINI_API_KEY", "expected": "validateConfig() ← الفحص llm_optional.detail = «مفعّل (اختياري)» · llmStatus().enabled = true · model = [gemini-2.5-flash] · dailyLimit = 25", "evidence": "" }
+        { "id": "S2.1", "action": "أنشئ مفتاح Gemini وضعه في Script Properties باسم GEMINI_API_KEY", "expected": "validateConfig() ← الفحص llm_optional.detail = «مفعّل (اختياري)» · llmStatus().enabled = true · model = [gemini-3.5-flash-lite] · dailyLimit = 25", "evidence": "" }
       ]
     },
     {

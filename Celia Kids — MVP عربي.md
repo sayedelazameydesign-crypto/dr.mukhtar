@@ -50,7 +50,7 @@ node scripts/test-ui-smoke.js   # يتطلب: npm ci
    - `WORK_DAYS`: أرقام أيام الأسبوع مفصولة بفواصل، حيث الأحد `0` والاثنين `1` … السبت `6`. القيمة الافتراضية `0,1,2,3,4`.
    - `CALENDAR_ID`: اختياري إن أردت تقويمًا موجودًا.
    - `GEMINI_API_KEY`: اختياري؛ أضف مفتاحك في Script Properties فقط، لا في ملفات الواجهة أو المستودع. يمكنك حذف الخاصية لتعطيل Gemini دون تعطيل الحجز.
-   - `GEMINI_MODEL`: اختياري؛ الافتراضي `gemini-2.5-flash`. الحدود والأسماء تُقرأ من الإعداد فقط.
+   - `GEMINI_MODEL`: اختياري؛ الافتراضي `gemini-3.5-flash-lite`. الحدود والأسماء تُقرأ من الإعداد فقط.
    - `LLM_CHAIN`, `LLM_DAILY_LIMIT`, `LLM_HOURLY_LIMIT`, `LLM_RETRIES`, `LLM_TIMEOUT_MS`,
      `LLM_CIRCUIT_FAILS`, `LLM_COOLDOWN_S`, `LLM_CACHE_TTL_SEC`: اختيارية، والقيم الافتراضية موثقة في
      `config/clinic.example.json`. `GEMINI_DAILY_LIMIT` يبقى مدعومًا كاسم بديل.

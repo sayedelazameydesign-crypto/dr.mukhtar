@@ -287,7 +287,7 @@ async function geminiTransport({ prompt, apiKey, model, fetchImpl, timeoutMs }) 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs || 45000);
   try {
-    const response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || 'gemini-2.5-flash')}:generateContent`, {
+    const response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || 'gemini-3.5-flash-lite')}:generateContent`, {
       method: 'POST',
       signal: controller.signal,
       headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
@@ -495,7 +495,7 @@ async function main(argv) {
   const result = await analyse({
     report: report,
     apiKey: apiKey,
-    model: process.env.LLM_MODEL || 'gemini-2.5-flash',
+    model: process.env.LLM_MODEL || 'gemini-3.5-flash-lite',
     fetchImpl: globalThis.fetch,
     transport: apiKey ? geminiTransport : null
   });
