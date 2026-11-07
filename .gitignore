@@ -28,3 +28,7 @@ config/google.profile.*.json
 test-results/
 playwright-report/
 .lighthouseci/
+
+# clasp local state (never commit auth or project binding)
+.clasp.json
+.clasprc.json
