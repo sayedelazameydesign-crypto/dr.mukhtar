@@ -4,7 +4,7 @@
   "version": "1.4.2",
   "description": "Reproducible dev-only test dependencies (no runtime dependency: the app runs on Google Apps Script)",
   "scripts": {
-    "test": "node scripts/test-privacy-health.js && node scripts/test-gas-simulated.js && node scripts/test-ui-smoke.js",
+    "test": "node scripts/test-privacy-health.js && node scripts/test-gas-simulated.js && node scripts/test-operational-slot-model.js && node scripts/test-cairo-slot-model.js && node scripts/test-operational-slot-faults.js && node scripts/test-trial-ledger-model.js && node scripts/test-path-refinement-model.js && node scripts/test-trial-reconciliation-model.js && node scripts/test-path-parity-inventory.js && node scripts/test-ui-smoke.js",
     "gates": "node scripts/check-workflows.js && node scripts/check-script-syntax.js && node scripts/check-audit-doc.js && node scripts/check-gap-docs.js && node scripts/scan-secrets.js",
     "readiness": "node scripts/readiness-report.js --offline --require-jsdom",
     "evidence": "node scripts/build-evidence-page.js",
