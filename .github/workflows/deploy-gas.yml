@@ -35,6 +35,16 @@ jobs:
       - name: Build the Apps Script bundle
         run: python3 scripts/build-gas-package.py
 
+      - name: Sanity-check the bundle before it can reach the clinic
+        run: |
+          test -s gas/Index.html || { echo '::error::gas/Index.html is missing or empty'; exit 1; }
+          test -s gas/appsscript.json || { echo '::error::gas/appsscript.json is missing'; exit 1; }
+          for marker in 'id="bookingForm"' 'id="trackForm"' 'id="staffDashboard"' 'quiet-tools'; do
+            grep -q -- "$marker" gas/Index.html || { echo "::error::the bundle lost $marker — refusing to publish"; exit 1; }
+          done
+          echo "Bundle verified: booking form, tracking, staff board and quiet tools are all present."
+          du -sh gas | awk '{print "Bundle size: " $1}'
+
       - name: Set up Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -46,7 +56,7 @@ jobs:
           GAS_DEPLOYMENT_ID: ${{ vars.GAS_DEPLOYMENT_ID }}
         run: |
           if [ -z "$GAS_SCRIPT_ID" ]; then
-            echo '::error::Add repository variable GAS_SCRIPT_ID. It is the Script ID in Project Settings (starts with 1 or AKfycb, but it is NOT the id inside the /exec URL).'
+            echo '::error::Add repository variable GAS_SCRIPT_ID. Copy it from Apps Script -> Project Settings -> Script ID. The id inside the /exec URL is a deployment id, not this value.'
             exit 1
           fi
           if [ -z "$GAS_DEPLOYMENT_ID" ]; then
@@ -71,6 +81,23 @@ jobs:
         env:
           GAS_SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}
         run: printf '{"scriptId":"%s","rootDir":"gas"}\n' "$GAS_SCRIPT_ID" > .clasp.json
+
+      - name: Preflight — resolve the project and the target deployment
+        env:
+          GAS_DEPLOYMENT_ID: ${{ vars.GAS_DEPLOYMENT_ID }}
+        run: |
+          set -o pipefail
+          OUT=$(npx --yes @google/clasp@2.4.2 deployments 2>&1) || {
+            echo '::error::clasp could not list deployments. The credentials or the Script ID are wrong; nothing was pushed.'
+            printf '%s\n' "$OUT" | sed -E 's/(access_token|refresh_token|id_token)[^,]*/\1=[redacted]/g' | head -20
+            exit 1
+          }
+          printf '%s\n' "$OUT"
+          printf '%s' "$OUT" | grep -q "$GAS_DEPLOYMENT_ID" || {
+            echo '::error::That deployment id does not belong to this project. Fix GAS_DEPLOYMENT_ID; nothing was pushed.'
+            exit 1
+          }
+          echo 'Target deployment confirmed on the declared project.'
 
       - name: Push gas/ to the project
         run: npx --yes @google/clasp@2.4.2 push --force

@@ -336,10 +336,24 @@ python3 scripts/build-gas-package.py     # حزمة النشر بعد أي تع�
 npx @google/clasp login
 ```
 
-**٢) اربط المجلد بالمشروع المنشور** (المعرّف مأخوذ من رابط النشر الحالي، وهو ليس سرًّا لكن لا داعي لرفعه):
+**٢) اربط المجلد بالمشروع المنشور.** تحذير: **المعرّفان مختلفان**، ولا يجوز استخدام معرّف رابط `/exec` هنا.
+
+| الحقل | من أين تأخذه | أين يُستخدم |
+| --- | --- | --- |
+| `scriptId` | Apps Script ← Project Settings ← **Script ID** | ربط المجلد، و`clasp push` |
+| معرّف النشر | الجزء الواقع بين `/macros/s/` و`/exec` في رابط العيادة | `--deploymentId` فقط |
+
 ```bash
-printf '{"scriptId":"AKfycbyfKIBnHeUVWn-HiV2RR80OOnjF-bs2Q_Z6LOmVdTarsJ64QZ52RdhDJU8ZiZ5X6XLm","rootDir":"gas"}\n' > .clasp.json
+# ضع قيمة Script ID التي نسختها من Project Settings
+printf '{"scriptId":"%s","rootDir":"gas"}\n' "<Script ID>" > .clasp.json
 ```
+
+ثم تحقّق أن الاعتماد والمشروع والنشر المستهدف الثلاثة سليمة **قبل** أي دفع:
+```bash
+npx @google/clasp deployments
+```
+يجب أن يظهر في المخرجات معرّف النشر نفسه الموجود في رابط العيادة. إن ظهر خطأ في الاعتماد
+أو لم يظهر المعرّف، توقّف: لا شيء تغيّر بعد، وأصلح `scriptId` أو الاعتماد أولًا.
 
 **٣) ابنِ ثم ادفع النسخة الجديدة:**
 ```bash
