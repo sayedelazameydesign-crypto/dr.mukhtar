@@ -3,8 +3,8 @@
 
 /**
  * The readiness check compares docs/production-readiness.md against a fresh run. Two honest
- * runs differ in one way that is not a fact about the repository: whether the machine could
- * reach the published site (the "الشبكة" row and site.up's detail cell). Before the fix, a
+ * runs can differ in the measurement date or whether the machine could reach the published
+ * site (the "الشبكة" row and site.up's detail cell). Before the fix, a
  * document generated with --offline failed the check on a laptop with network, and vice versa
  * — a false "stale" that teaches people to regenerate the file instead of reading it.
  *
@@ -66,6 +66,13 @@ const networked = variant('networked', (text) => text
 const networkedRun = run(networked, ['--offline']);
 check('a document that only differs by network wording is not called stale',
   networkedRun.status === 0, `${networkedRun.stdout}${networkedRun.stderr}`.slice(0, 300));
+
+// A measurement remains historically dated; a later check must not fail just
+// because the calendar day changed. Invalid dates must not be normalized away.
+const earlierDate = variant('earlier-date', (text) => text.replace(/\| تاريخ القياس \| \d{4}-\d{2}-\d{2} \|/, '| تاريخ القياس | 2000-01-01 |'));
+check('a different valid measurement day alone does not fail', run(earlierDate, ['--offline']).status === 0);
+const invalidDate = variant('invalid-date', (text) => text.replace(/\| تاريخ القياس \| \d{4}-\d{2}-\d{2} \|/, '| تاريخ القياس | 2026-02-30 |'));
+check('an invalid measurement day still fails', run(invalidDate, ['--offline']).status === 1);
 
 // 2 — negative: a changed count still fails.
 const wrongCount = variant('wrong-count', (text) => text.replace(/(\| جاهز \| \*\*)(\d+)(\*\* \|)/,
