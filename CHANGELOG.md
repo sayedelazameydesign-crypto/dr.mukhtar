@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.4.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.3.0...celia-kids-clinic-v1.4.0) (2026-11-07)
+
+
+### Features
+
+* **ai:** default to the documented free-tier Gemini 3.5 Flash-Lite, and refuse a bad model id before the network ([0122025](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/0122025cd4e16c9445f18469af856f838f710faa))
+* **ai:** default to the documented free-tier Gemini 3.5 Flash-Lite, and refuse a bad model id before the network ([1e26d6c](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/1e26d6c3153805fb58241d135059b004909a4c3e))
+* **auth:** staff roles and sessions replace the single shared PIN ([b585117](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/b5851172580e56bcee3de4aeb4ced1850f429dae))
+* **auth:** staff roles and sessions replace the single shared PIN ([46bdcb6](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/46bdcb6f1effbe9043a07704745c97c30a8ab2a4))
+* **clinic:** publish the clinic's real number, and fix wa.me to use it ([23d0b30](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/23d0b307f05d0acfe162a42480deb398fa22c0d4))
+* **clinic:** publish the developer's support line, labelled as not the clinic ([ed4408d](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/ed4408dbd1a407a29ef4b21c46f6a1622790539e))
+* **pwa:** installable shell with real PNG icons and a gate that can fail ([b68b6c1](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/b68b6c11de3c55cf12ab8d0304e7e43ad146ef05))
+
+
+### Bug Fixes
+
+* **ai:** a blank model property is unset, and prove the assistant cannot redden the clinic ([9682803](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/96828030b45bea6dd2dac58a168574b09a39b325))
+* **clinic:** stop publishing the developer's phone as the clinic's ([75d52d3](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/75d52d32236bdbbfc2afa33cf562a9ff02c728bc))
+* **deploy:** pin the web app's access in the manifest, and fail if it drifts ([66de59c](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/66de59ca4912d18a216cfc5a8993dac68522f8de))
+* **gates:** read Staff.gs in the scope and public-bundle checks ([782bea1](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/782bea1bc3c9fef9565a1c8d7aa7261dc9b6fbd0))
+
 ## [1.3.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.2.0...celia-kids-clinic-v1.3.0) (2026-11-06)
 
 
