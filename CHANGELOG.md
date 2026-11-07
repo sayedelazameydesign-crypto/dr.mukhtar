@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.6.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.5.1...celia-kids-clinic-v1.6.0) (2026-11-07)
+
+
+### Features
+
+* **deploy:** free one-click Apps Script publishing workflow, with its declared identifiers ([123ca56](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/123ca56bcd74c1d0c1dcfc9a6e16121b56d1e723))
+* **ui:** 2026 surface polish; docs(deploy): free clasp path to publish the new bundle ([3ef385e](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/3ef385e3ab65683acda140b24add1117af224edf))
+* **ui:** keep the booking path uninterrupted and tuck admin tools behind one tap ([2025255](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/20252551bdcb6ad2c16e6cddbc6a732723f9667f))
+* **ui:** shorten the hero, compact the steps, and fold secondary panels for parents and staff ([be4b83c](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/be4b83ca5748be8e4373b73c7492157e15608e30))
+
+
+### Bug Fixes
+
+* **deploy:** correct the manual scriptId guidance, verify the bundle and the target deployment before pushing ([771caa3](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/771caa313ed40b6a3ccfa876f8cd25cddd45d132))
+* **deploy:** fall back to Node 20 and spell out which id belongs in which variable ([164d45b](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/164d45b4c012c4e44d68ca21485894838e4e23b1))
+
 ## [1.5.1](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.5.0...celia-kids-clinic-v1.5.1) (2026-11-07)
 
 
