@@ -1387,6 +1387,49 @@
       "lang": "env",
       "layer": "infra",
       "role": "live web-app deployment identifier"
+    },
+    {
+      "id": "scripts.check-agent-protocol",
+      "kind": "script",
+      "path": "scripts/check-agent-protocol.js",
+      "lang": "javascript",
+      "layer": "verify",
+      "role": "Protocol gate: protocol docs + error register intact"
+    },
+    {
+      "id": "doc.operating-protocol",
+      "kind": "doc",
+      "path": "docs/OPERATING-PROTOCOL.md",
+      "layer": "docs",
+      "role": "Six-phase agent workflow and task contract"
+    },
+    {
+      "id": "doc.quality-gates",
+      "kind": "doc",
+      "path": "docs/QUALITY-GATES.md",
+      "layer": "docs",
+      "role": "Gates mapped to real commands and evidence"
+    },
+    {
+      "id": "doc.error-register",
+      "kind": "doc",
+      "path": "docs/ERROR-REGISTER.md",
+      "layer": "docs",
+      "role": "Incidents with root cause and regression"
+    },
+    {
+      "id": "doc.acceptance-criteria",
+      "kind": "doc",
+      "path": "docs/ACCEPTANCE-CRITERIA.md",
+      "layer": "docs",
+      "role": "Definition of done; points at PRD criteria"
+    },
+    {
+      "id": "doc.decisions",
+      "kind": "doc",
+      "path": "docs/DECISIONS.md",
+      "layer": "docs",
+      "role": "Binding decisions index and invariants"
     }
   ],
   "edges": [
@@ -3189,6 +3232,13 @@
       "covers": "ui.index + ui.app-js + staff board (browser)",
       "evidence": "e2e/clinic.spec.mjs:60",
       "status": "runs in CI on PR (Chromium); not executed in the authoring sandbox"
+    },
+    {
+      "id": "test.agent-protocol",
+      "path": "scripts/check-agent-protocol.js",
+      "covers": "doc.operating-protocol + doc.quality-gates + doc.error-register + doc.acceptance-criteria + doc.decisions + AGENTS.md wiring",
+      "evidence": "scripts/check-agent-protocol.js:156",
+      "status": "pass (self-test fixture fails loudly; live run exit 0)"
     }
   ],
   "commands": [

@@ -76,6 +76,14 @@ jobs:
           node scripts/test-gap-docs.js
           node scripts/check-gap-docs.js
 
+      # The protocol documents are the workflow every agent is held to; this proves they exist,
+      # keep their anchors, stay linked from AGENTS.md, and the error register keeps regression
+      # references — and that the gate itself can fail.
+      - name: Agent operating protocol (docs, wiring, error register)
+        run: |
+          node scripts/check-agent-protocol.js --self-test
+          node scripts/check-agent-protocol.js
+
 
       - name: actionlint (pinned; the runner image does not ship it)
         env:

@@ -12,13 +12,13 @@
 
 | # | المقياس | القيمة (2026-11-06) | كيف تعيد قياسه |
 |---|-----------|---------------------|----------------|
-| 1 | حجم الموقع الثابت كاملًا (`_site` المسموح) | 611,818 بايت | `du -sb index.html privacy.html app.css app.js 404.html manifest.webmanifest robots.txt sitemap.xml clinic.json brand.svg assets` |
+| 1 | حجم الموقع الثابت كاملًا (`_site` المسموح) | 616,985 بايت | `du -sb index.html privacy.html app.css app.js 404.html manifest.webmanifest robots.txt sitemap.xml clinic.json brand.svg assets` |
 | 2 | `app.js` (واجهة كاملة، بلا bundler) | 122,266 بايت | `wc -c app.js` |
-| 3 | ملفات التوثيق تحت `docs/` | 45 ملف · 627,044 بايت | `find docs -name '*.md' | wc -l` |
+| 3 | ملفات التوثيق تحت `docs/` | 51 ملف · 945,056 بايت | `find docs -name '*.md' | wc -l` |
 | 4 | ملفات الفحص تحت `scripts/` | 33 ملف `test-*.js` | `ls scripts/test-*.js | wc -l` |
-| 5 | مسارات CI (سير العمل) | 13 ملف `.yml` — كلها SHA-pinned | `ls .github/workflows/*.yml | wc -l` |
+| 5 | مسارات CI (سير العمل) | 14 ملف `.yml` — كلها SHA-pinned | `ls .github/workflows/*.yml | wc -l` |
 | 6 | فجوات موثقة في السجل | 27 — محلولة 20 · مفتوحة 7 | `node scripts/readiness-report.js --offline` |
-| 7 | مكوّنات وعلاقات خريطة المعمارية | 154 مكوّن · 96 علاقة · 22 نقطة دخول | `node -e "const p=require('./docs/map/project.json');console.log(p.nodes.length,p.edges.length,p.entrypoints.length)"` |
+| 7 | مكوّنات وعلاقات خريطة المعمارية | 164 مكوّن · 97 علاقة · 22 نقطة دخول | `node -e "const p=require('./docs/map/project.json');console.log(p.nodes.length,p.edges.length,p.entrypoints.length)"` |
 | 8 | تهديدات STRIDE موثقة | 17 صف · 11 مُسيطر · 0 حرجة مفتوحة | `grep -cE '^\| T-' docs/audit/threat-model-2026-11.md` |
 | 9 | فحوص الخصوصية/الاحتفاظ | 24 فحصًا — تشغيل 2026-11-06 ✅ | `node scripts/test-privacy-health.js` |
 | 10 | محاكاة Apps Script (انقطاعات + منافسة قفل) | تمر — شاملة طابورَي الانقطاع ورفض الامتلاء | `node scripts/test-gas-simulated.js` |

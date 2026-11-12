@@ -120,8 +120,15 @@ docs/map/                   خريطة معمّرة: project.json + ARCHITECTURE
 docs/google-setup.md        جسر Google: خطوات المتصفح، البروفايل، تبديل الحساب، جدول الأعطال
 docs/publish.md             النشر على GitHub Pages: المساران، التحقق، ما لا يُنشر
 scripts/                    بوابات محلية: check-workflows · scan-secrets · check-config ·
-                            check-settings-parity · go-live-check · build-gas-package + اختباراتها
+                            check-settings-parity · go-live-check · build-gas-package ·
+                            check-agent-protocol + اختباراتها
 docs/production-readiness.md مصفوفة أدلة الجهوزية G1–G10 وحالة كل بوابة
+docs/OPERATING-PROTOCOL.md  بروتوكول الوكيل الإلزامي: الفهم → الفحص → التخطيط → التنفيذ → التحقق → التقرير
+docs/QUALITY-GATES.md       البوابات السبع مرتبطة بأوامر حقيقية + صيغة الدليل (محلي/CI/حساب حي)
+docs/ERROR-REGISTER.md      سجل الحوادث: الجذر والحماية ودليل الانحدار (REG-001…) — المفتوح في gaps.json
+docs/ACCEPTANCE-CRITERIA.md تعريف «المكتمل» العالمي لأي مهمة + قالب عقد المهمة (المنتجي في prd/acceptance.md)
+docs/DECISIONS.md           فهرس القرارات الملزمة (ADR 0001–0007 + الثوابت) وكيفية تغيير أي قرار
+AGENTS.md §7                قواعد الوكيل المختصرة — التنفيذ والتوثيق الكامل في الملفات أعلاه
 scripts/google/             gateway.js + profile/auth/bootstrap/selftest/migrate (المحوّل المحلي هو الافتراضي)
 config/google.profile.example.json  قالب البروفايل (بلا معرّفات ولا بريد) — الحقيقي مستبعَد من Git
 Code.gs                     خادم Google Apps Script
