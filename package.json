@@ -6,7 +6,7 @@
   "scripts": {
     "test": "node scripts/test-privacy-health.js && node scripts/test-gas-simulated.js && node scripts/test-operational-slot-model.js && node scripts/test-cairo-slot-model.js && node scripts/test-operational-slot-faults.js && node scripts/test-trial-ledger-model.js && node scripts/test-path-refinement-model.js && npm run test:safety-models && node scripts/test-path-parity-inventory.js && node scripts/test-ui-smoke.js",
     "test:safety-models": "node scripts/test-trial-reconciliation-model.js",
-    "gates": "node scripts/check-workflows.js && node scripts/check-script-syntax.js && node scripts/check-audit-doc.js && node scripts/check-gap-docs.js && node scripts/scan-secrets.js && npm run test:safety-models",
+    "gates": "node scripts/check-workflows.js && node scripts/check-script-syntax.js && node scripts/check-audit-doc.js && node scripts/check-gap-docs.js && node scripts/check-agent-protocol.js --self-test && node scripts/check-agent-protocol.js && node scripts/scan-secrets.js && npm run test:safety-models",
     "readiness": "node scripts/readiness-report.js --offline --require-jsdom",
     "evidence": "node scripts/build-evidence-page.js",
     "evidence:check": "node scripts/build-evidence-page.js --check",

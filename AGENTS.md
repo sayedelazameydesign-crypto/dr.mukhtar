@@ -123,6 +123,34 @@ New module, route, env name, table or provider → update the map in the same PR
 - [ ] `docs/free-tiers.json` + `docs/exit-plan.md` updated if a provider/limit changed
 - [ ] New secret/variable? → manifest + `.env.example` + workflow + `docs/secrets.md` in the same PR
 - [ ] `node scripts/check-workflows.js` and `node scripts/scan-secrets.js` pass
+- [ ] `node scripts/check-agent-protocol.js` passes (protocol docs linked and intact)
 - [ ] Workflow changes: every action pinned to a full commit SHA (comment the tag), `persist-credentials: false` on read-only checkouts, `zizmor --persona regular --min-confidence medium .` clean — the CI zizmor gate enforces this
 - [ ] README/TODO reflect the change; no TODO left without an issue
 - [ ] Demo mode never claims a real confirmation
+
+## 7. Operating protocol for agents
+
+The workflow every agent (human or AI) follows here — understand, inspect, plan, execute, verify,
+report — and the evidence rule behind it. One-line versions; the binding detail is in the files:
+
+| File | Role |
+| --- | --- |
+| `docs/OPERATING-PROTOCOL.md` | The six phases, transition gates, per-task contract, final-report template |
+| `docs/QUALITY-GATES.md` | Seven gates mapped to real commands; phase exit criteria; evidence format |
+| `docs/ERROR-REGISTER.md` | Real incidents + the protections and regression tests that closed them |
+| `docs/ACCEPTANCE-CRITERIA.md` | Universal definition of done + pointer to canonical `docs/prd/acceptance.md` |
+| `docs/DECISIONS.md` | Binding decisions index (ADRs 0001–0007 + invariants) and how to change one |
+
+Quick rules (the files are binding, not this list):
+
+1. No phase advances before its exit criteria pass — no evidence, no `VERIFIED`.
+2. Missing information or a failed gate → stop, name the blocker, propose the smallest safe
+   recovery; never invent a result or widen scope "until it works".
+3. Execution and verification are separate: the agent that changes the booking path is not the
+   one that declares it verified.
+4. `docs/map/gaps.json` tracks open incidents; `docs/ERROR-REGISTER.md` tracks closed ones with
+   regression evidence. Do not edit either to look greener.
+
+`node scripts/check-agent-protocol.js` (CI + `npm run gates`) fails when these documents go
+missing, lose their anchors, stop linking from this file, or when the register loses an entry
+without a regression reference.
