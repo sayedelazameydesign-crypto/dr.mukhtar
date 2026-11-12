@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.6.0...celia-kids-clinic-v1.7.0) (2026-11-12)
+
+
+### Features
+
+* agent operating protocol docs + protocol gate ([9db2780](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/9db2780f6e7c751feb5feba782fafc2508a380da))
+* بروتوكول عمل الوكلاء العالمي + بوابة البروتوكول ([d30adc7](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/commit/d30adc76a497cba4a063603bc3e994e193dca1b4))
+
 ## [1.6.0](https://github.com/sayedelazameydesign-crypto/dr.mukhtar/compare/celia-kids-clinic-v1.5.1...celia-kids-clinic-v1.6.0) (2026-11-07)
 
 
